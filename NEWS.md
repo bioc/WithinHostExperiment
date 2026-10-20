@@ -85,10 +85,12 @@
   with adapter exchange during pooled sequencing. Returns a
   structured DataFrame of suspect events with source/sink
   frequencies and run metadata.
-* GFF3 annotation: `annotateFromGFF()` overlaps variant sites with
-  gene models from a GFF3 file, adding `GFF_FEATURE` to
-  `mcols(rowRanges)` for use with `dndsWithinHost()`.
-  `annotateCodonChange()` extends this with CDS-aware codon
+* Gene annotation: `annotateGenes()` labels variant sites with the
+  genes they overlap, adding `GENE` to `mcols(rowRanges)`. Genes are
+  supplied as a `GRanges` (a GFF3 or GTF read with
+  `rtracklayer::import()`) or a `TxDb`, and the function stops, naming
+  both sets, when the sites and the genes share no sequence name.
+  `annotateCodonChange()` adds CDS-aware codon
   translation: given a GFF3 and reference FASTA, it determines
   the affected codon, translates both reference and alternative
   alleles using the standard genetic code, and classifies each

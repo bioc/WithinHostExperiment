@@ -502,22 +502,41 @@ nt <- calcNeutralityTests(whe_qc, genomeLength = 1000L)
 nt
 ```
 
-## GFF3 gene annotation
+## Gene annotation
 
-Annotate variant sites with gene names from a GFF3 file. This
-automates the positional overlap needed for `dndsWithinHost()`:
+`annotateGenes()` labels each variant site with the gene it falls
+in. It takes the genes as a `GRanges`, the object Bioconductor uses
+for genomic intervals, so any annotation that can be read into one
+will do. A GFF3 file is read with `rtracklayer::import()`, which
+returns every feature in the file with its type in a `type` column;
+the gene records are the subset with `type == "gene"`. Here a
+two-gene annotation for the test segment is written to a temporary
+file and imported:
 
-```{r gff-annotate}
+```{r gene-annotate}
 gff_file <- tempfile(fileext = ".gff3")
 writeLines(c(
     "##gff-version 3",
-    "test_segment\t.\tgene\t1\t500\t.\t+\t.\tName=geneA",
-    "test_segment\t.\tgene\t501\t1000\t.\t+\t.\tName=geneB"
+    "test_segment\t.\tgene\t1\t500\t.\t+\t.\tID=gene-A;Name=geneA",
+    "test_segment\t.\tgene\t501\t1000\t.\t+\t.\tID=gene-B;Name=geneB"
 ), gff_file)
-whe_ann <- annotateFromGFF(whe_qc, gff_file)
+features <- rtracklayer::import(gff_file)
+genes <- features[features$type == "gene"]
+whe_ann <- annotateGenes(whe_qc, genes, nameCol = "Name")
 table(S4Vectors::mcols(
-    SummarizedExperiment::rowRanges(whe_ann))$GFF_FEATURE)
+    SummarizedExperiment::rowRanges(whe_ann))$GENE, useNA = "ifany")
 ```
+
+The table counts variant sites per gene; a site outside every gene
+would be counted under `NA`. The label is taken from the column named
+by `nameCol`, here the GFF3 `Name` attribute. Before overlapping, the
+function compares the sequence names on the two sides and stops if
+they share none. The same reference is often named differently by
+different sources (for SARS-CoV-2, `NC_045512.2` in RefSeq and
+`MN908947.3` in GenBank), and an overlap across mismatched names would
+otherwise return `NA` for every site without any error. A `TxDb` can
+be passed in place of the `GRanges`; its genes are then taken with
+`GenomicFeatures::genes()`.
 
 For codon-aware annotation (amino acid changes), use
 `annotateCodonChange()` with a GFF3 and reference FASTA:

@@ -57,8 +57,9 @@ with tools such as ViralBottleneck.
     \code{\link{chao1ISNV}}
   }
   \item{Annotation}{
-    \code{\link{annotateFromGFF}} (positional gene annotation
-    from GFF3 files),
+    \code{\link{annotateGenes}} (labels each site with the genes
+    it overlaps, taking gene ranges as a \code{GRanges} or
+    \code{TxDb}),
     \code{\link{annotateCodonChange}} (CDS-aware codon
     translation and amino acid change prediction from GFF3 +
     reference FASTA)

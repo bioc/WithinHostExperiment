@@ -24,6 +24,7 @@ Imports:
     GenomicRanges,
     SummarizedExperiment,
     GenomeInfoDb,
+    GenomicFeatures,
     VariantAnnotation,
     stats,
     utils
@@ -34,7 +35,9 @@ Suggests:
     knitr,
     rmarkdown,
     BiocCheck,
-    covr
+    covr,
+    rtracklayer,
+    txdbmaker
 biocViews: Genetics, VariantAnnotation, Sequencing, GenomicVariation,
     QualityControl, VariantDetection, DataImport, LongRead
 URL: https://github.com/CuiweiG/WithinHostExperiment
@@ -50,7 +53,7 @@ Collate:
     'WithinHostExperiment-package.R'
     'adaptive-filter.R'
     'methods.R'
-    'annotate-gff.R'
+    'annotate-genes.R'
     'annotate-codon.R'
     'bridge.R'
     'bottleneck-exact.R'

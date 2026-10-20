@@ -131,3 +131,8 @@ setGeneric("flagISNV", function(x, filter = ISNVFilter(), ...)
 #' @rdname calcDiversity
 setGeneric("calcDiversity", function(x, ...)
     standardGeneric("calcDiversity"))
+
+#' @export
+#' @rdname annotateGenes
+setGeneric("annotateGenes", function(x, genes, ...)
+    standardGeneric("annotateGenes"))

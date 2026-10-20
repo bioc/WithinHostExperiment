@@ -47,7 +47,7 @@ All figures use real, publicly available data:
 |---------|-----------|------|
 | **Bendall *et al.* (2023)** *Nat. Commun.* 14:272 | 159 iSNVs, 83 samples, duplicate sequencing, 132 transmission pairs | QC, diversity, transmission, population genetics (Figs 1--3, 5--6) |
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: 9 daily saliva samples; the 6 that the study analysed (mean coverage of at least 1,000x; days 1, 2, 3, 4, 7, 8) are used | Longitudinal within-host evolution (Fig 4) |
-| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateFromGFF()` and the codon translation behind `dndsWithinHost()` (Figs 3b, 5b) |
+| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` and the codon translation behind `dndsWithinHost()` (Figs 3b, 5b) |
 
 All figures were generated with R version 4.6.1 by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
@@ -113,7 +113,8 @@ of the two replicates.
 > 188 sequenced samples (median 2,033x); the 83 samples that carry at
 > least one iSNV call, and that every other panel uses, are a subset of them.
 > **(b)** Concordant iSNV calls by gene, annotated with
-> `annotateFromGFF()` from the NCBI GFF3.
+> `annotateGenes()` from the gene records of the NCBI GFF3, read with
+> `rtracklayer::import()`.
 > **(c)** Pair HH17_K, the pair with the most concordant donor iSNVs
 > among those whose recipient carries calls of its own:
 > 3 of 3 donor iSNVs have no call in the recipient,

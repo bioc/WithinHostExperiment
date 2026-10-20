@@ -47,7 +47,7 @@ All figures use real, publicly available data:
 |---------|-----------|------|
 | **Bendall *et al.* (2023)** *Nat. Commun.* 14:272 | {{data::::iSNV calls::%d}} iSNVs, {{data::::samples::%d}} samples, duplicate sequencing, {{data::::transmission pairs in metadata::%d}} transmission pairs | QC, diversity, transmission, population genetics (Figs 1--3, 5--6) |
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: {{fig4::::saliva samples in the source data::%d}} daily saliva samples; the {{fig4::::samples analysed (mean coverage >= 1000x)::%d}} that the study analysed (mean coverage of at least 1,000x; days {{fig4::::days of infection analysed::%s}}) are used | Longitudinal within-host evolution (Fig 4) |
-| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateFromGFF()` and the codon translation behind `dndsWithinHost()` (Figs 3b, 5b) |
+| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` and the codon translation behind `dndsWithinHost()` (Figs 3b, 5b) |
 
 All figures were generated with {{session::::R version::%s}} by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
@@ -113,7 +113,8 @@ of the two replicates.
 > {{fig3::a::samples with depth::%d}} sequenced samples (median {{fig3::a::median mean read depth::comma}}x); the {{data::::samples::%d}} samples that carry at
 > least one iSNV call, and that every other panel uses, are a subset of them.
 > **(b)** Concordant iSNV calls by gene, annotated with
-> `annotateFromGFF()` from the NCBI GFF3.
+> `annotateGenes()` from the gene records of the NCBI GFF3, read with
+> `rtracklayer::import()`.
 > **(c)** Pair {{fig3::c::example pair::%s}}, the pair with the most concordant donor iSNVs
 > among those whose recipient carries calls of its own:
 > {{fig3::c::donor iSNVs not detected in the recipient::%d}} of {{fig3::c::donor iSNVs in the example pair::%d}} donor iSNVs have no call in the recipient,

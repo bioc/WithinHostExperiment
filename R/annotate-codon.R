@@ -1,7 +1,7 @@
 # R/annotate-codon.R
 # CDS-aware codon change annotation from GFF3 + reference FASTA
 
-#' @include annotate-gff.R
+#' @include annotate-genes.R
 #' @importFrom SummarizedExperiment rowRanges
 #' @importFrom GenomicRanges GRanges start findOverlaps
 #' @importFrom GenomeInfoDb seqnames

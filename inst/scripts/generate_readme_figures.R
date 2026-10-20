@@ -300,8 +300,12 @@ mcols(gr_conc)$alt <- concordant$ALT
 whe_conc <- WithinHostExperiment(
     assays = list(altFreq = matrix(concordant$ALT_FREQ_1, ncol = 1, dimnames = list(NULL, "pooled"))),
     rowRanges = gr_conc, colData = DataFrame(sample_id = "pooled"))
-whe_conc <- annotateFromGFF(whe_conc, gff_tmp)
-gene_of_site <- mcols(rowRanges(whe_conc))$GFF_FEATURE
+gff_features <- rtracklayer::import(inputs[["gff"]])
+gff_features <- GenomeInfoDb::renameSeqlevels(gff_features,
+    c("NC_045512.2" = SEQNAME))
+whe_conc <- annotateGenes(whe_conc,
+    gff_features[gff_features$type == "gene"], nameCol = "Name")
+gene_of_site <- mcols(rowRanges(whe_conc))$GENE
 gene_of_site[is.na(gene_of_site)] <- "intergenic"
 gene_table <- as.data.frame(table(Gene = gene_of_site), stringsAsFactors = FALSE)
 gene_table <- gene_table[order(gene_table$Freq, decreasing = TRUE), ]

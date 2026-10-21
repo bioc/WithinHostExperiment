@@ -538,26 +538,62 @@ otherwise return `NA` for every site without any error. A `TxDb` can
 be passed in place of the `GRanges`; its genes are then taken with
 `GenomicFeatures::genes()`.
 
-For codon-aware annotation (amino acid changes), use
-`annotateCodonChange()` with a GFF3 and reference FASTA:
+### Codon and amino acid changes
+
+A substitution inside a coding sequence either keeps the amino acid
+the codon encodes (a *synonymous* change) or alters it (a
+*nonsynonymous* change, or a *nonsense* change when it creates a stop
+codon). Telling these apart is the first step of any analysis of
+selection, because selection acts on proteins: purifying selection
+removes amino acid changes faster than silent ones.
+`annotateCodonChange()` classifies every single-nucleotide iSNV. It
+takes two Bioconductor objects: the coding sequences, as the CDS
+records of an annotation in a `GRanges`, and the reference genome as a
+`DNAStringSet`. A FASTA file is read into a `DNAStringSet` with
+`Biostrings::readDNAStringSet()`; a GFF3 file is read with
+`rtracklayer::import()`, and its CDS records are the rows with
+`type == "CDS"`. CDS records that share an `ID` are joined into one
+coding sequence, which is how GFF3 files describe a protein split
+across a ribosomal frameshift. The translation itself is done by
+`VariantAnnotation::predictCoding()`.
+
+Here the test segment is given one coding sequence covering its first
+999 bases, written as a GFF3 file and imported as a real annotation
+would be:
 
 ```{r codon-annotate}
 ref_fa <- system.file("extdata", "test_ref.fa",
     package = "WithinHostExperiment")
-if (file.exists(ref_fa)) {
-    gff_cds <- tempfile(fileext = ".gff3")
-    writeLines(c("##gff-version 3",
-        "test_segment\t.\tCDS\t1\t999\t.\t+\t0\tgene=testGene"),
-        gff_cds)
-    whe_codon <- annotateCodonChange(whe_qc, gff_cds, ref_fa)
-    mc <- S4Vectors::mcols(
-        SummarizedExperiment::rowRanges(whe_codon))
-    table(mc$AA_CLASS)
-}
+ref <- Biostrings::readDNAStringSet(ref_fa)
+ref
+gff_cds <- tempfile(fileext = ".gff3")
+writeLines(c("##gff-version 3",
+    "test_segment\t.\tCDS\t1\t999\t.\t+\t0\tID=cds-1;gene=testGene"),
+    gff_cds)
+cds <- rtracklayer::import(gff_cds)
+cds <- cds[cds$type == "CDS"]
+whe_codon <- annotateCodonChange(whe_qc, cds, ref)
+mc <- S4Vectors::mcols(SummarizedExperiment::rowRanges(whe_codon))
+table(mc$CONSEQUENCE, useNA = "ifany")
+head(as.data.frame(mc[, c("GENEID", "PROTEINLOC", "REFCODON",
+    "VARCODON", "REFAA", "VARAA", "CONSEQUENCE")]))
 ```
 
-For complex genomes with overlapping reading frames or
-non-standard codon usage, consider SnpEff or ANNOVAR upstream.
+The `DNAStringSet` printed first holds one sequence, named as in the
+FASTA header; that name has to match the sequence names of the
+variants and of the annotation, and the function stops, naming both
+sets, if they share none. The table counts the iSNVs in each class.
+Every site here falls inside the coding sequence, so none is `NA`;
+sites outside every coding sequence, insertions, deletions and codons
+holding an ambiguous base would be. In the per-site columns, `REFCODON` and `VARCODON` are the
+codon before and after the substitution, read on the coding
+sequence's own strand, `REFAA` and `VARAA` the amino acids they encode
+(`*` for a stop codon) and `PROTEINLOC` the codon's position in the
+protein. The test segment is synthetic, so the classes carry no
+biological meaning. Where coding sequences overlap, as ORF1a and
+ORF1ab do in SARS-CoV-2, a site lies in several of them; the longest
+is reported by default and `collapse = "all"` keeps every one (see
+`?annotateCodonChange`).
 
 ## Selection analysis
 
@@ -567,13 +603,11 @@ non-standard codon usage, consider SnpEff or ANNOVAR upstream.
 each by the synonymous and nonsynonymous sites of the coding
 sequences (Nei and Gojobori 1986) and applies the Jukes-Cantor
 correction. It uses the codon annotation from `annotateCodonChange()`
-together with the same GFF3 and reference FASTA:
+together with the same GFF3 file and reference FASTA:
 
 ```{r dnds}
-if (file.exists(ref_fa)) {
-    dnds <- dndsWithinHost(whe_codon, gff = gff_cds, refFasta = ref_fa)
-    dnds[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "dNdS")]
-}
+dnds <- dndsWithinHost(whe_codon, gff = gff_cds, refFasta = ref_fa)
+dnds[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "dNdS")]
 ```
 
 ### Selection coefficients from frequency trajectories

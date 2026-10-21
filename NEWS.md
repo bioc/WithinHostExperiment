@@ -90,16 +90,32 @@
   supplied as a `GRanges` (a GFF3 or GTF read with
   `rtracklayer::import()`) or a `TxDb`, and the function stops, naming
   both sets, when the sites and the genes share no sequence name.
-  `annotateCodonChange()` adds CDS-aware codon
-  translation: given a GFF3 and reference FASTA, it determines
-  the affected codon, translates both reference and alternative
-  alleles using the standard genetic code, and classifies each
-  SNV as Synonymous, Nonsynonymous, or Nonsense -- all in pure R
-  with no external annotation tools required.
+  `annotateCodonChange()` reports the codon and amino acid consequence
+  of each SNV. It takes the coding sequences as a `GRanges` of CDS
+  records, a `GRangesList` or a `TxDb`, and the reference sequence as a
+  `DNAStringSet`, and delegates the consequence call to
+  `VariantAnnotation::predictCoding()`, so the translation and the
+  consequence come from Bioconductor's own annotation machinery rather
+  than from a codon table carried in this package. It adds `TXNAME`,
+  `GENEID`, `CONSEQUENCE`, `CDSLOC`, `PROTEINLOC`, `REFCODON`,
+  `VARCODON`, `REFAA` and `VARAA` to `mcols(rowRanges)`; a site lying
+  in several overlapping coding sequences is resolved by the `collapse`
+  argument. Two classifications therefore follow `predictCoding()`:
+  losing a stop codon counts as nonsynonymous rather than nonsense, and
+  an alternative start codon (`CTG` or `TTG`) at the first base of a
+  coding sequence reads as `M`. A codon holding an ambiguous base is
+  left unannotated, with a warning, rather than translated.
 * Selection analysis: `dndsWithinHost()` estimates within-host dN/dS
   with the Nei-Gojobori counting method, normalising by the synonymous
   and nonsynonymous sites of the CDS features in a GFF3 and reference
-  FASTA, with Jukes-Cantor correction; `estimateSelectionCoefficient()`
+  FASTA, with Jukes-Cantor correction. Its amino acid columns now
+  default to the names `annotateCodonChange()` writes (`GENEID`,
+  `REFAA`, `VARAA`), so a call set annotated elsewhere -- an iVar table
+  carrying `GFF_FEATURE`, `REF_AA` and `ALT_AA`, for instance -- needs
+  those column names passed explicitly. It also warns, instead of
+  returning zero counts silently, when the gene labels of the
+  annotation and of the GFF3 do not meet, and requires the annotation
+  produced with `collapse = "longest"`. `estimateSelectionCoefficient()`
   for time-series selection coefficient inference.
 * Multi-caller consensus: `consensusISNV()` for deriving consensus
   variant calls across callers, `calcCallerConcordance()` for

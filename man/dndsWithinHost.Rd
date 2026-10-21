@@ -8,9 +8,9 @@ dndsWithinHost(
   whe,
   gff,
   refFasta,
-  gffFeatureCol = "GFF_FEATURE",
-  refAACol = "REF_AA",
-  altAACol = "ALT_AA",
+  gffFeatureCol = "GENEID",
+  refAACol = "REFAA",
+  altAACol = "VARAA",
   usePassedOnly = TRUE,
   nameCol = "gene"
 )
@@ -27,21 +27,24 @@ used for the annotation.}
 
 \item{gffFeatureCol}{Character scalar. Column name in
 \code{mcols(rowRanges)} containing the gene annotation
-(default: \code{"GFF_FEATURE"}).}
+(default: \code{"GENEID"}).}
 
 \item{refAACol}{Character scalar. Column name in
 \code{mcols(rowRanges)} for the reference amino acid
-(default: \code{"REF_AA"}).}
+(default: \code{"REFAA"}).}
 
 \item{altAACol}{Character scalar. Column name in
 \code{mcols(rowRanges)} for the alternative amino acid
-(default: \code{"ALT_AA"}).}
+(default: \code{"VARAA"}).}
 
 \item{usePassedOnly}{Logical. If \code{TRUE} (default), only use
 variants where \code{qcPass == TRUE}.}
 
 \item{nameCol}{Character scalar. GFF3 attribute holding the gene name
-(default: \code{"gene"}), as in \code{\link{annotateCodonChange}}.}
+(default: \code{"gene"}). It must name the same labels that
+\code{\link{annotateCodonChange}} wrote into \code{GENEID}
+(its \code{geneCol}); otherwise no iSNV is counted and the
+function warns.}
 }
 \value{
 A \code{DataFrame} with one row per sample and gene carrying
@@ -78,10 +81,11 @@ iSNVs are highly variable and should be read with their counts.
 \details{
 Each iSNV present in a sample (non-missing, non-zero frequency, and
 passing QC when \code{usePassedOnly = TRUE}) is counted once,
-irrespective of its frequency. Amino acid classes come from
-\code{\link{annotateCodonChange}}, which should be run with the same
-\code{gff} and \code{refFasta}. Variants outside a CDS, or without an
-amino acid annotation, are not counted. Nonsense changes count as
+irrespective of its frequency. Amino acid changes come from
+\code{\link{annotateCodonChange}}, which should be given the CDS
+records of the same \code{gff} and the sequence in \code{refFasta}.
+Variants outside a CDS, or without an amino acid annotation, are not
+counted. Nonsense changes count as
 nonsynonymous. Codons shared by overlapping CDS features of the same
 gene are counted once.
 }
@@ -99,8 +103,13 @@ whe <- WithinHostExperiment(
     assays = list(altFreq = matrix(c(0.1, 0.2), ncol = 1)),
     rowRanges = gr,
     colData = S4Vectors::DataFrame(sample_id = "S1"))
-whe <- annotateCodonChange(whe, gff, ref)
-dndsWithinHost(whe, gff = gff, refFasta = ref)
+if (requireNamespace("txdbmaker", quietly = TRUE)) {
+    cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+        strand = "+", ID = "cds-A", gene = "geneA")
+    whe <- annotateCodonChange(whe, cds,
+        Biostrings::readDNAStringSet(ref))
+    dndsWithinHost(whe, gff = gff, refFasta = ref)
+}
 }
 \references{
 Nei M, Gojobori T (1986). Simple methods for estimating the

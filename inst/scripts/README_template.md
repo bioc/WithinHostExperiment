@@ -47,7 +47,7 @@ All figures use real, publicly available data:
 |---------|-----------|------|
 | **Bendall *et al.* (2023)** *Nat. Commun.* 14:272 | {{data::::iSNV calls::%d}} iSNVs, {{data::::samples::%d}} samples, duplicate sequencing, {{data::::transmission pairs in metadata::%d}} transmission pairs | QC, diversity, transmission, population genetics (Figs 1--3, 5--6) |
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: {{fig4::::saliva samples in the source data::%d}} daily saliva samples; the {{fig4::::samples analysed (mean coverage >= 1000x)::%d}} that the study analysed (mean coverage of at least 1,000x; days {{fig4::::days of infection analysed::%s}}) are used | Longitudinal within-host evolution (Fig 4) |
-| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` and the codon translation behind `dndsWithinHost()` (Figs 3b, 5b) |
+| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `dndsWithinHost()` (Fig 5b) |
 
 All figures were generated with {{session::::R version::%s}} by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
@@ -316,7 +316,7 @@ Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
 | `Transmission_pairs.csv` | Bendall *et al.* 2023 | Household transmission pair metadata |
 | `farjo_longitudinal/` | Farjo *et al.* 2024 | Daily saliva iVar TSVs for participant 432870, with `samples_432870.csv` (dates, coverage and study inclusion, built by `inst/scripts/prepare_farjo_metadata.R` from github.com/BROOKELAB/SARS-CoV-2-within-host-evolution) |
 | `sars2_NC045512.gff3` | NCBI RefSeq | SARS-CoV-2 gene annotation (NC_045512.2) |
-| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read by `annotateCodonChange()` for Figure 5b |
+| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read with `Biostrings::readDNAStringSet()` and passed to `annotateCodonChange()` for Figure 5b |
 | `MHM*_rep*.tsv`, `all_variants_filtered_unmerged.tsv` | Bendall *et al.* 2023 | Per-sample iVar tables and the pre-merge call table, kept as provenance for the merged file above; the figure script reads neither |
 | `farjo_longitudinal/user_432870.csv` | Farjo *et al.* 2024 | The study's own per-SNP summary for this participant, kept for comparison; not read by the figure script |
 

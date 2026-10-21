@@ -136,3 +136,8 @@ setGeneric("calcDiversity", function(x, ...)
 #' @rdname annotateGenes
 setGeneric("annotateGenes", function(x, genes, ...)
     standardGeneric("annotateGenes"))
+
+#' @export
+#' @rdname annotateCodonChange
+setGeneric("annotateCodonChange", function(x, cds, ref, ...)
+    standardGeneric("annotateCodonChange"))

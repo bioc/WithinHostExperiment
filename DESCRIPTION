@@ -24,6 +24,7 @@ Imports:
     GenomicRanges,
     SummarizedExperiment,
     GenomeInfoDb,
+    Biostrings,
     GenomicFeatures,
     VariantAnnotation,
     stats,

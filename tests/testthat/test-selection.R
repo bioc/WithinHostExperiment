@@ -1,7 +1,8 @@
 ## Helper: a 15-base CDS (ATG CTG AAA GGG TAA) with a GFF3 and FASTA.
 ## Nei-Gojobori synonymous sites: ATG 0, CTG 4/3, AAA 1/3, GGG 1; the stop
 ## codon is skipped, so S = 8/3 and N = 12 - 8/3 = 28/3.
-.ng_fixture <- function(positions, refs, alts, freqs = rep(0.2, length(positions))) {
+.ng_fixture <- function(positions, refs, alts,
+                        freqs = rep(0.2, length(positions))) {
     ref <- tempfile(fileext = ".fa")
     writeLines(c(">seg1", "ATGCTGAAAGGGTAA", ">seg2", "CCCCCCCCCC"), ref)
     gff <- tempfile(fileext = ".gff3")
@@ -15,7 +16,17 @@
         assays = list(altFreq = matrix(freqs, ncol = 1)),
         rowRanges = gr,
         colData = S4Vectors::DataFrame(sample_id = "S1"))
-    list(whe = annotateCodonChange(whe, gff, ref), gff = gff, ref = ref)
+    skip_if_not_installed("txdbmaker")
+    cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+        strand = "+", ID = "cds-A", gene = "geneA")
+    ## seg2 carries no CDS; annotateCodonChange() says so with a warning
+    whe <- withCallingHandlers(
+        annotateCodonChange(whe, cds, Biostrings::readDNAStringSet(ref)),
+        warning = function(w) {
+            if (grepl("no ranges on variant seqlevel", conditionMessage(w)))
+                invokeRestart("muffleWarning")
+        })
+    list(whe = whe, gff = gff, ref = ref)
 }
 .jc <- function(p) -0.75 * log(1 - 4 * p / 3)
 
@@ -81,7 +92,7 @@ test_that("dndsWithinHost requires the GFF3, FASTA and annotation", {
         rowRanges = gr,
         colData = S4Vectors::DataFrame(sample_id = "S1"))
     expect_error(dndsWithinHost(whe, gff = fx$gff, refFasta = fx$ref),
-                 "REF_AA")
+                 "REFAA")
 })
 
 test_that("codons shared by overlapping CDS features are counted once", {
@@ -132,4 +143,89 @@ test_that("estimateSelectionCoefficient rejects decreasing times", {
     expect_error(estimateSelectionCoefficient(c(0.1, 0.2, 0.3),
                                               times = c(0, 5, 3)),
                  "strictly increasing")
+})
+
+test_that("the FASTA reader ignores whitespace and empty final records", {
+    ## .read_fasta_simple() still feeds the dN/dS site counts; stripping
+    ## whitespace inside a record keeps every later coordinate in place.
+    fa <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1 description", "ATG CTG ", "AAA\t", "", ">empty"), fa)
+    seqs <- WithinHostExperiment:::.read_fasta_simple(fa)
+    expect_identical(seqs[["seg1"]], "ATGCTGAAA")
+    expect_identical(seqs[["empty"]], "")
+})
+
+test_that("dndsWithinHost needs one transcript per site", {
+    skip_if_not_installed("txdbmaker")
+    ## collapse = "all" stores a CharacterList, which cannot be read as
+    ## one amino acid per site
+    ref <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1", "ATGCTGAAAGGGTAA"), ref)
+    gff <- tempfile(fileext = ".gff3")
+    writeLines(c("##gff-version 3",
+        "seg1\t.\tCDS\t1\t15\t.\t+\t0\tgene=geneA"), gff)
+    gr <- GenomicRanges::GRanges("seg1", IRanges::IRanges(c(1, 6), width = 1))
+    S4Vectors::mcols(gr)$ref <- c("A", "G")
+    S4Vectors::mcols(gr)$alt <- c("G", "A")
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.2, 0.2), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "S1"))
+    cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+        strand = "+", ID = "cds-A", gene = "geneA")
+    all_tx <- annotateCodonChange(whe, cds,
+        Biostrings::readDNAStringSet(ref), collapse = "all")
+    expect_error(dndsWithinHost(all_tx, gff = gff, refFasta = ref),
+                 'collapse = "longest"')
+})
+
+test_that("dndsWithinHost warns when the gene labels do not meet", {
+    skip_if_not_installed("txdbmaker")
+    ## geneCol = NULL reports transcript names in GENEID, which the GFF3
+    ## gene attribute does not contain; every count would otherwise be
+    ## zero with no explanation
+    ref <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1", "ATGCTGAAAGGGTAA"), ref)
+    gff <- tempfile(fileext = ".gff3")
+    writeLines(c("##gff-version 3",
+        "seg1\t.\tCDS\t1\t15\t.\t+\t0\tgene=geneA"), gff)
+    gr <- GenomicRanges::GRanges("seg1", IRanges::IRanges(c(1, 6), width = 1))
+    S4Vectors::mcols(gr)$ref <- c("A", "G")
+    S4Vectors::mcols(gr)$alt <- c("G", "A")
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.2, 0.2), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "S1"))
+    cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+        strand = "+", ID = "cds-A")
+    ann <- annotateCodonChange(whe, cds,
+        Biostrings::readDNAStringSet(ref), geneCol = NULL)
+    expect_warning(res <- dndsWithinHost(ann, gff = gff, refFasta = ref),
+                   "cds-A")
+    expect_equal(res$nS[1], 0L)
+    expect_equal(res$nN[1], 0L)
+})
+
+test_that("a codon with an ambiguous base is counted in neither nS nor nN", {
+    skip_if_not_installed("txdbmaker")
+    ref <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1", "ATGCNGAAAGGGTAA"), ref)
+    gff <- tempfile(fileext = ".gff3")
+    writeLines(c("##gff-version 3",
+        "seg1\t.\tCDS\t1\t15\t.\t+\t0\tgene=geneA"), gff)
+    gr <- GenomicRanges::GRanges("seg1", IRanges::IRanges(c(6, 7), width = 1))
+    S4Vectors::mcols(gr)$ref <- c("G", "A")
+    S4Vectors::mcols(gr)$alt <- c("A", "T")
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.2, 0.2), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "S1"))
+    cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+        strand = "+", ID = "cds-A", gene = "geneA")
+    ann <- suppressWarnings(annotateCodonChange(whe, cds,
+        Biostrings::readDNAStringSet(ref)))
+    res <- dndsWithinHost(ann, gff = gff, refFasta = ref)
+    ## only the nonsense change at position 7 is counted
+    expect_equal(res$nS[1], 0L)
+    expect_equal(res$nN[1], 1L)
 })

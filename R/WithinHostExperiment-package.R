@@ -53,9 +53,11 @@
 #'     \code{\link{annotateGenes}} (labels each site with the genes
 #'     it overlaps, taking gene ranges as a \code{GRanges} or
 #'     \code{TxDb}),
-#'     \code{\link{annotateCodonChange}} (CDS-aware codon
-#'     translation and amino acid change prediction from GFF3 +
-#'     reference FASTA)
+#'     \code{\link{annotateCodonChange}} (the codon and amino acid
+#'     consequence of each SNV, from
+#'     \code{VariantAnnotation::predictCoding()}, taking CDS records as
+#'     a \code{GRanges}, \code{GRangesList} or \code{TxDb} and the
+#'     reference as a \code{DNAStringSet})
 #'   }
 #'   \item{Selection analysis}{
 #'     \code{\link{dndsWithinHost}},

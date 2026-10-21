@@ -537,7 +537,11 @@ p5a <- ggplot(taj_qc, aes(x = D_qc)) +
     scale_y_continuous("Samples", expand = expansion(mult = c(0, 0.12))) + labs(tag = "a") + theme_pub(10)
 
 ## b: Nei-Gojobori dN/dS, pooling the concordant iSNVs of all samples
-whe_codon <- annotateCodonChange(whe_conc, gff_tmp, fasta_tmp)
+## CDS records, grouped into one transcript per protein by their ID, and the
+## reference as a DNAStringSet; predictCoding() does the translation
+cds_records <- gff_features[gff_features$type == "CDS"]
+whe_codon <- annotateCodonChange(whe_conc, cds_records,
+    Biostrings::readDNAStringSet(fasta_tmp))
 dnds <- as.data.frame(dndsWithinHost(whe_codon, gff = gff_tmp, refFasta = fasta_tmp, usePassedOnly = FALSE))
 record("fig5", "b", "pooled synonymous iSNVs", dnds$nS[1])
 record("fig5", "b", "pooled nonsynonymous iSNVs", dnds$nN[1])

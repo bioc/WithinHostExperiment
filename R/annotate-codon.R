@@ -1,374 +1,599 @@
 # R/annotate-codon.R
-# CDS-aware codon change annotation from GFF3 + reference FASTA
+# Codon and amino acid consequence of each SNV, from
+# VariantAnnotation::predictCoding()
 
 #' @include annotate-genes.R
+#' @importFrom VariantAnnotation predictCoding
+#' @importFrom GenomicFeatures cdsBy transcripts
+#' @importFrom Biostrings DNAStringSet subseq
+#' @importClassesFrom Biostrings DNAStringSet XString
+#' @importFrom BiocGenerics strand
+#' @importFrom GenomeInfoDb seqlevelsInUse seqlengths seqlengths<- seqnames
+#' @importFrom GenomicRanges GRanges granges
+#' @importFrom IRanges IRanges CharacterList IntegerList width start end
+#'   start<- end<-
+#' @importFrom S4Vectors mcols mcols<- split
 #' @importFrom SummarizedExperiment rowRanges
-#' @importFrom GenomicRanges GRanges start findOverlaps
-#' @importFrom GenomeInfoDb seqnames
-#' @importFrom IRanges IRanges
-#' @importFrom S4Vectors mcols mcols<- queryHits subjectHits
+#' @importClassesFrom GenomicRanges GRanges GRangesList
 NULL
 
-## Standard genetic code (NCBI translation table 1)
-.CODON_TABLE <- c(
-    TTT="F",TTC="F",TTA="L",TTG="L", CTT="L",CTC="L",CTA="L",CTG="L",
-    ATT="I",ATC="I",ATA="I",ATG="M", GTT="V",GTC="V",GTA="V",GTG="V",
-    TCT="S",TCC="S",TCA="S",TCG="S", CCT="P",CCC="P",CCA="P",CCG="P",
-    ACT="T",ACC="T",ACA="T",ACG="T", GCT="A",GCC="A",GCA="A",GCG="A",
-    TAT="Y",TAC="Y",TAA="*",TAG="*", CAT="H",CAC="H",CAA="Q",CAG="Q",
-    AAT="N",AAC="N",AAA="K",AAG="K", GAT="D",GAC="D",GAA="E",GAG="E",
-    TGT="C",TGC="C",TGA="*",TGG="W", CGT="R",CGC="R",CGA="R",CGG="R",
-    AGT="S",AGC="S",AGA="R",AGG="R", GGT="G",GGC="G",GGA="G",GGG="G"
-)
-
-#' @keywords internal
-.translate_codon <- function(codon) {
-    codon <- toupper(codon)
-    if (nchar(codon) != 3L) return(NA_character_)
-    aa <- .CODON_TABLE[codon]
-    if (is.null(aa) || is.na(aa)) NA_character_ else unname(aa)
+## Reference sequences: names cut at the first space, as FASTA readers
+## and samtools do, so that a header such as
+## ">NC_045512.2 Severe acute respiratory syndrome..." gives the sequence
+## name used in annotation files.
+.prepareReference <- function(ref) {
+    if (length(ref) == 0L)
+        stop("'ref' contains no sequences.")
+    nms <- names(ref)
+    if (is.null(nms) || anyNA(nms) || any(!nzchar(nms)))
+        stop("Every sequence in 'ref' needs a name matching a seqlevel ",
+             "of the variants.")
+    names(ref) <- sub("[[:space:]].*$", "", nms)
+    if (anyDuplicated(names(ref)))
+        stop("Sequence names in 'ref' are not unique after cutting them ",
+             "at the first space: ",
+             paste(unique(names(ref)[duplicated(names(ref))]),
+                   collapse = ", "))
+    ref
 }
 
-#' @keywords internal
-.read_fasta_simple <- function(path) {
-    lines <- readLines(path)
-    header_idx <- grep("^>", lines)
-    if (length(header_idx) == 0L)
-        stop("No FASTA header lines found in: ", path)
-    seqs <- list()
-    for (i in seq_along(header_idx)) {
-        name <- sub("^>\\s*", "", lines[header_idx[i]])
-        name <- sub("\\s+.*", "", name)
-        start <- header_idx[i] + 1L
-        end <- if (i < length(header_idx)) {
-            header_idx[i + 1L] - 1L
-        } else {
-            length(lines)
-        }
-        seq_lines <- if (start <= end) lines[start:end] else character()
-        ## Whitespace inside a record would shift every later coordinate
-        seqs[[name]] <- gsub("[[:space:]]", "",
-                             paste(seq_lines, collapse = ""))
+## Record the length of each reference sequence in seqlengths(rr), for
+## seqlevels that have none. A recorded length that disagrees with the
+## reference is an error: the variants were called against something else.
+.fillSeqlengths <- function(rr, ref) {
+    known <- seqlengths(rr)
+    lens <- width(ref)
+    names(lens) <- names(ref)
+    shared <- intersect(names(known), names(lens))
+    clash <- shared[!is.na(known[shared]) & known[shared] != lens[shared]]
+    if (length(clash))
+        stop("Sequence length disagrees between the variants and 'ref' ",
+             "for ", paste0(clash, " (", known[clash], " vs ",
+                            lens[clash], ")", collapse = ", "), ".")
+    fill <- shared[is.na(known[shared])]
+    if (length(fill)) {
+        known[fill] <- lens[fill]
+        ## Recording a length makes a site past the end of its sequence
+        ## out of bound. The caller warns about those in its own words.
+        withCallingHandlers({
+            seqlengths(rr) <- known
+        }, warning = function(w) {
+            if (grepl("out-of-bound range", conditionMessage(w),
+                      fixed = TRUE))
+                invokeRestart("muffleWarning")
+        })
     }
-    seqs
+    rr
 }
 
-#' @keywords internal
-.revcomp <- function(seq_str) {
-    comp <- c(A = "T", T = "A", C = "G", G = "C",
-              a = "t", t = "a", c = "g", g = "c",
-              N = "N", n = "n")
-    chars <- strsplit(seq_str, "")[[1L]]
-    paste(rev(comp[chars]), collapse = "")
+.stopNoRef <- function(missing_names, ref) {
+    stop("'ref' has no sequence named ",
+         paste(missing_names, collapse = ", "),
+         ", which carries coding sequences. Sequences in 'ref': ",
+         paste(names(ref), collapse = ", "), ".", call. = FALSE)
 }
 
-#' @keywords internal
-.read_gff_cds <- function(gff, nameCol = "gene") {
-    lines <- readLines(gff)
-    lines <- lines[!startsWith(lines, "#") & nchar(lines) > 0]
-    fields <- strsplit(lines, "\t")
-    fields <- fields[vapply(fields, length, integer(1)) >= 9L]
-    if (length(fields) == 0L)
-        stop("No valid GFF lines found.")
-
-    gff_df <- data.frame(
-        seqid  = vapply(fields, `[`, character(1), 1L),
-        type   = vapply(fields, `[`, character(1), 3L),
-        start  = as.integer(vapply(fields, `[`, character(1), 4L)),
-        end    = as.integer(vapply(fields, `[`, character(1), 5L)),
-        strand = vapply(fields, `[`, character(1), 7L),
-        phase  = vapply(fields, `[`, character(1), 8L),
-        attrs  = vapply(fields, `[`, character(1), 9L),
-        stringsAsFactors = FALSE
-    )
-    cds <- gff_df[gff_df$type == "CDS", , drop = FALSE]
-    if (nrow(cds) == 0L)
-        stop("No CDS features found in GFF file. Available types: ",
-             paste(unique(gff_df$type), collapse = ", "))
-
-    cds$phase <- as.integer(ifelse(cds$phase == ".", "0", cds$phase))
-
-    parse_attr <- function(attr_str, key) {
-        pairs <- strsplit(attr_str, ";")[[1L]]
-        for (p in pairs) {
-            kv <- strsplit(trimws(p), "=")[[1L]]
-            if (length(kv) == 2L && kv[1L] == key) return(kv[2L])
-        }
-        NA_character_
-    }
-    cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                       key = nameCol, USE.NAMES = FALSE)
-    if (all(is.na(cds$gene)) && nameCol != "Name")
-        cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                           key = "Name", USE.NAMES = FALSE)
-    if (all(is.na(cds$gene)))
-        cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                           key = "ID", USE.NAMES = FALSE)
-    rownames(cds) <- NULL
-    cds
-}
-
-## Nei and Gojobori (1986) synonymous sites of every sense codon under the
-## standard genetic code: at each codon position, the fraction of the three
-## possible substitutions that keep the amino acid. Substitutions to a stop
-## codon count as nonsynonymous; the nonsynonymous sites are 3 minus this.
-.NG_SYN_SITES <- local({
-    bases <- c("A", "C", "G", "T")
-    sense <- names(.CODON_TABLE)[.CODON_TABLE != "*"]
-    vapply(sense, function(codon) {
-        aa <- .CODON_TABLE[[codon]]
-        s <- 0
-        for (p in seq_len(3L)) {
-            for (b in setdiff(bases, substr(codon, p, p))) {
-                mutant <- codon
-                substr(mutant, p, p) <- b
-                if (.CODON_TABLE[[mutant]] == aa) s <- s + 1 / 3
-            }
-        }
-        s
-    }, numeric(1))
-})
-
-#' @keywords internal
-.revcomp_vec <- function(x) {
-    vapply(strsplit(x, "", fixed = TRUE), function(ch) {
-        paste(rev(chartr("ACGTacgt", "TGCAtgca", ch)), collapse = "")
-    }, character(1))
-}
-
-## Synonymous and nonsynonymous site totals per gene over the complete
-## codons of its CDS features. Codons shared by overlapping CDS features of
-## the same gene (for example ORF1a within ORF1ab) are counted once; stop
-## codons and codons with ambiguous bases are skipped.
-#' @keywords internal
-.cds_site_counts <- function(cds, ref_seqs) {
-    codon_rows <- lapply(seq_len(nrow(cds)), function(i) {
-        if (is.na(cds$gene[i]) || !cds$seqid[i] %in% names(ref_seqs))
-            return(NULL)
-        usable <- cds$end[i] - cds$start[i] + 1L - cds$phase[i]
-        n_codons <- usable %/% 3L
-        if (n_codons < 1L) return(NULL)
-        offsets <- 3L * (seq_len(n_codons) - 1L)
-        low <- if (cds$strand[i] == "-") {
-            cds$end[i] - cds$phase[i] - offsets - 2L
-        } else {
-            cds$start[i] + cds$phase[i] + offsets
-        }
-        data.frame(gene = cds$gene[i], seqid = cds$seqid[i],
-                   strand = cds$strand[i], low = low,
-                   stringsAsFactors = FALSE)
-    })
-    codons <- unique(do.call(rbind, codon_rows))
-    if (is.null(codons) || nrow(codons) == 0L) {
-        return(data.frame(gene = character(), S_sites = numeric(),
-                          N_sites = numeric(), stringsAsFactors = FALSE))
-    }
-    codon_seq <- character(nrow(codons))
-    for (sid in unique(codons$seqid)) {
-        rows <- which(codons$seqid == sid)
-        codon_seq[rows] <- toupper(substring(ref_seqs[[sid]],
-            codons$low[rows], codons$low[rows] + 2L))
-    }
-    minus <- codons$strand == "-"
-    codon_seq[minus] <- .revcomp_vec(codon_seq[minus])
-    syn <- unname(.NG_SYN_SITES[codon_seq])
-    keep <- !is.na(syn)
-    s_by_gene <- tapply(syn[keep], codons$gene[keep], sum)
-    n_by_gene <- tapply(3 - syn[keep], codons$gene[keep], sum)
-    data.frame(gene = names(s_by_gene), S_sites = as.numeric(s_by_gene),
-               N_sites = as.numeric(n_by_gene[names(s_by_gene)]),
-               stringsAsFactors = FALSE)
-}
-
-#' Annotate codon changes from GFF3 CDS + reference FASTA
+#' Codon and amino acid consequence of each SNV
 #'
-#' For each SNV in a \code{\link{WithinHostExperiment}}, determines
-#' the affected codon and amino acid change using CDS coordinates
-#' from a GFF3 file and the reference genome sequence from a FASTA
-#' file. Adds \code{GFF_FEATURE}, \code{REF_CODON}, \code{ALT_CODON},
-#' \code{REF_AA}, \code{ALT_AA}, and \code{AA_CLASS} (Synonymous /
-#' Nonsynonymous / Nonsense) columns to \code{mcols(rowRanges)}.
-#'
-#' This is a pure-R implementation using the standard genetic code
-#' (NCBI translation table 1). No external annotation tools are
-#' required. For complex genomes with overlapping reading frames,
-#' ribosomal frameshift sites, or non-standard codon usage, use
-#' SnpEff or ANNOVAR upstream.
-#'
-#' @param whe A \code{\link{WithinHostExperiment}} object. Must have
-#'   \code{ref} and \code{alt} columns in \code{mcols(rowRanges)}.
-#' @param gff Character scalar. Path to a GFF3 file containing CDS
-#'   features.
-#' @param refFasta Character scalar. Path to the reference genome
-#'   FASTA file.
-#' @param nameCol Character scalar. GFF3 attribute for the gene name
-#'   (default: \code{"gene"}). Falls back to \code{"Name"}, then
-#'   \code{"ID"}.
-#'
-#' @return A \code{\link{WithinHostExperiment}} with additional
-#'   columns in \code{mcols(rowRanges)}: \code{GFF_FEATURE},
-#'   \code{REF_CODON}, \code{ALT_CODON}, \code{REF_AA},
-#'   \code{ALT_AA}, \code{AA_CLASS}.
+#' Annotates every single-nucleotide substitution in a
+#' \code{\link{WithinHostExperiment}} with the codon it changes and the
+#' resulting amino acid, by passing the sites to
+#' \code{VariantAnnotation::predictCoding()}. The coding sequences are
+#' supplied either as a \code{TxDb} or as the CDS records of an
+#' annotation in a \code{GRanges} or \code{GRangesList}; the reference
+#' sequence is a \code{DNAStringSet}, as returned by
+#' \code{Biostrings::readDNAStringSet()}.
 #'
 #' @details
-#' The algorithm:
-#' \enumerate{
-#'   \item Parse CDS features from GFF3 (requires column 8 = phase).
-#'   \item For each variant overlapping a CDS, compute the codon
-#'     position within the CDS (accounting for strand and phase).
-#'   \item Extract the reference codon from the FASTA, substitute
-#'     the variant base, translate both codons.
-#'   \item Classify: Synonymous (same AA), Nonsynonymous (different
-#'     AA), or Nonsense (stop codon gained/lost).
-#' }
+#' \strong{Coding sequences.} \code{predictCoding()} reads coding
+#' sequences from a \code{TxDb}. A \code{GRanges} of CDS records, for
+#' example the rows of \code{rtracklayer::import()} with
+#' \code{type == "CDS"}, is grouped into transcripts by the column
+#' \code{txCol}: in GFF3 files from NCBI and Ensembl the CDS records of
+#' one protein share an \code{ID}. Each transcript's parts are joined in
+#' order of transcription, so a CDS split across a ribosomal frameshift,
+#' such as SARS-CoV-2 ORF1ab, is translated as one sequence. The
+#' \code{TxDb} is then built with \code{txdbmaker::makeTxDb()}, which is
+#' why that route needs the \pkg{txdbmaker} package.
 #'
-#' Only single-nucleotide substitutions are annotated. Indels and
-#' multi-nucleotide variants are marked as \code{NA}.
+#' Building a \code{TxDb} directly from a GFF3 file with
+#' \code{txdbmaker::makeTxDbFromGFF()} is not equivalent for every
+#' annotation. For the NCBI SARS-CoV-2 annotation (NC_045512.2) it drops
+#' the ORF1ab gene, whose two CDS parts overlap by one nucleotide, with a
+#' warning that its exon ranks could not be inferred; sites in ORF1a and
+#' ORF1ab are then left unannotated. A \code{TxDb} gives no record of
+#' what was dropped while it was built, so this function cannot detect
+#' it. Pass the CDS records as a \code{GRanges} when in doubt.
 #'
-#' @export
+#' A GFF3 \code{phase} column, when present, is honoured: the first part
+#' of each transcript is shortened by its phase, the number of bases
+#' before the first complete codon, and the phase of every later part
+#' must agree with the length of the parts before it. A later part whose
+#' phase disagrees would shift the reading frame of the joined sequence,
+#' so the function stops.
+#'
+#' \strong{Reference.} Sequence names in \code{ref} are cut at the first
+#' space, so a FASTA header carrying a description still matches the
+#' annotation. The function stops if the variant sites and the coding
+#' sequences share no sequence name (see \code{\link{annotateGenes}}),
+#' or if a sequence carrying coding sequences is missing from
+#' \code{ref}. Sites whose \code{ref} allele differs from the reference
+#' base at that position are left unannotated, with a warning, since
+#' they were called against a different sequence. The length of each
+#' reference sequence is recorded in \code{seqlengths(rowRanges(x))}.
+#'
+#' \strong{Sites annotated.} Only single-nucleotide substitutions with
+#' alleles A, C, G or T are annotated; insertions, deletions and
+#' multi-nucleotide substitutions get \code{NA}. Alleles are read on the
+#' plus strand and complemented by \code{predictCoding()} for
+#' transcripts on the minus strand.
+#'
+#' \strong{Classification.} \code{CONSEQUENCE} is taken from
+#' \code{predictCoding()} unchanged: \code{"synonymous"} when the amino
+#' acid is kept, \code{"nonsense"} when a stop codon is gained, and
+#' \code{"nonsynonymous"} for every other change, including the loss of
+#' a stop codon. A codon holding an ambiguous base is not translated;
+#' such a site is left unannotated, with a warning.
+#'
+#' \code{predictCoding()} applies the initiator rule of
+#' \code{Biostrings::translate()} only when the substitution is the
+#' first base of a coding sequence: there an alternative start codon
+#' (\code{CTG} or \code{TTG}) is reported as \code{M}, so
+#' \code{ATG} to \code{CTG} at that one position is synonymous. A
+#' change at the second or third base of the first codon is translated
+#' with the standard table, giving \code{L} for \code{CTG}.
+#'
+#' \strong{Sites in several transcripts.} \code{predictCoding()} returns
+#' one row per site and transcript, so a site where coding sequences
+#' overlap (ORF1a and ORF1ab in SARS-CoV-2) has several. With
+#' \code{collapse = "longest"} (the default) the row of the transcript
+#' with the longest coding sequence is kept, ties going to the
+#' transcript that appears first in \code{cds}, and a message reports
+#' how many sites had
+#' more than one transcript and at how many of them the consequence
+#' differed between transcripts. With \code{collapse = "all"} every row
+#' is kept: each column becomes a \code{CharacterList} or
+#' \code{IntegerList} with one element per transcript.
+#'
+#' @param x A \code{\link{WithinHostExperiment}} with \code{ref} and
+#'   \code{alt} columns in \code{mcols(rowRanges(x))}.
+#' @param cds The coding sequences: a \code{TxDb}; a \code{GRanges} of
+#'   CDS records; or a \code{GRangesList} with one element per
+#'   transcript, holding its CDS parts.
+#' @param ref A \code{DNAStringSet} with the reference sequence of each
+#'   seqlevel carrying coding sequences.
+#' @param txCol For a \code{GRanges} \code{cds}: the column identifying
+#'   the transcript each CDS record belongs to (default \code{"ID"}).
+#' @param geneCol The column of gene labels reported as \code{GENEID}:
+#'   a column of \code{mcols(cds)} for a \code{GRanges}, defaulting to
+#'   \code{"gene"}, or of \code{mcols(cds)} for a \code{GRangesList},
+#'   where it defaults to \code{NULL}. \code{NULL} reports the
+#'   transcript name instead of a gene label.
+#' @param collapse Either \code{"longest"} (default) or \code{"all"};
+#'   see Details.
+#' @param ... Not used; supplying anything is an error.
+#'
+#' @return \code{x}, with these columns added to
+#'   \code{mcols(rowRanges(x))} (\code{NA}, or an empty element, for
+#'   sites not annotated):
+#'   \describe{
+#'     \item{TXNAME}{Transcript the row describes.}
+#'     \item{GENEID}{Gene of that transcript.}
+#'     \item{CONSEQUENCE}{\code{"synonymous"}, \code{"nonsynonymous"} or
+#'       \code{"nonsense"}; see Details. A site whose reference codon
+#'       holds an ambiguous base is \code{NA} in every column.}
+#'     \item{CDSLOC}{Position of the site within the coding sequence.}
+#'     \item{PROTEINLOC}{Position of the affected codon in the protein.}
+#'     \item{REFCODON, VARCODON}{Reference and variant codon, on the
+#'       transcript's strand.}
+#'     \item{REFAA, VARAA}{Reference and variant amino acid, \code{"*"}
+#'       for a stop codon.}
+#'   }
+#'
+#' @references
+#' Obenchain V, Lawrence M, Carey V, Gogarten S, Shannon P, Morgan M
+#' (2014). VariantAnnotation: a Bioconductor package for exploration
+#' and annotation of genetic variants. \emph{Bioinformatics}
+#' 30:2076-2078. \doi{10.1093/bioinformatics/btu168}
+#'
+#' @seealso \code{\link{annotateGenes}} for gene labels without codons;
+#'   \code{VariantAnnotation::predictCoding()}.
+#'
+#' @name annotateCodonChange
+#' @aliases annotateCodonChange,WithinHostExperiment,TxDb,DNAStringSet-method
+#'   annotateCodonChange,WithinHostExperiment,GRangesList,DNAStringSet-method
+#'   annotateCodonChange,WithinHostExperiment,GRanges,DNAStringSet-method
+#'   annotateCodonChange,WithinHostExperiment,ANY,character-method
+#'   annotateCodonChange,WithinHostExperiment,ANY,XString-method
+#'   annotateCodonChange,WithinHostExperiment,character,DNAStringSet-method
 #' @examples
-#' ## Requires a reference FASTA and GFF3 with CDS entries
-#' ref <- system.file("extdata", "test_ref.fa",
-#'     package = "WithinHostExperiment")
-#' if (file.exists(ref)) {
-#'     gff_file <- tempfile(fileext = ".gff3")
-#'     writeLines(c("##gff-version 3",
-#'         "test_segment\t.\tCDS\t1\t999\t.\t+\t0\tgene=testGene"),
-#'         gff_file)
-#'     vcf <- system.file("extdata", "test_donor.vcf",
-#'         package = "WithinHostExperiment")
-#'     whe <- readWithinHost(vcf,
-#'         colData = S4Vectors::DataFrame(sample_id = "donor"),
-#'         caller = "ivar")
-#'     whe <- annotateCodonChange(whe, gff_file, ref)
+#' ## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA
+#' ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+#' cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+#'     strand = "+", ID = "cds-A", gene = "geneA")
+#' gr <- GenomicRanges::GRanges("seg1",
+#'     IRanges::IRanges(c(1, 6, 13), width = 1))
+#' S4Vectors::mcols(gr)$ref <- c("A", "G", "T")
+#' S4Vectors::mcols(gr)$alt <- c("G", "A", "C")
+#' whe <- WithinHostExperiment(
+#'     assays = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1)),
+#'     rowRanges = gr,
+#'     colData = S4Vectors::DataFrame(sample_id = "S1"))
+#' if (requireNamespace("txdbmaker", quietly = TRUE)) {
+#'     whe <- annotateCodonChange(whe, cds, ref)
 #'     mc <- S4Vectors::mcols(SummarizedExperiment::rowRanges(whe))
-#'     head(mc[, c("GFF_FEATURE", "REF_AA", "ALT_AA", "AA_CLASS")])
+#'     mc[, c("GENEID", "REFCODON", "VARCODON", "REFAA", "VARAA",
+#'            "CONSEQUENCE")]
 #' }
-annotateCodonChange <- function(whe, gff, refFasta,
-                                nameCol = "gene") {
-    if (!is(whe, "WithinHostExperiment"))
-        stop("'whe' must be a WithinHostExperiment object.")
-    if (!file.exists(gff))
-        stop("GFF file not found: ", gff)
-    if (!file.exists(refFasta))
-        stop("Reference FASTA not found: ", refFasta)
+NULL
 
-    ## ---- Parse GFF3 CDS features ----
-    cds <- .read_gff_cds(gff, nameCol)
+## Group CDS records into one GRangesList element per transcript, keeping
+## the phase column (if any) for the frame checks in .cdsListToTxDb() and
+## the gene label in mcols() of the list.
+.cdsRangesToList <- function(cds, txCol, geneCol) {
+    if (length(cds) == 0L)
+        stop("'cds' contains no ranges.")
+    cols <- colnames(mcols(cds))
+    if ("type" %in% cols) {
+        other <- setdiff(unique(as.character(mcols(cds)$type)), "CDS")
+        if (length(other))
+            stop("'cds' holds records of type ",
+                 paste(other, collapse = ", "), " as well as CDS. Pass ",
+                 "the CDS records only, for example ",
+                 "cds[cds$type == \"CDS\"].")
+    }
+    absent <- setdiff(c(txCol, geneCol), cols)
+    if (length(absent))
+        stop("Column(s) ", paste(absent, collapse = ", "),
+             " not found in mcols(cds). Available columns: ",
+             if (length(cols)) paste(cols, collapse = ", ") else "(none)")
+    tx <- mcols(cds)[[txCol]]
+    if (!is.atomic(tx))
+        stop("Column '", txCol, "' must hold one transcript identifier ",
+             "per CDS record; it is a ", class(tx)[1L], ".")
+    tx <- as.character(tx)
+    if (anyNA(tx))
+        stop(sum(is.na(tx)), " CDS record(s) have no '", txCol, "'.")
+    f <- factor(tx, levels = unique(tx))
+    parts <- granges(cds)
+    if ("phase" %in% cols)
+        mcols(parts)$phase <- mcols(cds)$phase
+    grl <- split(parts, f)
+    if (!is.null(geneCol)) {
+        g <- mcols(cds)[[geneCol]]
+        if (!is.atomic(g))
+            stop("Column '", geneCol, "' must hold one label per CDS ",
+                 "record; it is a ", class(g)[1L], ".")
+        per_tx <- split(as.character(g), f)
+        gene <- vapply(per_tx, function(z) {
+            u <- unique(z[!is.na(z)])
+            if (length(u) == 1L) u else NA_character_
+        }, character(1))
+        bad <- names(gene)[is.na(gene)]
+        if (length(bad))
+            stop("Transcript(s) ", paste(utils::head(bad, 5L),
+                 collapse = ", "), " do not carry exactly one '", geneCol,
+                 "' value across their CDS records.")
+        mcols(grl)$gene <- unname(gene)
+    }
+    grl
+}
 
-    ## ---- Read reference FASTA ----
-    ref_seqs <- .read_fasta_simple(refFasta)
+## Build a TxDb from CDS parts grouped by transcript. Parts are ranked in
+## order of transcription; overlapping parts (as at a -1 ribosomal
+## frameshift) are kept as they are. A GFF3 phase on the first part
+## shortens it to the first complete codon.
+.cdsListToTxDb <- function(grl, geneCol, ref) {
+    if (!requireNamespace("txdbmaker", quietly = TRUE))
+        stop("Annotating from CDS ranges builds a TxDb with the txdbmaker ",
+             "package, which is not installed. Install it with ",
+             "BiocManager::install(\"txdbmaker\"), or pass a TxDb as ",
+             "'cds'.", call. = FALSE)
+    if (length(grl) == 0L)
+        stop("'cds' contains no transcripts.")
+    tx_names <- names(grl)
+    if (is.null(tx_names) || anyNA(tx_names) || any(!nzchar(tx_names)) ||
+        anyDuplicated(tx_names))
+        stop("'cds' must have unique names, one per transcript.")
+    n_parts <- lengths(grl)
+    if (any(n_parts == 0L))
+        stop("Transcript(s) with no CDS range: ",
+             paste(tx_names[n_parts == 0L], collapse = ", "))
+    gene <- if (is.null(geneCol)) {
+        tx_names
+    } else {
+        if (!geneCol %in% colnames(mcols(grl)))
+            stop("Column '", geneCol, "' not found in mcols(cds). ",
+                 "Available columns: ",
+                 if (ncol(mcols(grl))) paste(colnames(mcols(grl)),
+                                             collapse = ", ")
+                 else "(none)", ". Use geneCol = NULL to report ",
+                 "transcript names.")
+        as.character(mcols(grl)[[geneCol]])
+    }
+    if (anyNA(gene))
+        stop("Transcript(s) ", paste(tx_names[is.na(gene)], collapse = ", "),
+             " have no '", geneCol, "'.")
 
-    ## ---- Build CDS GRanges ----
-    cds_gr <- GRanges(seqnames = cds$seqid,
-                      ranges = IRanges(cds$start, cds$end))
+    parts <- unlist(grl, use.names = FALSE)
+    tx_index <- rep(seq_along(grl), n_parts)
+    chrom <- as.character(seqnames(parts))
+    strand_chr <- as.character(strand(parts))
+    if (any(strand_chr == "*"))
+        stop("Every CDS range needs a strand; transcript(s) ",
+             paste(unique(tx_names[tx_index[strand_chr == "*"]]),
+                   collapse = ", "), " have ranges without one.")
+    mixed <- vapply(split(paste(chrom, strand_chr), tx_index),
+                    function(z) length(unique(z)) > 1L, logical(1))
+    if (any(mixed))
+        stop("Transcript(s) ", paste(tx_names[mixed], collapse = ", "),
+             " have CDS ranges on more than one sequence or strand.")
+    no_ref <- setdiff(unique(chrom), names(ref))
+    if (length(no_ref))
+        .stopNoRef(no_ref, ref)
 
-    ## ---- Annotate each variant ----
-    rr <- rowRanges(whe)
-    mc <- mcols(rr)
+    o <- order(tx_index,
+               ifelse(strand_chr == "-", -start(parts), start(parts)))
+    parts <- parts[o]
+    tx_index <- tx_index[o]
+    chrom <- chrom[o]
+    strand_chr <- strand_chr[o]
+    rank <- stats::ave(seq_along(tx_index), tx_index, FUN = seq_along)
 
-    if (!"ref" %in% colnames(mc) || !"alt" %in% colnames(mc))
-        stop("mcols(rowRanges) must contain 'ref' and 'alt' columns.")
-
-    n <- length(rr)
-    gene_vec   <- rep(NA_character_, n)
-    ref_codon  <- rep(NA_character_, n)
-    alt_codon  <- rep(NA_character_, n)
-    ref_aa     <- rep(NA_character_, n)
-    alt_aa     <- rep(NA_character_, n)
-    aa_class   <- rep(NA_character_, n)
-
-    hits <- findOverlaps(rr, cds_gr)
-    q_idx <- queryHits(hits)
-    s_idx <- subjectHits(hits)
-
-    for (h in seq_along(q_idx)) {
-        qi <- q_idx[h]
-        si <- s_idx[h]
-
-        ref_base <- toupper(as.character(mc$ref[qi]))
-        alt_base <- toupper(as.character(mc$alt[qi]))
-        ## Skip indels and multi-nt
-        if (is.na(ref_base) || is.na(alt_base)) next
-        if (nchar(ref_base) != 1L || nchar(alt_base) != 1L) next
-        if (grepl("[^ACGT]", ref_base) || grepl("[^ACGT]", alt_base)) next
-
-        var_pos <- GenomicRanges::start(rr)[qi]
-        cds_start  <- cds$start[si]
-        cds_end    <- cds$end[si]
-        cds_strand <- cds$strand[si]
-        cds_phase  <- cds$phase[si]
-
-        ## Get reference sequence
-        seq_name <- as.character(GenomeInfoDb::seqnames(rr)[qi])
-        if (!seq_name %in% names(ref_seqs)) next
-        genome_seq <- ref_seqs[[seq_name]]
-
-        ## GFF3 phase is the number of bases to skip from the start of the
-        ## CDS (the 'end' coordinate on the minus strand) to reach the first
-        ## complete codon.
-        if (cds_strand == "+") {
-            pos_in_cds <- (var_pos - cds_start) - cds_phase
-            codon_idx  <- pos_in_cds %/% 3L
-            base_in_codon <- pos_in_cds %% 3L
-            codon_start <- cds_start + cds_phase + codon_idx * 3L
-        } else {
-            pos_in_cds <- (cds_end - var_pos) - cds_phase
-            codon_idx  <- pos_in_cds %/% 3L
-            base_in_codon <- pos_in_cds %% 3L
-            codon_start <- cds_end - cds_phase - codon_idx * 3L - 2L
+    if ("phase" %in% colnames(mcols(parts))) {
+        phase <- suppressWarnings(as.integer(mcols(parts)$phase))
+        if (any(!is.na(phase) & !phase %in% 0:2))
+            stop("GFF3 phase must be 0, 1 or 2.")
+        first_phase <- rank == 1L & !is.na(phase) & phase > 0L
+        if (any(first_phase)) {
+            k <- which(first_phase)
+            if (any(width(parts)[k] <= phase[k]))
+                stop("Transcript(s) ",
+                     paste(unique(tx_names[tx_index[k[width(parts)[k] <=
+                                                      phase[k]]]]),
+                           collapse = ", "),
+                     " have a first CDS part no longer than its phase.")
+            plus <- k[strand_chr[k] == "+"]
+            minus <- k[strand_chr[k] == "-"]
+            start(parts)[plus] <- start(parts)[plus] + phase[plus]
+            end(parts)[minus] <- end(parts)[minus] - phase[minus]
         }
-
-        ## Variants in the phase offset are not in a complete codon
-        if (pos_in_cds < 0L) next
-        if (codon_start < 1L) next
-        codon_end <- codon_start + 2L
-        if (codon_end > nchar(genome_seq)) next
-
-        ref_codon_str <- toupper(substr(genome_seq, codon_start,
-                                        codon_end))
-        if (nchar(ref_codon_str) != 3L) next
-
-        if (cds_strand == "-") {
-            ref_codon_str <- .revcomp(ref_codon_str)
-            ## Also complement the variant bases for minus strand
-            comp <- c(A = "T", T = "A", C = "G", G = "C")
-            ref_base <- comp[ref_base]
-            alt_base <- comp[alt_base]
-        }
-
-        ## Substitute
-        alt_codon_str <- ref_codon_str
-        substr(alt_codon_str, base_in_codon + 1L,
-               base_in_codon + 1L) <- alt_base
-
-        r_aa <- .translate_codon(ref_codon_str)
-        a_aa <- .translate_codon(alt_codon_str)
-
-        if (is.na(r_aa) || is.na(a_aa)) next
-
-        gene_vec[qi]  <- cds$gene[si]
-        ref_codon[qi] <- ref_codon_str
-        alt_codon[qi] <- alt_codon_str
-        ref_aa[qi]    <- r_aa
-        alt_aa[qi]    <- a_aa
-        aa_class[qi]  <- if (r_aa == a_aa) {
-            "Synonymous"
-        } else if (r_aa == "*" || a_aa == "*") {
-            "Nonsense"
-        } else {
-            "Nonsynonymous"
-        }
+        w <- width(parts)
+        before <- stats::ave(w, tx_index,
+                             FUN = function(v) c(0L, cumsum(v)[-length(v)]))
+        expected <- (3L - before %% 3L) %% 3L
+        later_bad <- rank > 1L & !is.na(phase) & phase != expected
+        if (any(later_bad))
+            stop("For transcript(s) ",
+                 paste(unique(tx_names[tx_index[later_bad]]),
+                       collapse = ", "),
+                 ", the phase of a later CDS part does not follow from the ",
+                 "length of the parts before it, so joining the parts would ",
+                 "shift the reading frame.")
     }
 
-    mcols(rr)$GFF_FEATURE <- gene_vec
-    mcols(rr)$REF_CODON   <- ref_codon
-    mcols(rr)$ALT_CODON   <- alt_codon
-    mcols(rr)$REF_AA      <- ref_aa
-    mcols(rr)$ALT_AA      <- alt_aa
-    mcols(rr)$AA_CLASS    <- aa_class
-
-    whe_new <- whe
-    SummarizedExperiment::rowRanges(whe_new) <- rr
-    whe_new
+    first <- !duplicated(tx_index)
+    transcripts_df <- data.frame(
+        tx_id = seq_along(grl), tx_name = tx_names,
+        tx_chrom = chrom[first], tx_strand = strand_chr[first],
+        tx_start = as.integer(tapply(start(parts), tx_index, min)),
+        tx_end = as.integer(tapply(end(parts), tx_index, max)),
+        stringsAsFactors = FALSE)
+    splicings <- data.frame(
+        tx_id = tx_index, exon_rank = rank,
+        exon_start = start(parts), exon_end = end(parts),
+        cds_start = start(parts), cds_end = end(parts))
+    genes <- data.frame(tx_id = seq_along(grl), gene_id = gene,
+                        stringsAsFactors = FALSE)
+    chrominfo <- data.frame(chrom = names(ref), length = width(ref),
+                            is_circular = FALSE, stringsAsFactors = FALSE)
+    withCallingHandlers(
+        txdbmaker::makeTxDb(transcripts_df, splicings, genes,
+                            chrominfo = chrominfo),
+        warning = function(w) {
+            if (grepl("genome version information is not available",
+                      conditionMessage(w), fixed = TRUE))
+                invokeRestart("muffleWarning")
+        })
 }
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "TxDb", "DNAStringSet"),
+    function(x, cds, ref, collapse = c("longest", "all"), ...) {
+        .stop_on_unused_dots("annotateCodonChange", ...)
+        collapse <- match.arg(collapse)
+        ref <- .prepareReference(ref)
+        rr <- rowRanges(x)
+        mc <- mcols(rr)
+        if (!all(c("ref", "alt") %in% colnames(mc)))
+            stop("mcols(rowRanges(x)) must contain 'ref' and 'alt' columns.")
+
+        cds_by_tx <- cdsBy(cds, by = "tx")
+        if (length(cds_by_tx) == 0L)
+            stop("'cds' contains no coding sequences.")
+        cds_parts <- unlist(cds_by_tx, use.names = FALSE)
+        .checkSeqlevels(rr, cds_parts, "cds")
+        no_ref <- setdiff(seqlevelsInUse(cds_parts), names(ref))
+        if (length(no_ref))
+            .stopNoRef(no_ref, ref)
+        n <- length(rr)
+        ref_allele <- toupper(as.character(mc$ref))
+        alt_allele <- toupper(as.character(mc$alt))
+        chrom <- as.character(seqnames(rr))
+        pos <- start(rr)
+        snv <- width(rr) == 1L & !is.na(ref_allele) & !is.na(alt_allele) &
+            grepl("^[ACGT]$", ref_allele) & grepl("^[ACGT]$", alt_allele)
+        len <- width(ref)[match(chrom, names(ref))]
+        beyond <- snv & !is.na(len) & pos > len
+        if (any(beyond))
+            warning(sum(beyond), " site(s) lie beyond the end of their ",
+                    "sequence in 'ref' and are left unannotated.",
+                    call. = FALSE)
+        on_ref <- snv & !is.na(len) & !beyond
+        base <- rep(NA_character_, n)
+        if (any(on_ref))
+            base[on_ref] <- as.character(subseq(
+                ref[chrom[on_ref]], start = pos[on_ref], width = 1L))
+        mismatch <- on_ref & base != ref_allele
+        if (any(mismatch)) {
+            k <- which(mismatch)[1L]
+            warning(sum(mismatch), " site(s) carry a 'ref' allele that ",
+                    "differs from the base in 'ref' at that position ",
+                    "(first: ", chrom[k], ":", pos[k], ", ", ref_allele[k],
+                    " against ", base[k], ") and are left unannotated. ",
+                    "Check that 'ref' is the sequence the variants were ",
+                    "called against.", call. = FALSE)
+        }
+        rr <- .fillSeqlengths(rr, ref)
+        coding_seq <- chrom %in% seqlevelsInUse(cds_parts)
+        use <- which(on_ref & !mismatch & coding_seq)
+
+        cols <- list(TXNAME = character(), GENEID = character(),
+                     CONSEQUENCE = character(), CDSLOC = integer(),
+                     PROTEINLOC = integer(), REFCODON = character(),
+                     VARCODON = character(), REFAA = character(),
+                     VARAA = character())
+        site <- integer()
+        if (length(use)) {
+            query <- GRanges(chrom[use], IRanges(pos[use], width = 1L))
+            pc <- withCallingHandlers(
+                predictCoding(query, cds, seqSource = ref,
+                              varAllele = DNAStringSet(alt_allele[use])),
+                warning = function(w) {
+                    if (grepl("were not translated", conditionMessage(w),
+                              fixed = TRUE))
+                        invokeRestart("muffleWarning")
+                })
+            ## A codon holding N, ., + or - comes back as "not translated"
+            ## with empty amino acids. Such a row carries no consequence,
+            ## so the site is left unannotated rather than counted.
+            if (length(pc)) {
+                blank <- as.character(pc$CONSEQUENCE) == "not translated" |
+                    !nzchar(as.character(pc$REFAA)) |
+                    !nzchar(as.character(pc$VARAA))
+                if (any(blank)) {
+                    warning(length(unique(pc$QUERYID[blank])), " site(s) ",
+                            "have a reference codon with an ambiguous base ",
+                            "and are left unannotated.", call. = FALSE)
+                    pc <- pc[!blank]
+                }
+            }
+            if (length(pc)) {
+                site <- use[pc$QUERYID]
+                txid <- as.character(pc$TXID)
+                tx_tab <- transcripts(cds, columns = c("tx_id", "tx_name"))
+                tx_name <- as.character(tx_tab$tx_name)
+                names(tx_name) <- as.character(tx_tab$tx_id)
+                txname <- tx_name[txid]
+                txname[is.na(txname)] <- txid[is.na(txname)]
+                chr <- function(v) unname(as.character(v))
+                cols <- list(
+                    TXNAME = unname(txname),
+                    GENEID = chr(pc$GENEID),
+                    CONSEQUENCE = chr(pc$CONSEQUENCE),
+                    CDSLOC = unname(start(pc$CDSLOC)),
+                    PROTEINLOC = unname(as.integer(min(pc$PROTEINLOC))),
+                    REFCODON = chr(pc$REFCODON),
+                    VARCODON = chr(pc$VARCODON),
+                    REFAA = chr(pc$REFAA),
+                    VARAA = chr(pc$VARAA))
+                tx_len <- sum(width(cds_by_tx))[txid]
+                o <- order(site, -tx_len, as.integer(txid))
+                site <- site[o]
+                cols <- lapply(cols, `[`, o)
+            }
+        }
+
+        if (collapse == "longest") {
+            multi <- tabulate(site, nbins = n) > 1L
+            if (any(multi)) {
+                by_site <- split(cols$CONSEQUENCE,
+                                 factor(site, levels = seq_len(n)))[multi]
+                differ <- vapply(by_site, function(z) length(unique(z)) > 1L,
+                                 logical(1))
+                message(sum(multi), " site(s) fall in more than one ",
+                        "transcript; the longest was kept. The consequence ",
+                        "differs between transcripts at ", sum(differ),
+                        " of them. Use collapse = \"all\" to keep every ",
+                        "transcript.")
+            }
+            keep <- !duplicated(site)
+            out <- lapply(cols, function(v) {
+                filled <- rep(v[0L][NA_integer_], n)
+                filled[site[keep]] <- v[keep]
+                filled
+            })
+        } else {
+            f <- factor(site, levels = seq_len(n))
+            out <- lapply(cols, function(v) {
+                l <- if (is.integer(v)) IntegerList(split(v, f))
+                     else CharacterList(split(v, f))
+                names(l) <- NULL
+                l
+            })
+        }
+        for (nm in names(out)) mcols(rr)[[nm]] <- out[[nm]]
+        SummarizedExperiment::rowRanges(x) <- rr
+        x
+    })
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "GRangesList", "DNAStringSet"),
+    function(x, cds, ref, geneCol = NULL, collapse = c("longest", "all"),
+             ...) {
+        ref <- .prepareReference(ref)
+        txdb <- .cdsListToTxDb(cds, geneCol, ref)
+        annotateCodonChange(x, txdb, ref, collapse = collapse, ...)
+    })
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "GRanges", "DNAStringSet"),
+    function(x, cds, ref, txCol = "ID", geneCol = "gene",
+             collapse = c("longest", "all"), ...) {
+        grl <- .cdsRangesToList(cds, txCol, geneCol)
+        annotateCodonChange(x, grl, ref,
+                            geneCol = if (is.null(geneCol)) NULL else "gene",
+                            collapse = collapse, ...)
+    })
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "ANY", "character"),
+    function(x, cds, ref, ...) {
+        path <- if (length(ref)) ref[1L] else "reference.fa"
+        stop("'ref' must be a DNAStringSet, not a file path. Read the ",
+             "FASTA file first, for example ",
+             "ref <- Biostrings::readDNAStringSet(\"", path, "\").",
+             call. = FALSE)
+    })
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "ANY", "XString"),
+    function(x, cds, ref, ...) {
+        stop("'ref' must be a DNAStringSet with one named sequence per ",
+             "seqlevel, not a single ", class(ref)[1L], ". Wrap it, for ",
+             "example ref <- Biostrings::DNAStringSet(c(chr1 = ref)).",
+             call. = FALSE)
+    })
+
+#' @rdname annotateCodonChange
+#' @export
+setMethod("annotateCodonChange",
+    c("WithinHostExperiment", "character", "DNAStringSet"),
+    function(x, cds, ref, ...) {
+        path <- if (length(cds)) cds[1L] else "annotation.gff3"
+        stop("'cds' must be a GRanges, GRangesList or TxDb, not a file ",
+             "path. Read a GFF3 or GTF file with rtracklayer::import() and ",
+             "pass its CDS records, for example ",
+             "features <- rtracklayer::import(\"", path, "\"); ",
+             "cds <- features[features$type == \"CDS\"].", call. = FALSE)
+    })

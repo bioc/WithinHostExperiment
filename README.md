@@ -47,7 +47,7 @@ All figures use real, publicly available data:
 |---------|-----------|------|
 | **Bendall *et al.* (2023)** *Nat. Commun.* 14:272 | 159 iSNVs, 83 samples, duplicate sequencing, 132 transmission pairs | QC, diversity, transmission, population genetics (Figs 1--3, 5--6) |
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: 9 daily saliva samples; the 6 that the study analysed (mean coverage of at least 1,000x; days 1, 2, 3, 4, 7, 8) are used | Longitudinal within-host evolution (Fig 4) |
-| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `dndsWithinHost()` (Fig 5b) |
+| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `pNpSWithinHost()` (Fig 5b) |
 
 All figures were generated with R version 4.6.1 by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
@@ -184,8 +184,8 @@ of the two replicates.
 > A further 7 concordant calls lie outside the annotated
 > coding sequences, or carry no codon annotation, and enter neither count.
 > These are counts of polymorphism within hosts rather than of substitutions
-> between them, so the ratio is a pN/pS, and the Jukes-Cantor correction it
-> carries barely moves proportions this small.
+> between them, so the ratio is a pN/pS, computed by `pNpSWithinHost()` with
+> no multiple-hit correction.
 > The panel shows the 8 genes with at least two counted calls and a
 > defined ratio, leaving out 1; those ratios rest on a handful of calls and
 > are given with their counts. None of them is evidence of selection on any

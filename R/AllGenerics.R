@@ -141,3 +141,8 @@ setGeneric("annotateGenes", function(x, genes, ...)
 #' @rdname annotateCodonChange
 setGeneric("annotateCodonChange", function(x, cds, ref, ...)
     standardGeneric("annotateCodonChange"))
+
+#' @export
+#' @rdname pNpSWithinHost
+setGeneric("pNpSWithinHost", function(x, cds, ref, ...)
+    standardGeneric("pNpSWithinHost"))

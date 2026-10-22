@@ -38,7 +38,8 @@ Suggests:
     BiocCheck,
     covr,
     rtracklayer,
-    txdbmaker
+    txdbmaker,
+    MSA2dist
 biocViews: Genetics, VariantAnnotation, Sequencing, GenomicVariation,
     QualityControl, VariantDetection, DataImport, LongRead
 URL: https://github.com/CuiweiG/WithinHostExperiment

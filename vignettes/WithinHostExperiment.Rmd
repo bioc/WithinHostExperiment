@@ -597,18 +597,41 @@ is reported by default and `collapse = "all"` keeps every one (see
 
 ## Selection analysis
 
-### Within-host dN/dS
+### Within-host pN/pS
 
-`dndsWithinHost()` counts synonymous and nonsynonymous iSNVs, divides
-each by the synonymous and nonsynonymous sites of the coding
-sequences (Nei and Gojobori 1986) and applies the Jukes-Cantor
-correction. It uses the codon annotation from `annotateCodonChange()`
-together with the same GFF3 file and reference FASTA:
+The balance of nonsynonymous to synonymous iSNVs in one host hints at
+the selection acting on the virus inside it. The raw counts cannot be
+compared directly, because a genome offers many more positions where a
+substitution changes the amino acid than positions where it does not.
+`pNpSWithinHost()` therefore divides each count by the number of
+synonymous or nonsynonymous *sites* in the coding sequences, counted by
+the method of Nei and Gojobori (1986): every codon has three sites,
+shared between the two classes according to how many of its possible
+substitutions keep the amino acid. The ratio of the two proportions,
+pN/pS, describes polymorphism within a host. It is not the dN/dS of a
+comparison between two sequences, and no multiple-hit correction
+applies to variants at these frequencies. The function takes the same
+coding sequences and reference as `annotateCodonChange()` and
+classifies each iSNV itself:
 
-```{r dnds}
-dnds <- dndsWithinHost(whe_codon, gff = gff_cds, refFasta = ref_fa)
-dnds[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "dNdS")]
+```{r pnps}
+pnps <- pNpSWithinHost(whe_qc, cds, ref)
+pnps[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "pNpS")]
 ```
+
+Each row is one sample. `nS` and `nN` count its synonymous and
+nonsynonymous iSNVs, nonsense changes included in `nN`; `S_sites` and
+`N_sites` are the same for every sample and add up to three times the
+number of sense codons in the coding sequence. Without selection, and
+under the counting model's assumption that every substitution is
+equally likely, pN/pS is expected near 1; values below 1 are what
+purifying selection against amino acid changes would produce. With
+counts as small as these, one more synonymous iSNV would change the
+ratio markedly, so it should be reported with its counts and never
+read on its own as evidence of selection. The segment here is
+synthetic, so these values carry no biological meaning. To estimate
+dN/dS between hosts instead, compare their consensus sequences with the
+models in the *MSA2dist* package.
 
 ### Selection coefficients from frequency trajectories
 

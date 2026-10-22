@@ -290,12 +290,6 @@ p3a <- ggplot(data.frame(d = as.numeric(depth_by_sample)), aes(x = d)) +
     scale_x_continuous("Mean read depth", labels = scales::label_comma(), expand = expansion(mult = c(0.01, 0.05))) +
     scale_y_continuous("Samples", expand = expansion(mult = c(0, 0.15))) + labs(tag = "a") + theme_pub(10)
 
-gff_tmp <- tempfile(fileext = ".gff3")
-writeLines(gsub("NC_045512\\.2", SEQNAME, readLines(inputs[["gff"]])), gff_tmp)
-fasta_tmp <- tempfile(fileext = ".fa")
-fasta_lines <- readLines(inputs[["fasta"]])
-fasta_lines[1L] <- paste0(">", SEQNAME)
-writeLines(fasta_lines, fasta_tmp)
 
 gr_conc <- GRanges(SEQNAME, IRanges::IRanges(concordant$POS, width = 1))
 mcols(gr_conc)$ref <- concordant$REF
@@ -539,37 +533,47 @@ p5a <- ggplot(taj_qc, aes(x = D_qc)) +
     scale_x_continuous("Tajima's D (n capped at 100)") +
     scale_y_continuous("Samples", expand = expansion(mult = c(0, 0.12))) + labs(tag = "a") + theme_pub(10)
 
-## b: Nei-Gojobori dN/dS, pooling the concordant iSNVs of all samples
-## CDS records, grouped into one transcript per protein by their ID, and the
-## reference as a DNAStringSet; predictCoding() does the translation
+## b: Nei-Gojobori pN/pS, pooling the concordant iSNVs of all samples.
+## The CDS records are grouped into one transcript per protein by their ID;
+## the reference is read as a DNAStringSet and renamed to the GenBank
+## accession the calls use. pNpSWithinHost() classifies each call through
+## predictCoding() and warns that ORF1a/ORF1ab and ORF7a/ORF7b overlap.
 cds_records <- gff_features[gff_features$type == "CDS"]
-whe_codon <- annotateCodonChange(whe_conc, cds_records,
-    Biostrings::readDNAStringSet(fasta_tmp))
-dnds <- as.data.frame(dndsWithinHost(whe_codon, gff = gff_tmp, refFasta = fasta_tmp, usePassedOnly = FALSE))
+ref_dna <- Biostrings::readDNAStringSet(inputs[["fasta"]])
+names(ref_dna) <- SEQNAME
+dnds <- as.data.frame(withCallingHandlers(
+    pNpSWithinHost(whe_conc, cds_records, ref_dna, usePassedOnly = FALSE),
+    warning = function(w) {
+        if (grepl("Coding sequences of different transcripts overlap",
+                  conditionMessage(w), fixed = TRUE)) {
+            message(conditionMessage(w))
+            invokeRestart("muffleWarning")
+        }
+    }))
 record("fig5", "b", "pooled synonymous iSNVs", dnds$nS[1])
 record("fig5", "b", "pooled nonsynonymous iSNVs", dnds$nN[1])
-record("fig5", "b", "pooled dN/dS (Jukes-Cantor)", dnds$dNdS[1])
+record("fig5", "b", "pooled pN/pS", dnds$pNpS[1])
 record("fig5", "b", "concordant iSNVs outside CDS or unannotated", nrow(concordant) - dnds$nS[1] - dnds$nN[1])
 gene_dnds <- dnds[!is.na(dnds$gene), ]
 for (i in seq_len(nrow(gene_dnds))) {
-    record("fig5", "b", paste0("dN/dS ", gene_dnds$gene[i], " (", gene_dnds$gene_nN[i], "N/", gene_dnds$gene_nS[i], "S)"),
-           gene_dnds$gene_dNdS[i])
+    record("fig5", "b", paste0("pN/pS ", gene_dnds$gene[i], " (", gene_dnds$gene_nN[i], "N/", gene_dnds$gene_nS[i], "S)"),
+           gene_dnds$gene_pNpS[i])
 }
 ## A gene with no synonymous call has no ratio at all; drawing it at zero would
 ## put it where the strongest purifying selection sits, so such genes are left
 ## out of the panel and counted instead.
 n_genes_any <- nrow(gene_dnds)
 gene_dnds <- gene_dnds[gene_dnds$gene_nS + gene_dnds$gene_nN >= 2L &
-                           !is.na(gene_dnds$gene_dNdS), ]
+                           !is.na(gene_dnds$gene_pNpS), ]
 record("fig5", "b", "genes shown", nrow(gene_dnds))
 record("fig5", "b", "genes omitted (one call or no synonymous call)",
        n_genes_any - nrow(gene_dnds))
 gene_dnds <- gene_dnds[order(gene_dnds$gene_nS + gene_dnds$gene_nN, decreasing = TRUE), ]
 gene_dnds$gene <- factor(gene_dnds$gene, levels = rev(gene_dnds$gene))
-p5b <- ggplot(gene_dnds, aes(y = gene, x = gene_dNdS)) +
+p5b <- ggplot(gene_dnds, aes(y = gene, x = gene_pNpS)) +
     geom_col(width = 0.6, alpha = 0.90, fill = pal$vermillion) +
     geom_vline(xintercept = 1, linetype = "dashed", colour = pal$grey, linewidth = 0.5) +
-    geom_text(aes(label = sprintf("%.2f (%dN/%dS)", gene_dNdS, gene_nN, gene_nS)),
+    geom_text(aes(label = sprintf("%.2f (%dN/%dS)", gene_pNpS, gene_nN, gene_nS)),
               hjust = -0.05, size = 2.7) +
     scale_x_continuous("pN/pS (Nei-Gojobori, pooled)", expand = expansion(mult = c(0, 0.45))) +
     labs(y = NULL, tag = "b") + theme_pub(10) + theme(axis.text.y = element_text(size = 9))

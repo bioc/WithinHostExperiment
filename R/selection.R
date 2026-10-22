@@ -1,220 +1,189 @@
 # R/selection.R
-# Within-host dN/dS and selection coefficients
+# Within-host pN/pS and selection coefficients
 
 #' @include methods.R annotate-codon.R
-#' @importFrom SummarizedExperiment assay assayNames colData rowRanges
+#' @importFrom SummarizedExperiment assay assayNames rowRanges
 #' @importFrom S4Vectors DataFrame mcols
-#' @importFrom GenomicRanges start
+#' @importFrom GenomicFeatures cdsBy transcripts extractTranscriptSeqs
+#' @importFrom GenomicRanges findOverlaps reduce intersect
 #' @importFrom GenomeInfoDb seqnames
+#' @importFrom BiocGenerics strand
+#' @importFrom IRanges width start end
 NULL
 
-## Standard genetic code (NCBI translation table 1)
-.CODON_TABLE <- c(
-    TTT="F",TTC="F",TTA="L",TTG="L", CTT="L",CTC="L",CTA="L",CTG="L",
-    ATT="I",ATC="I",ATA="I",ATG="M", GTT="V",GTC="V",GTA="V",GTG="V",
-    TCT="S",TCC="S",TCA="S",TCG="S", CCT="P",CCC="P",CCA="P",CCG="P",
-    ACT="T",ACC="T",ACA="T",ACG="T", GCT="A",GCC="A",GCA="A",GCG="A",
-    TAT="Y",TAC="Y",TAA="*",TAG="*", CAT="H",CAC="H",CAA="Q",CAG="Q",
-    AAT="N",AAC="N",AAA="K",AAG="K", GAT="D",GAC="D",GAA="E",GAG="E",
-    TGT="C",TGC="C",TGA="*",TGG="W", CGT="R",CGC="R",CGA="R",CGG="R",
-    AGT="S",AGC="S",AGA="R",AGG="R", GGT="G",GGC="G",GGA="G",GGG="G"
-)
-
-#' @keywords internal
-.read_fasta_simple <- function(path) {
-    lines <- readLines(path)
-    header_idx <- grep("^>", lines)
-    if (length(header_idx) == 0L)
-        stop("No FASTA header lines found in: ", path)
-    seqs <- list()
-    for (i in seq_along(header_idx)) {
-        name <- sub("^>\\s*", "", lines[header_idx[i]])
-        name <- sub("\\s+.*", "", name)
-        start <- header_idx[i] + 1L
-        end <- if (i < length(header_idx)) {
-            header_idx[i + 1L] - 1L
-        } else {
-            length(lines)
-        }
-        seq_lines <- if (start <= end) lines[start:end] else character()
-        ## Whitespace inside a record would shift every later coordinate
-        seqs[[name]] <- gsub("[[:space:]]", "",
-                             paste(seq_lines, collapse = ""))
-    }
-    seqs
-}
-
-#' @keywords internal
-.read_gff_cds <- function(gff, nameCol = "gene") {
-    lines <- readLines(gff)
-    lines <- lines[!startsWith(lines, "#") & nchar(lines) > 0]
-    fields <- strsplit(lines, "\t")
-    fields <- fields[vapply(fields, length, integer(1)) >= 9L]
-    if (length(fields) == 0L)
-        stop("No valid GFF lines found.")
-
-    gff_df <- data.frame(
-        seqid  = vapply(fields, `[`, character(1), 1L),
-        type   = vapply(fields, `[`, character(1), 3L),
-        start  = as.integer(vapply(fields, `[`, character(1), 4L)),
-        end    = as.integer(vapply(fields, `[`, character(1), 5L)),
-        strand = vapply(fields, `[`, character(1), 7L),
-        phase  = vapply(fields, `[`, character(1), 8L),
-        attrs  = vapply(fields, `[`, character(1), 9L),
-        stringsAsFactors = FALSE
-    )
-    cds <- gff_df[gff_df$type == "CDS", , drop = FALSE]
-    if (nrow(cds) == 0L)
-        stop("No CDS features found in GFF file. Available types: ",
-             paste(unique(gff_df$type), collapse = ", "))
-
-    cds$phase <- as.integer(ifelse(cds$phase == ".", "0", cds$phase))
-
-    parse_attr <- function(attr_str, key) {
-        pairs <- strsplit(attr_str, ";")[[1L]]
-        for (p in pairs) {
-            kv <- strsplit(trimws(p), "=")[[1L]]
-            if (length(kv) == 2L && kv[1L] == key) return(kv[2L])
-        }
-        NA_character_
-    }
-    cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                       key = nameCol, USE.NAMES = FALSE)
-    if (all(is.na(cds$gene)) && nameCol != "Name")
-        cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                           key = "Name", USE.NAMES = FALSE)
-    if (all(is.na(cds$gene)))
-        cds$gene <- vapply(cds$attrs, parse_attr, character(1),
-                           key = "ID", USE.NAMES = FALSE)
-    rownames(cds) <- NULL
-    cds
-}
-
 ## Nei and Gojobori (1986) synonymous sites of every sense codon under the
-## standard genetic code: at each codon position, the fraction of the three
-## possible substitutions that keep the amino acid. Substitutions to a stop
-## codon count as nonsynonymous; the nonsynonymous sites are 3 minus this.
+## standard genetic code (Biostrings::GENETIC_CODE): at each codon
+## position, the fraction of the three possible substitutions that keep
+## the amino acid. Substitutions to a stop codon count as nonsynonymous;
+## the nonsynonymous sites of a codon are 3 minus its synonymous sites.
 .NG_SYN_SITES <- local({
+    code <- Biostrings::GENETIC_CODE
     bases <- c("A", "C", "G", "T")
-    sense <- names(.CODON_TABLE)[.CODON_TABLE != "*"]
+    sense <- names(code)[code != "*"]
     vapply(sense, function(codon) {
-        aa <- .CODON_TABLE[[codon]]
+        aa <- code[[codon]]
         s <- 0
         for (p in seq_len(3L)) {
             for (b in setdiff(bases, substr(codon, p, p))) {
                 mutant <- codon
                 substr(mutant, p, p) <- b
-                if (.CODON_TABLE[[mutant]] == aa) s <- s + 1 / 3
+                if (code[[mutant]] == aa) s <- s + 1 / 3
             }
         }
         s
     }, numeric(1))
 })
 
-#' @keywords internal
-.revcomp_vec <- function(x) {
-    vapply(strsplit(x, "", fixed = TRUE), function(ch) {
-        paste(rev(chartr("ACGTacgt", "TGCAtgca", ch)), collapse = "")
-    }, character(1))
-}
+## Codons of every coding sequence in a TxDb, one row per transcript and
+## codon, keyed by the genomic positions of the codon's three bases. Two
+## transcripts reading the same bases in the same frame give the same key,
+## so the key identifies a codon of the genome rather than of a transcript.
+.txCodons <- function(txdb, ref) {
+    cds_by_tx <- cdsBy(txdb, by = "tx")
+    if (length(cds_by_tx) == 0L)
+        stop("'cds' contains no coding sequences.")
+    tx <- transcripts(txdb, columns = c("tx_id", "tx_name", "gene_id"))
+    tx_id <- as.character(tx$tx_id)
+    tx_name <- as.character(tx$tx_name)
+    tx_name[is.na(tx_name)] <- tx_id[is.na(tx_name)]
+    gene <- vapply(as.list(tx$gene_id), function(g)
+        if (length(g)) as.character(g[1L]) else NA_character_, character(1))
+    names(tx_name) <- names(gene) <- tx_id
 
-## Synonymous and nonsynonymous site totals per gene over the complete
-## codons of its CDS features. Codons shared by overlapping CDS features of
-## the same gene (for example ORF1a within ORF1ab) are counted once; stop
-## codons and codons with ambiguous bases are skipped.
-#' @keywords internal
-.cds_site_counts <- function(cds, ref_seqs) {
-    codon_rows <- lapply(seq_len(nrow(cds)), function(i) {
-        if (is.na(cds$gene[i]) || !cds$seqid[i] %in% names(ref_seqs))
-            return(NULL)
-        usable <- cds$end[i] - cds$start[i] + 1L - cds$phase[i]
-        n_codons <- usable %/% 3L
-        if (n_codons < 1L) return(NULL)
-        offsets <- 3L * (seq_len(n_codons) - 1L)
-        low <- if (cds$strand[i] == "-") {
-            cds$end[i] - cds$phase[i] - offsets - 2L
-        } else {
-            cds$start[i] + cds$phase[i] + offsets
-        }
-        data.frame(gene = cds$gene[i], seqid = cds$seqid[i],
-                   strand = cds$strand[i], low = low,
-                   stringsAsFactors = FALSE)
+    seqs <- as.character(extractTranscriptSeqs(ref, cds_by_tx))
+    rows <- lapply(names(cds_by_tx), function(id) {
+        parts <- cds_by_tx[[id]]
+        minus <- as.character(strand(parts))[1L] == "-"
+        pos <- unlist(lapply(seq_along(parts), function(k) {
+            if (minus) end(parts)[k]:start(parts)[k]
+            else start(parts)[k]:end(parts)[k]
+        }), use.names = FALSE)
+        n_codons <- length(pos) %/% 3L
+        if (n_codons == 0L) return(NULL)
+        first <- 3L * seq_len(n_codons) - 2L
+        chrom <- as.character(seqnames(parts))[1L]
+        data.frame(
+            tx_id = id, tx_name = tx_name[[id]], gene = gene[[id]],
+            key = paste(chrom, if (minus) "-" else "+", pos[first],
+                        pos[first + 1L], pos[first + 2L], sep = ":"),
+            codon = toupper(substring(seqs[[id]], first, first + 2L)),
+            stringsAsFactors = FALSE)
     })
-    codons <- unique(do.call(rbind, codon_rows))
-    if (is.null(codons) || nrow(codons) == 0L) {
-        return(data.frame(gene = character(), S_sites = numeric(),
-                          N_sites = numeric(), stringsAsFactors = FALSE))
+    codons <- do.call(rbind, rows)
+    if (is.null(codons))
+        codons <- data.frame(tx_id = character(), tx_name = character(),
+                             gene = character(), key = character(),
+                             codon = character(), stringsAsFactors = FALSE)
+    ## stop codons and codons with ambiguous bases carry no sites
+    codons$S <- unname(.NG_SYN_SITES[codons$codon])
+    list(codons = codons[!is.na(codons$S), , drop = FALSE],
+         cds_by_tx = cds_by_tx, tx_name = tx_name, gene = gene)
+}
+
+## Pairs of transcripts whose coding sequences share nucleotides, with the
+## number of nucleotides and of codons they share.
+.cdsOverlaps <- function(tc) {
+    grl <- tc$cds_by_tx
+    spans <- unlist(range(grl), use.names = FALSE)
+    ids <- names(grl)
+    hits <- findOverlaps(spans, spans, ignore.strand = TRUE)
+    q <- S4Vectors::queryHits(hits)
+    s <- S4Vectors::subjectHits(hits)
+    keep <- q < s
+    q <- q[keep]
+    s <- s[keep]
+    if (!length(q))
+        return(data.frame(tx1 = character(), tx2 = character(),
+                          shared_nt = integer(), shared_codons = integer(),
+                          stringsAsFactors = FALSE))
+    keys <- split(tc$codons$key, factor(tc$codons$tx_id, levels = ids))
+    shared_nt <- vapply(seq_along(q), function(k) {
+        a <- reduce(grl[[ids[q[k]]]], ignore.strand = TRUE)
+        b <- reduce(grl[[ids[s[k]]]], ignore.strand = TRUE)
+        sum(width(intersect(a, b, ignore.strand = TRUE)))
+    }, integer(1))
+    shared_codons <- vapply(seq_along(q), function(k)
+        length(intersect(keys[[ids[q[k]]]], keys[[ids[s[k]]]])), integer(1))
+    label <- function(id) {
+        g <- tc$gene[id]
+        ifelse(is.na(g) | g == tc$tx_name[id], tc$tx_name[id],
+               paste0(tc$tx_name[id], " (", g, ")"))
     }
-    codon_seq <- character(nrow(codons))
-    for (sid in unique(codons$seqid)) {
-        rows <- which(codons$seqid == sid)
-        codon_seq[rows] <- toupper(substring(ref_seqs[[sid]],
-            codons$low[rows], codons$low[rows] + 2L))
-    }
-    minus <- codons$strand == "-"
-    codon_seq[minus] <- .revcomp_vec(codon_seq[minus])
-    syn <- unname(.NG_SYN_SITES[codon_seq])
-    keep <- !is.na(syn)
-    s_by_gene <- tapply(syn[keep], codons$gene[keep], sum)
-    n_by_gene <- tapply(3 - syn[keep], codons$gene[keep], sum)
-    data.frame(gene = names(s_by_gene), S_sites = as.numeric(s_by_gene),
-               N_sites = as.numeric(n_by_gene[names(s_by_gene)]),
-               stringsAsFactors = FALSE)
+    out <- data.frame(tx1 = unname(label(ids[q])),
+                      tx2 = unname(label(ids[s])),
+                      shared_nt = shared_nt, shared_codons = shared_codons,
+                      stringsAsFactors = FALSE)
+    out[out$shared_nt > 0L, , drop = FALSE]
 }
 
 # ============================================================
-# dndsWithinHost -- dN/dS ratio per sample
+# pNpSWithinHost -- pN/pS ratio per sample
 # ============================================================
 
-#' Within-host dN/dS ratio
+#' Within-host pN/pS ratio
 #'
-#' Estimates the ratio of nonsynonymous to synonymous divergence among
-#' the iSNVs of each sample with the counting method of Nei and Gojobori
-#' (1986). The numbers of synonymous (\eqn{S}) and nonsynonymous
-#' (\eqn{N}) sites are counted over the complete codons of every CDS in
-#' \code{gff}, using the reference sequence in \code{refFasta} and the
-#' standard genetic code. With \eqn{S_d} synonymous and \eqn{N_d}
-#' nonsynonymous iSNVs present in a sample,
-#' \deqn{p_S = S_d / S, \quad p_N = N_d / N,}
-#' each proportion is corrected for multiple hits with Jukes and Cantor
-#' (1969), \eqn{d = -\frac{3}{4}\log(1 - \frac{4}{3}p)}, and
-#' \eqn{d_N/d_S} is their ratio. Under neutrality the expected ratio is
-#' 1; values below 1 suggest purifying selection and values above 1
-#' diversifying selection, but within-host ratios computed from few
-#' iSNVs are highly variable and should be read with their counts.
+#' Computes, for each sample, the ratio of nonsynonymous to synonymous
+#' polymorphism per site among its iSNVs. This is a within-host
+#' polymorphism ratio, pN/pS: it counts variants segregating inside one
+#' host, not substitutions fixed between two sequences, so it is not the
+#' dN/dS of a between-sequence comparison and carries no multiple-hit
+#' correction. Sites are counted with the method of Nei and Gojobori
+#' (1986). For dN/dS between hosts or between consensus sequences, use
+#' the models in the \pkg{MSA2dist} package.
 #'
-#' Each iSNV present in a sample (non-missing, non-zero frequency, and
-#' passing QC when \code{usePassedOnly = TRUE}) is counted once,
-#' irrespective of its frequency. Amino acid changes come from
-#' \code{\link{annotateCodonChange}}, which should be given the CDS
-#' records of the same \code{gff} and the sequence in \code{refFasta}.
-#' Variants outside a CDS, or without an amino acid annotation, are not
-#' counted. Nonsense changes count as
-#' nonsynonymous. Codons shared by overlapping CDS features of the same
-#' gene are counted once.
+#' @details
+#' With \eqn{n_S} synonymous and \eqn{n_N} nonsynonymous iSNVs present in
+#' a sample, and \eqn{S} synonymous and \eqn{N} nonsynonymous sites in
+#' the coding sequences,
+#' \deqn{p_S = n_S / S, \quad p_N = n_N / N, \quad
+#'   \mathrm{pN/pS} = p_N / p_S.}
+#' Under the assumptions of the counting model (every substitution
+#' equally likely, no selection) the expected ratio is 1. A ratio below
+#' 1 is what purifying selection against amino acid changes would give,
+#' but a within-host ratio rests on few iSNVs, is highly variable, and
+#' should always be read with its counts. It is \code{NA} when no
+#' synonymous iSNV is present.
 #'
-#' @param whe A \code{\link{WithinHostExperiment}} annotated with
-#'   \code{\link{annotateCodonChange}}.
-#' @param gff Character scalar. Path to the GFF3 file with CDS features
-#'   used for the annotation.
-#' @param refFasta Character scalar. Path to the reference genome FASTA
-#'   used for the annotation.
-#' @param gffFeatureCol Character scalar. Column name in
-#'   \code{mcols(rowRanges)} containing the gene annotation
-#'   (default: \code{"GENEID"}).
-#' @param refAACol Character scalar. Column name in
-#'   \code{mcols(rowRanges)} for the reference amino acid
-#'   (default: \code{"REFAA"}).
-#' @param altAACol Character scalar. Column name in
-#'   \code{mcols(rowRanges)} for the alternative amino acid
-#'   (default: \code{"VARAA"}).
-#' @param usePassedOnly Logical. If \code{TRUE} (default), only use
-#'   variants where \code{qcPass == TRUE}.
-#' @param nameCol Character scalar. GFF3 attribute holding the gene name
-#'   (default: \code{"gene"}). It must name the same labels that
-#'   \code{\link{annotateCodonChange}} wrote into \code{GENEID}
-#'   (its \code{geneCol}); otherwise no iSNV is counted and the
-#'   function warns.
+#' \strong{Classification.} Each iSNV is classified by
+#' \code{\link{annotateCodonChange}}, which this function calls on
+#' \code{x} with the same \code{cds} and \code{ref} and
+#' \code{collapse = "longest"}, so annotation columns already present in
+#' \code{x} are not used. Synonymous changes count towards \eqn{n_S};
+#' nonsynonymous and nonsense changes towards \eqn{n_N}. Sites outside
+#' every coding sequence, insertions and deletions, and codons holding an
+#' ambiguous base are not counted. An iSNV is present in a sample when
+#' its frequency is above zero and, with \code{usePassedOnly = TRUE}, it
+#' passed QC; it is counted once whatever its frequency.
+#'
+#' \strong{Sites.} \eqn{S} and \eqn{N} are summed over the distinct
+#' codons of the genome that some coding sequence reads: a codon is
+#' identified by the genomic positions of its three bases, so where two
+#' coding sequences read the same bases in the same frame (ORF1a inside
+#' ORF1ab in SARS-CoV-2) the shared codons are counted once, while
+#' coding sequences that overlap in different frames (ORF7a and ORF7b)
+#' contribute their codons separately. Each sense codon carries three
+#' sites, split between synonymous and nonsynonymous under the standard
+#' genetic code; stop codons and codons with an ambiguous base carry
+#' none, so \eqn{S + N} is three times the number of distinct sense
+#' codons. When coding sequences of different transcripts overlap, a
+#' warning names them with the nucleotides and codons they share. The
+#' sites of a gene are summed in the same way over the codons of that
+#' gene's own transcripts, so a codon shared by two genes is counted in
+#' each of them but once in the total.
+#'
+#' @param x A \code{\link{WithinHostExperiment}} with \code{ref} and
+#'   \code{alt} columns in \code{mcols(rowRanges(x))}.
+#' @param cds The coding sequences, as for
+#'   \code{\link{annotateCodonChange}}: a \code{TxDb}, a \code{GRanges} of
+#'   CDS records, or a \code{GRangesList} with one element per transcript.
+#' @param ref A \code{DNAStringSet} with the reference sequence of each
+#'   seqlevel carrying coding sequences.
+#' @param usePassedOnly Logical. If \code{TRUE} (default), only iSNVs
+#'   with \code{qcPass == TRUE} are counted.
+#' @param txCol,geneCol As for \code{\link{annotateCodonChange}}: the
+#'   transcript and gene columns of a \code{GRanges} or
+#'   \code{GRangesList} \code{cds}.
+#' @param ... Not used; supplying anything is an error.
 #'
 #' @return A \code{DataFrame} with one row per sample and gene carrying
 #'   at least one counted iSNV (one row with \code{gene = NA} when a
@@ -223,12 +192,11 @@ NULL
 #'     \item{sample_id}{Sample identifier.}
 #'     \item{nS, nN}{Synonymous and nonsynonymous iSNVs in the sample.}
 #'     \item{S_sites, N_sites}{Synonymous and nonsynonymous sites over
-#'       all CDS features.}
-#'     \item{pS, pN}{Proportions \eqn{S_d/S} and \eqn{N_d/N}.}
-#'     \item{dNdS}{Jukes-Cantor corrected \eqn{d_N/d_S} (\code{NA} when
-#'       \eqn{d_S} is zero or a proportion reaches 0.75).}
+#'       all coding sequences.}
+#'     \item{pS, pN}{The proportions \eqn{n_S/S} and \eqn{n_N/N}.}
+#'     \item{pNpS}{\eqn{p_N/p_S}; \code{NA} when \eqn{n_S = 0}.}
 #'     \item{gene, gene_nS, gene_nN, gene_S_sites, gene_N_sites,
-#'       gene_dNdS}{The same quantities for each gene.}
+#'       gene_pNpS}{The same quantities for each gene.}
 #'   }
 #'
 #' @references
@@ -237,19 +205,22 @@ NULL
 #' \emph{Mol Biol Evol} 3:418-426.
 #' \doi{10.1093/oxfordjournals.molbev.a040410}
 #'
-#' Jukes TH, Cantor CR (1969). Evolution of protein molecules. In Munro
-#' HN (ed.), \emph{Mammalian Protein Metabolism}, pp. 21-132. Academic
-#' Press, New York.
+#' @seealso \code{\link{annotateCodonChange}} for the classification of
+#'   each iSNV.
 #'
-#' @seealso \code{\link{annotateCodonChange}}
-#'
-#' @export
+#' @name pNpSWithinHost
+#' @aliases pNpSWithinHost,WithinHostExperiment,TxDb,DNAStringSet-method
+#'   pNpSWithinHost,WithinHostExperiment,GRangesList,DNAStringSet-method
+#'   pNpSWithinHost,WithinHostExperiment,GRanges,DNAStringSet-method
+#'   pNpSWithinHost,WithinHostExperiment,ANY,character-method
+#'   pNpSWithinHost,WithinHostExperiment,ANY,XString-method
+#'   pNpSWithinHost,WithinHostExperiment,character,DNAStringSet-method
 #' @examples
-#' ref <- tempfile(fileext = ".fa")
-#' writeLines(c(">seg1", "ATGCTGAAAGGGTAA"), ref)
-#' gff <- tempfile(fileext = ".gff3")
-#' writeLines(c("##gff-version 3",
-#'     "seg1\t.\tCDS\t1\t15\t.\t+\t0\tgene=geneA"), gff)
+#' ## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA
+#' ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+#' cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
+#'     strand = "+", ID = "cds-A", gene = "geneA")
+#' ## 1 A>G is ATG -> GTG (nonsynonymous); 6 G>A is CTG -> CTA (synonymous)
 #' gr <- GenomicRanges::GRanges("seg1",
 #'     IRanges::IRanges(c(1, 6), width = 1))
 #' S4Vectors::mcols(gr)$ref <- c("A", "G")
@@ -259,135 +230,149 @@ NULL
 #'     rowRanges = gr,
 #'     colData = S4Vectors::DataFrame(sample_id = "S1"))
 #' if (requireNamespace("txdbmaker", quietly = TRUE)) {
-#'     cds <- GenomicRanges::GRanges("seg1", IRanges::IRanges(1, 15),
-#'         strand = "+", ID = "cds-A", gene = "geneA")
-#'     whe <- annotateCodonChange(whe, cds,
-#'         Biostrings::readDNAStringSet(ref))
-#'     dndsWithinHost(whe, gff = gff, refFasta = ref)
+#'     pNpSWithinHost(whe, cds, ref)
 #' }
-dndsWithinHost <- function(whe, gff, refFasta,
-                           gffFeatureCol = "GENEID",
-                           refAACol = "REFAA",
-                           altAACol = "VARAA",
-                           usePassedOnly = TRUE,
-                           nameCol = "gene") {
-    if (!is(whe, "WithinHostExperiment"))
-        stop("'whe' must be a WithinHostExperiment object.")
-    if (missing(gff) || missing(refFasta))
-        stop("'gff' and 'refFasta' are required: dN/dS is normalised by ",
-             "the synonymous and nonsynonymous sites of the coding ",
-             "sequences.")
-    if (!is.character(gff) || length(gff) != 1L || !file.exists(gff))
-        stop("GFF file not found: ", gff)
-    if (!is.character(refFasta) || length(refFasta) != 1L ||
-        !file.exists(refFasta))
-        stop("Reference FASTA not found: ", refFasta)
+NULL
 
-    rr <- rowRanges(whe)
-    mc <- mcols(rr)
-    for (column in c(refAACol, altAACol, gffFeatureCol)) {
-        if (!column %in% colnames(mc))
-            stop("Column '", column, "' not found in mcols(rowRanges). ",
-                 "Run annotateCodonChange() first. Available columns: ",
-                 paste(colnames(mc), collapse = ", "))
-        if (is(mc[[column]], "List"))
-            stop("Column '", column, "' holds more than one value per ",
-                 "site. dndsWithinHost() needs one transcript per site: ",
-                 "annotate with collapse = \"longest\", the default of ",
-                 "annotateCodonChange().")
-    }
+## Count iSNVs and sites; x is already annotated by annotateCodonChange().
+.pNpSCount <- function(x, tc, usePassedOnly) {
+    codons <- tc$codons
+    if (nrow(codons) == 0L)
+        stop("The coding sequences in 'cds' hold no complete sense codon ",
+             "on the sequences in 'ref'.")
+    total <- codons[!duplicated(codons$key), , drop = FALSE]
+    S_total <- sum(total$S)
+    N_total <- sum(3 - total$S)
+    by_gene <- codons[!is.na(codons$gene), , drop = FALSE]
+    by_gene <- by_gene[!duplicated(by_gene[, c("gene", "key")]), ,
+                       drop = FALSE]
+    gene_S <- tapply(by_gene$S, by_gene$gene, sum)
+    gene_N <- tapply(3 - by_gene$S, by_gene$gene, sum)
 
-    sites <- .cds_site_counts(.read_gff_cds(gff, nameCol),
-                              .read_fasta_simple(refFasta))
-    if (nrow(sites) == 0L)
-        stop("No complete codons found for the CDS features in 'gff' ",
-             "on the sequences in 'refFasta'.")
-    S_total <- sum(sites$S_sites)
-    N_total <- sum(sites$N_sites)
+    mc <- mcols(rowRanges(x))
+    cons <- mc$CONSEQUENCE
+    gene_vals <- mc$GENEID
+    is_syn <- !is.na(cons) & cons == "synonymous"
+    is_non <- !is.na(cons) & cons %in% c("nonsynonymous", "nonsense")
 
-    ref_aa <- as.character(mc[[refAACol]])
-    alt_aa <- as.character(mc[[altAACol]])
-    gene_vals <- as.character(mc[[gffFeatureCol]])
-    annotated <- !is.na(ref_aa) & !is.na(alt_aa) & !is.na(gene_vals) &
-        nzchar(ref_aa) & nzchar(alt_aa)
-    coding <- annotated & gene_vals %in% sites$gene
-    ## The gene labels of the annotation and of the site counts come from
-    ## two sources, so a naming mismatch would silently give every count
-    ## as zero.
-    if (any(annotated) && !any(coding))
-        warning("None of the ", sum(annotated), " annotated site(s) ",
-                "carries a gene label present in 'gff', so every count is ",
-                "zero.
-  labels in the annotation: ",
-                paste(utils::head(unique(gene_vals[annotated]), 5L),
-                      collapse = ", "),
-                "
-  labels in 'gff' (nameCol = \"", nameCol, "\"): ",
-                paste(utils::head(sites$gene, 5L), collapse = ", "),
-                call. = FALSE)
-    is_syn <- coding & ref_aa == alt_aa
-    is_non <- coding & ref_aa != alt_aa
-
-    freq_mat <- assay(whe, "altFreq")
-    qc_mat <- if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
-        assay(whe, "qcPass")
+    freq_mat <- assay(x, "altFreq")
+    qc_mat <- if (usePassedOnly && "qcPass" %in% assayNames(x)) {
+        assay(x, "qcPass")
     } else {
         NULL
     }
     sample_ids <- colnames(freq_mat)
     if (is.null(sample_ids))
         sample_ids <- paste0("S", seq_len(ncol(freq_mat)))
-
-    jukes_cantor <- function(p) {
-        ifelse(p < 0.75, -0.75 * log(1 - 4 * p / 3), NA_real_)
-    }
-    ratio <- function(nS, nN, S, N) {
-        dS <- jukes_cantor(nS / S)
-        dN <- jukes_cantor(nN / N)
-        if (is.na(dS) || is.na(dN) || dS == 0) NA_real_ else dN / dS
-    }
+    ratio <- function(nS, nN, S, N)
+        if (nS == 0L) NA_real_ else (nN / N) / (nS / S)
 
     results <- lapply(seq_len(ncol(freq_mat)), function(j) {
         freq_j <- freq_mat[, j]
         if (!is.null(qc_mat)) freq_j[!qc_mat[, j]] <- NA
         present <- !is.na(freq_j) & freq_j > 0
-
         nS <- sum(present & is_syn)
         nN <- sum(present & is_non)
         base_row <- data.frame(
             sample_id = sample_ids[j], nS = nS, nN = nN,
             S_sites = S_total, N_sites = N_total,
             pS = nS / S_total, pN = nN / N_total,
-            dNdS = ratio(nS, nN, S_total, N_total),
+            pNpS = ratio(nS, nN, S_total, N_total),
             stringsAsFactors = FALSE)
-
-        genes <- sort(unique(gene_vals[present & coding]))
+        counted <- present & (is_syn | is_non) & !is.na(gene_vals)
+        genes <- sort(unique(gene_vals[counted]))
         if (length(genes) == 0L) {
             return(cbind(base_row, data.frame(
                 gene = NA_character_, gene_nS = NA_integer_,
                 gene_nN = NA_integer_, gene_S_sites = NA_real_,
-                gene_N_sites = NA_real_, gene_dNdS = NA_real_,
+                gene_N_sites = NA_real_, gene_pNpS = NA_real_,
                 stringsAsFactors = FALSE)))
         }
         gene_rows <- lapply(genes, function(g) {
-            in_gene <- present & coding & gene_vals == g
-            gS <- sites$S_sites[match(g, sites$gene)]
-            gN <- sites$N_sites[match(g, sites$gene)]
+            in_gene <- counted & gene_vals == g
             gnS <- sum(in_gene & is_syn)
             gnN <- sum(in_gene & is_non)
+            gS <- unname(gene_S[g])
+            gN <- unname(gene_N[g])
             data.frame(gene = g, gene_nS = gnS, gene_nN = gnN,
                        gene_S_sites = gS, gene_N_sites = gN,
-                       gene_dNdS = ratio(gnS, gnN, gS, gN),
+                       gene_pNpS = ratio(gnS, gnN, gS, gN),
                        stringsAsFactors = FALSE)
         })
         cbind(base_row[rep(1L, length(genes)), , drop = FALSE],
               do.call(rbind, gene_rows))
     })
-
     out <- do.call(rbind, results)
     rownames(out) <- NULL
     DataFrame(out)
 }
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "TxDb", "DNAStringSet"),
+    function(x, cds, ref, usePassedOnly = TRUE, ...) {
+        .stop_on_unused_dots("pNpSWithinHost", ...)
+        if (!is.logical(usePassedOnly) || length(usePassedOnly) != 1L ||
+            is.na(usePassedOnly))
+            stop("'usePassedOnly' must be TRUE or FALSE.")
+        ref <- .prepareReference(ref)
+        x <- annotateCodonChange(x, cds, ref, collapse = "longest")
+        tc <- .txCodons(cds, ref)
+        ov <- .cdsOverlaps(tc)
+        if (nrow(ov)) {
+            shown <- utils::head(ov, 5L)
+            warning("Coding sequences of different transcripts overlap; ",
+                    "codons they share are counted once in the total ",
+                    "sites:\n", paste0("  ", shown$tx1, " / ", shown$tx2,
+                    ": ", shown$shared_nt, " nt, ", shown$shared_codons,
+                    " codon(s) shared", collapse = "\n"),
+                    if (nrow(ov) > 5L)
+                        paste0("\n  and ", nrow(ov) - 5L, " more pair(s)"),
+                    call. = FALSE)
+        }
+        .pNpSCount(x, tc, usePassedOnly)
+    })
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "GRangesList", "DNAStringSet"),
+    function(x, cds, ref, usePassedOnly = TRUE, geneCol = NULL, ...) {
+        ref <- .prepareReference(ref)
+        txdb <- .cdsListToTxDb(cds, geneCol, ref)
+        pNpSWithinHost(x, txdb, ref, usePassedOnly = usePassedOnly, ...)
+    })
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "GRanges", "DNAStringSet"),
+    function(x, cds, ref, usePassedOnly = TRUE, txCol = "ID",
+             geneCol = "gene", ...) {
+        grl <- .cdsRangesToList(cds, txCol, geneCol)
+        pNpSWithinHost(x, grl, ref, usePassedOnly = usePassedOnly,
+                       geneCol = if (is.null(geneCol)) NULL else "gene",
+                       ...)
+    })
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "ANY", "character"),
+    function(x, cds, ref, ...) .refPathError(ref))
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "ANY", "XString"),
+    function(x, cds, ref, ...) .xstringRefError(ref))
+
+#' @rdname pNpSWithinHost
+#' @export
+setMethod("pNpSWithinHost",
+    c("WithinHostExperiment", "character", "DNAStringSet"),
+    function(x, cds, ref, ...) .cdsPathError(cds))
 
 
 # ============================================================

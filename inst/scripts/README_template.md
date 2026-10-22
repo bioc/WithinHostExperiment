@@ -47,7 +47,7 @@ All figures use real, publicly available data:
 |---------|-----------|------|
 | **Bendall *et al.* (2023)** *Nat. Commun.* 14:272 | {{data::::iSNV calls::%d}} iSNVs, {{data::::samples::%d}} samples, duplicate sequencing, {{data::::transmission pairs in metadata::%d}} transmission pairs | QC, diversity, transmission, population genetics (Figs 1--3, 5--6) |
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: {{fig4::::saliva samples in the source data::%d}} daily saliva samples; the {{fig4::::samples analysed (mean coverage >= 1000x)::%d}} that the study analysed (mean coverage of at least 1,000x; days {{fig4::::days of infection analysed::%s}}) are used | Longitudinal within-host evolution (Fig 4) |
-| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `dndsWithinHost()` (Fig 5b) |
+| **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `pNpSWithinHost()` (Fig 5b) |
 
 All figures were generated with {{session::::R version::%s}} by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
@@ -180,12 +180,12 @@ of the two replicates.
 > describe the spectra rather than test either.
 > **(b)** Nei-Gojobori ratio of nonsynonymous to synonymous iSNVs per
 > site, pooling concordant calls across samples
-> ({{fig5::b::pooled nonsynonymous iSNVs::%d}} nonsynonymous, {{fig5::b::pooled synonymous iSNVs::%d}} synonymous; pooled ratio {{fig5::b::pooled dN/dS (Jukes-Cantor)::%.2f}}).
+> ({{fig5::b::pooled nonsynonymous iSNVs::%d}} nonsynonymous, {{fig5::b::pooled synonymous iSNVs::%d}} synonymous; pooled ratio {{fig5::b::pooled pN/pS::%.2f}}).
 > A further {{fig5::b::concordant iSNVs outside CDS or unannotated::%d}} concordant calls lie outside the annotated
 > coding sequences, or carry no codon annotation, and enter neither count.
 > These are counts of polymorphism within hosts rather than of substitutions
-> between them, so the ratio is a pN/pS, and the Jukes-Cantor correction it
-> carries barely moves proportions this small.
+> between them, so the ratio is a pN/pS, computed by `pNpSWithinHost()` with
+> no multiple-hit correction.
 > The panel shows the {{fig5::b::genes shown::%d}} genes with at least two counted calls and a
 > defined ratio, leaving out {{fig5::b::genes omitted (one call or no synonymous call)::%d}}; those ratios rest on a handful of calls and
 > are given with their counts. None of them is evidence of selection on any

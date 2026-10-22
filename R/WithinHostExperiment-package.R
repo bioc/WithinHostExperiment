@@ -60,7 +60,7 @@
 #'     reference as a \code{DNAStringSet})
 #'   }
 #'   \item{Selection analysis}{
-#'     \code{\link{dndsWithinHost}},
+#'     \code{\link{pNpSWithinHost}} (within-host pN/pS),
 #'     \code{\link{estimateSelectionCoefficient}}
 #'   }
 #'   \item{Multi-caller consensus}{

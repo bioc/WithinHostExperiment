@@ -73,6 +73,32 @@ NULL
          paste(names(ref), collapse = ", "), ".", call. = FALSE)
 }
 
+## The three messages the path and single-sequence guards share, so that
+## annotateCodonChange() and pNpSWithinHost() say the same thing.
+.refPathError <- function(ref) {
+    path <- if (length(ref)) ref[1L] else "reference.fa"
+    stop("'ref' must be a DNAStringSet, not a file path. Read the ",
+         "FASTA file first, for example ",
+         "ref <- Biostrings::readDNAStringSet(\"", path, "\").",
+         call. = FALSE)
+}
+
+.xstringRefError <- function(ref) {
+    stop("'ref' must be a DNAStringSet with one named sequence per ",
+         "seqlevel, not a single ", class(ref)[1L], ". Wrap it, for ",
+         "example ref <- Biostrings::DNAStringSet(c(chr1 = ref)).",
+         call. = FALSE)
+}
+
+.cdsPathError <- function(cds) {
+    path <- if (length(cds)) cds[1L] else "annotation.gff3"
+    stop("'cds' must be a GRanges, GRangesList or TxDb, not a file ",
+         "path. Read a GFF3 or GTF file with rtracklayer::import() and ",
+         "pass its CDS records, for example ",
+         "features <- rtracklayer::import(\"", path, "\"); ",
+         "cds <- features[features$type == \"CDS\"].", call. = FALSE)
+}
+
 #' Codon and amino acid consequence of each SNV
 #'
 #' Annotates every single-nucleotide substitution in a
@@ -566,34 +592,16 @@ setMethod("annotateCodonChange",
 #' @export
 setMethod("annotateCodonChange",
     c("WithinHostExperiment", "ANY", "character"),
-    function(x, cds, ref, ...) {
-        path <- if (length(ref)) ref[1L] else "reference.fa"
-        stop("'ref' must be a DNAStringSet, not a file path. Read the ",
-             "FASTA file first, for example ",
-             "ref <- Biostrings::readDNAStringSet(\"", path, "\").",
-             call. = FALSE)
-    })
+    function(x, cds, ref, ...) .refPathError(ref))
 
 #' @rdname annotateCodonChange
 #' @export
 setMethod("annotateCodonChange",
     c("WithinHostExperiment", "ANY", "XString"),
-    function(x, cds, ref, ...) {
-        stop("'ref' must be a DNAStringSet with one named sequence per ",
-             "seqlevel, not a single ", class(ref)[1L], ". Wrap it, for ",
-             "example ref <- Biostrings::DNAStringSet(c(chr1 = ref)).",
-             call. = FALSE)
-    })
+    function(x, cds, ref, ...) .xstringRefError(ref))
 
 #' @rdname annotateCodonChange
 #' @export
 setMethod("annotateCodonChange",
     c("WithinHostExperiment", "character", "DNAStringSet"),
-    function(x, cds, ref, ...) {
-        path <- if (length(cds)) cds[1L] else "annotation.gff3"
-        stop("'cds' must be a GRanges, GRangesList or TxDb, not a file ",
-             "path. Read a GFF3 or GTF file with rtracklayer::import() and ",
-             "pass its CDS records, for example ",
-             "features <- rtracklayer::import(\"", path, "\"); ",
-             "cds <- features[features$type == \"CDS\"].", call. = FALSE)
-    })
+    function(x, cds, ref, ...) .cdsPathError(cds))

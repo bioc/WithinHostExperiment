@@ -105,17 +105,19 @@
   an alternative start codon (`CTG` or `TTG`) at the first base of a
   coding sequence reads as `M`. A codon holding an ambiguous base is
   left unannotated, with a warning, rather than translated.
-* Selection analysis: `dndsWithinHost()` estimates within-host dN/dS
-  with the Nei-Gojobori counting method, normalising by the synonymous
-  and nonsynonymous sites of the CDS features in a GFF3 and reference
-  FASTA, with Jukes-Cantor correction. Its amino acid columns now
-  default to the names `annotateCodonChange()` writes (`GENEID`,
-  `REFAA`, `VARAA`), so a call set annotated elsewhere -- an iVar table
-  carrying `GFF_FEATURE`, `REF_AA` and `ALT_AA`, for instance -- needs
-  those column names passed explicitly. It also warns, instead of
-  returning zero counts silently, when the gene labels of the
-  annotation and of the GFF3 do not meet, and requires the annotation
-  produced with `collapse = "longest"`. `estimateSelectionCoefficient()`
+* Selection analysis: `pNpSWithinHost()` computes the within-host
+  ratio of nonsynonymous to synonymous polymorphism per site, pN/pS,
+  from the same coding sequences (`GRanges`, `GRangesList` or `TxDb`)
+  and `DNAStringSet` reference as `annotateCodonChange()`, which it
+  calls to classify each iSNV. Sites follow Nei and Gojobori (1986) and
+  are counted over the distinct codons of the genome, so codons that
+  same-frame overlapping coding sequences share (ORF1a and ORF1ab) are
+  counted once, and a warning names the overlapping transcripts. It
+  replaces `dndsWithinHost()`, which took GFF3 and FASTA paths, parsed
+  them itself and applied a Jukes-Cantor correction; a multiple-hit
+  correction belongs to divergence between sequences, not to
+  polymorphism within a host, and is no longer applied.
+  `estimateSelectionCoefficient()`
   for time-series selection coefficient inference.
 * Multi-caller consensus: `consensusISNV()` for deriving consensus
   variant calls across callers, `calcCallerConcordance()` for

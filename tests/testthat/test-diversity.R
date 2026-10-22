@@ -254,6 +254,11 @@ test_that("the genome length sums every recorded sequence (was: only those with 
     expect_error(calcDiversity(whe, indices = "pi"), "not recorded for seg2")
     expect_error(calcDiversity(whe, indices = "pi"),
                  'seqlengths(x)[c("seg2")] <- <length>', fixed = TRUE)
+    ## the second recipe: drop a sequence without calls
+    only_called <- GenomeInfoDb::keepSeqlevels(whe,
+        GenomeInfoDb::seqlevelsInUse(whe), pruning.mode = "coarse")
+    expect_equal(calcDiversity(only_called, indices = "pi")$pi,
+                 piISNV(c(0.2, 0.3), genomeLength = 600))
     GenomeInfoDb::seqlengths(whe)[c("seg2")] <- 400L
     expect_equal(calcDiversity(whe, indices = "pi")$pi,
                  piISNV(c(0.2, 0.3), genomeLength = 1000))

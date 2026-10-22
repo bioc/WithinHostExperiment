@@ -65,8 +65,8 @@ NULL
 #'
 #' @references
 #' Sobel Leonard A et al. (2017). Transmission Bottleneck Size
-#' Estimation from Pathogen Deep-Sequencing Data.
-#' \emph{J Virol} 91:e00171-17.
+#' Estimation from Pathogen Deep-Sequencing Data, with an Application to
+#' Human Influenza A Virus. \emph{J Virol} 91:e00171-17.
 #' \doi{10.1128/JVI.00171-17}
 #'
 #' @export

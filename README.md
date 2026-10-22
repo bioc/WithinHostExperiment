@@ -365,14 +365,14 @@ Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
   constrain the evolution of highly transmissible SARS-CoV-2 variants.
   *Nat. Commun.* 14:272.
 - Sobel Leonard A *et al.* (2017) Transmission bottleneck size
-  estimation from pathogen deep-sequencing data. *J. Virol.*
-  91:e00171-17.
+  estimation from pathogen deep-sequencing data, with an application to
+  human influenza A virus. *J. Virol.* 91:e00171-17.
 - Mostefai F *et al.* (2024) Refining SARS-CoV-2 intra-host variation
   by leveraging large-scale sequencing data. *NAR Genom. Bioinform.*
   6:lqae145.
 - Zheng B, Johnson PCD, Hughes J (2025) ViralBottleneck: an R package for
-  estimating viral transmission bottlenecks. *Virus Evol.*
-  11:veaf071.
+  estimating viral transmission bottlenecks from deep sequencing data
+  using multiple methods. *Virus Evol.* 11:veaf071.
 - Tajima F (1989) Statistical method for testing the neutral mutation
   hypothesis by DNA polymorphism. *Genetics* 123:585-595.
 - Fu YX (1997) Statistical tests of neutrality of mutations against

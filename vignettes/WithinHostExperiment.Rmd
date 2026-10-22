@@ -1970,10 +1970,9 @@ explicit rather than discovered.
 **Haplotype phasing and quasispecies reconstruction.** Knowing which variants
 travel together on the same genome requires read-level analysis of alignments,
 which is outside what a `RangedSummarizedExperiment` of per-site calls can
-express. For haplotype-aware analysis consider CliqueSNV (Knyazev et al. 2021,
-*Nucleic Acids Res* 49:e102) or ShoRAH (Zagordi et al. 2011, *BMC
-Bioinformatics* 12:119). Their output can be imported here for downstream
-diversity and quality-control work.
+express. For haplotype-aware analysis consider CliqueSNV (Knyazev et al. 2021)
+or ShoRAH (Zagordi et al. 2011). Their output can be imported here for
+downstream diversity and quality-control work.
 
 **Telling co-infection from within-host diversity.** Two distinct infecting
 lineages and one diversifying lineage can produce similar per-site frequency
@@ -2082,6 +2081,10 @@ Fay JC, Wu CI (2000). Hitchhiking under positive Darwinian selection. *Genetics*
 Fu YX (1997). Statistical tests of neutrality of mutations against population
 growth, hitchhiking and background selection. *Genetics* 147:915-925.
 
+Knyazev S, Tsyvina V, Shankar A, et al. (2021). Accurate assembly of minority
+viral haplotypes from next-generation sequencing through efficient noise
+reduction. *Nucleic Acids Research* 49:e102.
+
 Lauring AS (2020). Within-host viral diversity: a window into viral evolution.
 *Annual Review of Virology* 7:63-81.
 
@@ -2089,7 +2092,7 @@ McCrone JT, Lauring AS (2016). Measurements of intrahost viral diversity are
 extremely sensitive to systematic errors in variant calling. *Journal of
 Virology* 90:6884-6895.
 
-Mostefai F, Gamache I, N'Guessan A, et al. (2024). Refining SARS-CoV-2
+Mostefai F, Grenier J-C, Poujol R, Hussin J (2024). Refining SARS-CoV-2
 intra-host variation by leveraging large-scale sequencing data. *NAR Genomics
 and Bioinformatics* 6:lqae145.
 
@@ -2105,16 +2108,21 @@ intra-host viral diversity in SARS-CoV-2 and influenza virus sequence data.
 *mBio* 14:e01046-23.
 
 Sobel Leonard A, Weissman DB, Greenbaum B, Ghedin E, Koelle K (2017).
-Transmission bottleneck size estimation from pathogen deep-sequencing data.
-*Journal of Virology* 91:e00171-17.
+Transmission bottleneck size estimation from pathogen deep-sequencing data, with
+an application to human influenza A virus. *Journal of Virology* 91:e00171-17.
 
 Tajima F (1989). Statistical method for testing the neutral mutation hypothesis
 by DNA polymorphism. *Genetics* 123:585-595.
 
 Wong B (2011). Points of view: color blindness. *Nature Methods* 8:441.
 
+Zagordi O, Bhattacharya A, Eriksson N, Beerenwinkel N (2011). ShoRAH: estimating
+the genetic diversity of a mixed sample from next-generation sequencing data.
+*BMC Bioinformatics* 12:119.
+
 Zheng B, Johnson PCD, Hughes J (2025). ViralBottleneck: an R package for
-estimating viral transmission bottlenecks. *Virus Evolution* 11:veaf071.
+estimating viral transmission bottlenecks from deep sequencing data using
+multiple methods. *Virus Evolution* 11:veaf071.
 
 # Session information
 

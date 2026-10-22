@@ -57,13 +57,15 @@ licence, so they are reproduced as a short excerpt attributed to the
 paper and to the repository, and anyone wanting the data for their own
 work should take them from the source. The Farjo *et al.* files used for
 Figure 4 are kept only in the repository, not in the package, and come
-from a repository released under the MIT licence; the two NCBI RefSeq
-files are public domain. `inst/scripts/README.md` gives the provenance of
-every shipped file.
+from a repository released under the MIT licence. For the two NCBI
+RefSeq files, NCBI states that it places no restrictions on the use or
+distribution of the data in its molecular databases.
+`inst/scripts/README.md` gives the provenance of every shipped file.
 
 All figures were generated with R version 4.6.1 by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
-quoted below to `readme_figure_values.csv`; the captions are filled from
+quoted below to `inst/scripts/readme_values/readme_figure_values.csv`;
+the captions are filled from
 that file by `inst/scripts/fill_readme.R`, which refuses to write a caption
 for a figure that run did not produce. No data were simulated. Frequencies
 are those of replicate 1 throughout, except in Figure 2, which bins the mean
@@ -192,8 +194,9 @@ of the two replicates.
 > below the 2% frequency threshold are absent, and negative D is expected both
 > under purifying selection and after population growth, so these values
 > describe the spectra rather than test either.
-> **(b)** Nei-Gojobori ratio of nonsynonymous to synonymous iSNVs per
-> site, pooling concordant calls across samples
+> **(b)** Within-host pN/pS, the ratio of nonsynonymous to synonymous
+> iSNVs per site with sites counted by the method of Nei and Gojobori
+> (1986), pooling concordant calls across samples
 > (50 nonsynonymous, 49 synonymous; pooled ratio 0.29).
 > A further 7 concordant calls lie outside the annotated
 > coding sequences, or carry no codon annotation, and enter neither count.
@@ -346,7 +349,7 @@ Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
 | `Transmission_pairs.csv` | Bendall *et al.* 2023 | Household transmission pair metadata |
 | `farjo_longitudinal/` | Farjo *et al.* 2024 | Daily saliva iVar TSVs for participant 432870, with `samples_432870.csv` (dates, coverage and study inclusion, built by `inst/scripts/prepare_farjo_metadata.R` from github.com/BROOKELAB/SARS-CoV-2-within-host-evolution) |
 | `sars2_NC045512.gff3` | NCBI RefSeq | SARS-CoV-2 gene annotation (NC_045512.2) |
-| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read with `Biostrings::readDNAStringSet()` and passed to `annotateCodonChange()` for Figure 5b |
+| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read with `Biostrings::readDNAStringSet()` and passed to `pNpSWithinHost()`, which classifies each call with `annotateCodonChange()`, for Figure 5b |
 | `MHM*_rep*.tsv`, `all_variants_filtered_unmerged.tsv` | Bendall *et al.* 2023 | Per-sample iVar tables and the pre-merge call table, kept as provenance for the merged file above; the figure script reads neither |
 | `farjo_longitudinal/user_432870.csv` | Farjo *et al.* 2024 | The study's own per-SNP summary for this participant, kept for comparison; not read by the figure script |
 

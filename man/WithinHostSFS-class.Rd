@@ -67,6 +67,17 @@ highest break.}
 correction has been applied.}
 }}
 
+\examples{
+data(example_whe)
+## a folded spectrum of the first sample, in ten bins from 3\% to 50\%
+sfs <- buildSFS(example_whe, sampleIdx = 1L, nBins = 10L)
+sfs
+sfs@counts
+sfs@polarization
+## the genome length was read from seqlengths(example_whe)
+sfs@genomeLength
+
+}
 \seealso{
 \code{\link{buildSFS}} for constructing from a
   \code{WithinHostExperiment}, \code{\link{neutralityFromSFS}}

@@ -67,6 +67,16 @@ NULL
 #'   \code{WithinHostExperiment}, \code{\link{neutralityFromSFS}}
 #'   for computing all neutrality tests from the SFS.
 #'
+#' @examples
+#' data(example_whe)
+#' ## a folded spectrum of the first sample, in ten bins from 3% to 50%
+#' sfs <- buildSFS(example_whe, sampleIdx = 1L, nBins = 10L)
+#' sfs
+#' sfs@counts
+#' sfs@polarization
+#' ## the genome length was read from seqlengths(example_whe)
+#' sfs@genomeLength
+#'
 #' @aliases WithinHostSFS
 #' @exportClass WithinHostSFS
 .WithinHostSFS <- setClass("WithinHostSFS",

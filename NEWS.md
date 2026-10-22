@@ -72,6 +72,11 @@ cycle.
   of the filters applied, so that a diversity of zero after QC can be
   told apart from a sample with no calls. `example_whe` records its
   1000-base segment length; its values are unchanged.
+* `calcNeutralityTests()` loses the `genomeLength` argument it required.
+  Tajima's D and Fu's Fs use the nucleotide diversity summed over the
+  genome, which the frequencies give directly, so the length was divided
+  in and multiplied back out and changed no output beyond rounding
+  error; passing it is now an error.
 * `validateDiversity()` is renamed `checkDiversityPlausibility()`. Its
   ranges are the package's own heuristics, not literature values, and the
   man page lists every one. Every sample of a `calcDiversity()` table is

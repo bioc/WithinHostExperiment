@@ -424,10 +424,9 @@ column, Freebayes carries `AO`, `RO` and `DP`. The default `"auto"` reads the
 header's `##source` line and chooses. `genome` takes the reference sequence as a
 `DNAStringSet`, from which the length of each sequence is recorded in
 `seqlengths()`; a header carrying `##contig` lines records it without help. This
-is why `calcDiversity()` never asks you for a genome length, and why the
-functions that do take one, `calcNeutralityTests()` and `buildSFS()`, can be
-handed `sum(seqlengths(x))` rather than a typed number, as every chunk below
-does.
+is why `calcDiversity()` and `calcNeutralityTests()` never ask you for a genome
+length, and why `buildSFS()`, which takes one, can be handed
+`sum(seqlengths(x))` rather than a typed number, as every chunk below does.
 
 ```{r import-vcf}
 vcf1 <- system.file("extdata", "test_donor.vcf",
@@ -1125,10 +1124,12 @@ estimator and biases D upwards. The method therefore caps the effective sample
 size at 100, following Lauring (2020) as the `tajimaD` manual page explains, and
 reports `n_sites`, the number of segregating sites each statistic rests on.
 Below three segregating sites D is a function of one or two frequencies rather
-than of a spectrum, so it is returned as `NA` with a warning.
+than of a spectrum, so it is returned as `NA` with a warning. No genome length
+is needed: both statistics use the nucleotide diversity summed over the genome,
+which comes straight from the frequencies.
 
 ```{r neutrality-tests}
-nt <- calcNeutralityTests(whe_qc, genomeLength = glen)
+nt <- calcNeutralityTests(whe_qc)
 nt
 ```
 
@@ -1924,17 +1925,13 @@ why this package records the length on the object and reads it from there.
 ## Neutrality statistics across the three
 
 Running the same statistic on all three makes the dependence on the number of
-sites visible, which is the lesson worth taking from this section. The genome
-length is read back off each object rather than retyped, and the table reports
-`n_sites` beside each statistic so that nothing can be read without it.
+sites visible, which is the lesson worth taking from this section. The table
+reports `n_sites` beside each statistic so that nothing can be read without it.
 
 ```{r pathogen-neutrality}
-nt_flu <- calcNeutralityTests(whe_flu,
-    genomeLength = sum(GenomeInfoDb::seqlengths(whe_flu)))
-nt_hiv <- calcNeutralityTests(whe_hiv,
-    genomeLength = sum(GenomeInfoDb::seqlengths(whe_hiv)))
-nt_tb  <- calcNeutralityTests(whe_tb,
-    genomeLength = sum(GenomeInfoDb::seqlengths(whe_tb)))
+nt_flu <- calcNeutralityTests(whe_flu)
+nt_hiv <- calcNeutralityTests(whe_hiv)
+nt_tb  <- calcNeutralityTests(whe_tb)
 data.frame(
     pathogen = c("Influenza", "HIV-1", "M. tuberculosis"),
     n_sites = c(nt_flu$n_sites, nt_hiv$n_sites, nt_tb$n_sites),

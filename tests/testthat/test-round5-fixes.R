@@ -10,8 +10,7 @@ test_that("QC and diversity methods reject unused arguments", {
                  "Unused argument")
     expect_error(calcDiversity(whe, usePassedonly = FALSE),
                  "Unused argument")
-    expect_error(calcNeutralityTests(whe, genomeLength = 1000L,
-                                     usePassedonly = FALSE),
+    expect_error(calcNeutralityTests(whe, usePassedonly = FALSE),
                  "Unused argument")
 })
 

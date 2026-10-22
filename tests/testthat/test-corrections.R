@@ -122,8 +122,7 @@ test_that("unused arguments stop, named or not (was: absorbed by ...)", {
                  "Unused argument")
     expect_error(calcDiversity(whe, indices = "richness", TRUE, 5),
                  "<unnamed>")
-    expect_error(calcNeutralityTests(whe, genomeLength = 1000L,
-                                     usePassedonly = FALSE),
+    expect_error(calcNeutralityTests(whe, usePassedonly = FALSE),
                  "Unused argument")
 })
 

@@ -9,7 +9,6 @@ calcNeutralityTests(x, ...)
 
 \S4method{calcNeutralityTests}{WithinHostExperiment}(
   x,
-  genomeLength = NULL,
   indices = c("tajimaD", "fusFs"),
   usePassedOnly = TRUE,
   ...
@@ -18,10 +17,7 @@ calcNeutralityTests(x, ...)
 \arguments{
 \item{x}{A \code{\link{WithinHostExperiment}}.}
 
-\item{...}{Additional arguments (currently unused).}
-
-\item{genomeLength}{Integer scalar. Reference genome length
-in bp. Required.}
+\item{...}{Not used; supplying anything is an error.}
 
 \item{indices}{Character vector. Which tests to compute:
 \code{"tajimaD"}, \code{"fusFs"} (default: both).}
@@ -50,13 +46,19 @@ Calculates neutrality test statistics per sample from a
 (Tajima 1989) and Fu's Fs (Fu 1997), adapted for deep
 sequencing iSNV data.
 }
+\details{
+No genome length is needed. Both statistics depend on the nucleotide
+diversity summed over the genome, \eqn{\hat{\pi} L}, which is computed
+directly from the frequencies, so a per-site value would only be
+multiplied back by the length it was divided by.
+}
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",
     package = "WithinHostExperiment")
 whe <- readWithinHost(vcf,
     colData = S4Vectors::DataFrame(sample_id = "donor"),
     caller = "ivar")
-calcNeutralityTests(whe, genomeLength = 1000L)
+calcNeutralityTests(whe)
 }
 \references{
 Tajima F (1989). Statistical method for testing the neutral

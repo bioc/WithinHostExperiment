@@ -19,8 +19,7 @@ NULL
 #' one row per sample.
 #'
 #' @param x A within-host variant container.
-#' @param ... Additional arguments (e.g., \code{genomeLength},
-#'   \code{indices}).
+#' @param ... Arguments for methods.
 #' @return A \code{DataFrame} of neutrality statistics.
 #'
 #' @export
@@ -299,13 +298,17 @@ fusFs <- function(S, n, theta_pi) {
 #' sequencing iSNV data.
 #'
 #' @param x A \code{\link{WithinHostExperiment}}.
-#' @param genomeLength Integer scalar. Reference genome length
-#'   in bp. Required.
 #' @param indices Character vector. Which tests to compute:
 #'   \code{"tajimaD"}, \code{"fusFs"} (default: both).
 #' @param usePassedOnly Logical. If TRUE (default), only use
 #'   variants where \code{qcPass == TRUE}.
-#' @param ... Additional arguments (currently unused).
+#' @param ... Not used; supplying anything is an error.
+#'
+#' @details
+#' No genome length is needed. Both statistics depend on the nucleotide
+#' diversity summed over the genome, \eqn{\hat{\pi} L}, which is computed
+#' directly from the frequencies, so a per-site value would only be
+#' multiplied back by the length it was divided by.
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
 #'   \code{sample_id}, \code{n_sites} (the number of segregating sites
@@ -333,23 +336,14 @@ fusFs <- function(S, n, theta_pi) {
 #' whe <- readWithinHost(vcf,
 #'     colData = S4Vectors::DataFrame(sample_id = "donor"),
 #'     caller = "ivar")
-#' calcNeutralityTests(whe, genomeLength = 1000L)
+#' calcNeutralityTests(whe)
 setMethod("calcNeutralityTests", "WithinHostExperiment",
     function(x,
-             genomeLength = NULL,
              indices = c("tajimaD", "fusFs"),
              usePassedOnly = TRUE, ...) {
     whe <- x
     .stop_on_unused_dots("calcNeutralityTests", ...)
     indices <- match.arg(indices, several.ok = TRUE)
-
-    if (is.null(genomeLength))
-        stop("'genomeLength' is required for neutrality tests. ",
-             "Provide it as: ",
-             "calcNeutralityTests(whe, genomeLength = <genome_length>)")
-    if (!is.numeric(genomeLength) || length(genomeLength) != 1L ||
-        genomeLength <= 0)
-        stop("'genomeLength' must be a single positive number.")
 
     freq_mat <- assay(whe, "altFreq")
     qc_mat <- if ("qcPass" %in% assayNames(whe)) {
@@ -385,10 +379,10 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
         ## and biases D toward positive values.
         n <- min(max(as.integer(round(md)), 2L), 100L)
 
-        ## Per-site pi for this sample
-        pi_hat <- if (S > 0) {
-            (2 / genomeLength) * sum(valid * (1 - valid)) *
-                n / (n - 1L)
+        ## Nucleotide diversity summed over the genome (pi times L);
+        ## both statistics use only this product, so no length is needed
+        theta_pi <- if (S > 0) {
+            2 * sum(valid * (1 - valid)) * n / (n - 1L)
         } else {
             0
         }
@@ -399,12 +393,10 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
             ## below three sites tajimaD() warns per sample; one summary
             ## warning is given for the whole object instead
             vals$tajimaD <- if (S < 3L) NA_real_ else
-                tajimaD(S, n, pi_hat, genomeLength)
+                tajimaD(S, n, pi_hat = theta_pi, genomeLength = 1)
         }
-        if ("fusFs" %in% indices) {
-            theta_pi <- pi_hat * genomeLength
+        if ("fusFs" %in% indices)
             vals$fusFs <- fusFs(S, n, theta_pi)
-        }
 
         as.data.frame(vals, stringsAsFactors = FALSE)
     })

@@ -38,7 +38,7 @@ test_that("calcNeutralityTests works on WHE from test VCF", {
     whe <- readWithinHost(vcf,
         colData = S4Vectors::DataFrame(sample_id = "donor"),
         caller = "ivar")
-    res <- calcNeutralityTests(whe, genomeLength = 1000L)
+    res <- calcNeutralityTests(whe)
     expect_s4_class(res, "DataFrame")
     expect_true("sample_id" %in% colnames(res))
     expect_true("tajimaD" %in% colnames(res))
@@ -48,14 +48,24 @@ test_that("calcNeutralityTests works on WHE from test VCF", {
     expect_true(is.numeric(res$fusFs))
 })
 
-test_that("calcNeutralityTests errors on missing genomeLength", {
+test_that("calcNeutralityTests needs no genome length (was: required, without effect)", {
     vcf <- system.file("extdata", "test_donor.vcf",
         package = "WithinHostExperiment")
     whe <- readWithinHost(vcf,
         colData = S4Vectors::DataFrame(sample_id = "donor"),
         caller = "ivar")
-    expect_error(calcNeutralityTests(whe),
-        "genomeLength.*required")
+    res <- calcNeutralityTests(whe)
+    ## the statistics use pi summed over the genome, so a length that the
+    ## old interface demanded only cancelled out
+    S <- res$n_sites
+    freq <- SummarizedExperiment::assay(whe, "altFreq")[, 1]
+    freq <- freq[!is.na(freq)]
+    n <- 100L
+    theta_pi <- 2 * sum(freq * (1 - freq)) * n / (n - 1L)
+    expect_equal(res$tajimaD, tajimaD(S, n, theta_pi / 29903, 29903))
+    expect_equal(res$fusFs, fusFs(S, n, theta_pi))
+    expect_error(calcNeutralityTests(whe, genomeLength = 1000L),
+                 "Unused argument")
 })
 
 test_that("tajimaD gives NA below three segregating sites (was: 0 at S = 0)", {
@@ -130,7 +140,7 @@ test_that("fusFs returns NA with a warning when S + 1 exceeds n", {
 
 test_that("calcNeutralityTests reports n_sites and NA D below three sites", {
     whe <- .neutrality_whe(c(5, 2, 1))
-    expect_warning(res <- calcNeutralityTests(whe, genomeLength = 1000L),
+    expect_warning(res <- calcNeutralityTests(whe),
                    "NA for 2 of 3 sample\\(s\\)")
     expect_identical(res$n_sites, c(5L, 2L, 1L))
     expect_true(is.finite(res$tajimaD[1]))
@@ -141,7 +151,7 @@ test_that("calcNeutralityTests reports n_sites and NA D below three sites", {
 
 test_that("calcNeutralityTests is silent when every sample has three sites", {
     whe <- .neutrality_whe(c(4, 3))
-    expect_no_warning(res <- calcNeutralityTests(whe, genomeLength = 1000L))
+    expect_no_warning(res <- calcNeutralityTests(whe))
     expect_identical(res$n_sites, c(4L, 3L))
     expect_true(all(is.finite(res$tajimaD)))
 })
@@ -152,8 +162,8 @@ test_that("n_sites counts only the QC-passed sites it used", {
                  dimnames = dimnames(SummarizedExperiment::assay(whe,
                                                                  "altFreq")))
     SummarizedExperiment::assay(whe, "qcPass", withDimnames = FALSE) <- qc
-    expect_identical(calcNeutralityTests(whe, genomeLength = 1000L)$n_sites,
+    expect_identical(calcNeutralityTests(whe)$n_sites,
                      3L)
-    expect_identical(calcNeutralityTests(whe, genomeLength = 1000L,
+    expect_identical(calcNeutralityTests(whe,
                                          usePassedOnly = FALSE)$n_sites, 5L)
 })

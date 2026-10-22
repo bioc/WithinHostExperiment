@@ -119,7 +119,7 @@ test_that("calcNeutralityTests works on influenza data", {
                        package = "WithinHostExperiment")
     whe <- readWithinHostTable(flu, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "flu"))
-    nt <- calcNeutralityTests(whe, genomeLength = 1701L)
+    nt <- calcNeutralityTests(whe)
     expect_s4_class(nt, "DataFrame")
     expect_true("tajimaD" %in% colnames(nt))
     expect_true("fusFs" %in% colnames(nt))

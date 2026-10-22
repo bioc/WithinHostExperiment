@@ -61,14 +61,14 @@ data.
 
 `WithinHostExperiment` closes that gap. It provides:
 
--  a container built on `r BiocStyle::Biocpkg("SummarizedExperiment")`, which
-  keeps the call matrix, the genomic coordinates, the sample metadata and the
-  quality-control history in one object;
--  replicate-aware quality control that flags rather than deletes, so that every
-  call survives for re-analysis;
--  within-host diversity, site frequency spectra, neutrality statistics and a
-  within-host selection ratio;
--  standardised export for downstream transmission bottleneck estimation.
+-   a container built on `r BiocStyle::Biocpkg("SummarizedExperiment")`, which
+    keeps the call matrix, the genomic coordinates, the sample metadata and the
+    quality-control history in one object;
+-   replicate-aware quality control that flags rather than deletes, so that
+    every call survives for re-analysis;
+-   within-host diversity, site frequency spectra, neutrality statistics and a
+    within-host selection ratio;
+-   standardised export for downstream transmission bottleneck estimation.
 
 ## What this package does not do
 
@@ -79,12 +79,13 @@ of these, with pointers to tools that do them.
 
 ## Relationship to existing tools
 
-- iVar, LoFreq and Freebayes (variant calling): upstream; we read their output.
-- `r BiocStyle::Biocpkg("deepSNV")` (low-frequency variant detection): upstream
-  and complementary.
-- ViralBottleneck (bottleneck estimation): downstream; we export to it.
-- `r BiocStyle::Biocpkg("QSutils")` (quasispecies diversity): parallel, at
-  haplotype granularity.
+-   iVar, LoFreq and Freebayes (variant calling): upstream; we read their
+    output.
+-   `r BiocStyle::Biocpkg("deepSNV")` (low-frequency variant detection):
+    upstream and complementary.
+-   ViralBottleneck (bottleneck estimation): downstream; we export to it.
+-   `r BiocStyle::Biocpkg("QSutils")` (quasispecies diversity): parallel, at
+    haplotype granularity.
 
 ## Why Bioconductor
 

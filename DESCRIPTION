@@ -27,7 +27,9 @@ Imports:
     Biostrings,
     GenomicFeatures,
     VariantAnnotation,
+    graphics,
     stats,
+    tools,
     utils
 Suggests:
     BiocStyle,
@@ -37,7 +39,6 @@ Suggests:
     knitr,
     rmarkdown,
     BiocCheck,
-    covr,
     rtracklayer,
     txdbmaker,
     MSA2dist

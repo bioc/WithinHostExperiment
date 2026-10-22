@@ -137,6 +137,29 @@ test_that("the site count equals three times the distinct sense codons", {
               res$S_sites[1] + res$N_sites[1])
 })
 
+test_that("an iSNV in a codon two genes share counts in both genes (was: only in the longest transcript's)", {
+    skip_if_not_installed("txdbmaker")
+    ## as above, tx1 (g1) reads codons 1-20 and tx2 (g2) codons 11-30.
+    ## 10 G>A: GGG -> AGG in codon 4, tx1 only, nonsynonymous;
+    ## 42 G>A: CTG -> CTA in codon 14, shared, synonymous;
+    ## 75 G>A: ATG -> ATA in codon 25, tx2 only, nonsynonymous
+    ref <- Biostrings::DNAStringSet(c(seg1 = seq90))
+    cds <- pnps_cds(c(1, 31), c(60, 90), ID = c("tx1", "tx2"),
+                    gene = c("g1", "g2"))
+    whe <- pnps_whe(c(10, 42, 75), c("G", "G", "G"), c("A", "A", "A"))
+    expect_warning(res <- pNpSWithinHost(whe, cds, ref), "10 codon")
+    res <- as.data.frame(res)
+    expect_identical(res$gene, c("g1", "g2"))
+    expect_identical(res$gene_nS, c(1L, 1L))
+    expect_identical(res$gene_nN, c(1L, 1L))
+    ## and once in the total
+    expect_identical(res$nS[1], 1L)
+    expect_identical(res$nN[1], 2L)
+    ## each gene's ratio rests on its own sites and its own iSNVs
+    expect_equal(res$gene_pNpS,
+                 (1 / res$gene_N_sites) / (1 / res$gene_S_sites))
+})
+
 test_that("coding sequences in different frames add their codons", {
     skip_if_not_installed("txdbmaker")
     ## tx1: ATG GAT GCT GCT GCT; tx2, one frame along: ATG CTG CTG

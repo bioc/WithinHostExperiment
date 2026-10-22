@@ -92,9 +92,13 @@ synonymous iSNV is present.
 
 \strong{Classification.} Each iSNV is classified by
 \code{\link{annotateCodonChange}}, which this function calls on
-\code{x} with the same \code{cds} and \code{ref} and
-\code{collapse = "longest"}, so annotation columns already present in
-\code{x} are not used. Synonymous changes count towards \eqn{n_S};
+\code{x} with the same \code{cds} and \code{ref}, so annotation
+columns already present in \code{x} are not used. The totals take
+each iSNV as \code{collapse = "longest"} reports it, by the longest
+transcript that reads it; each gene's counts take it by that gene's
+own longest transcript, so an iSNV in a codon two genes share counts
+in both genes, as the codon's sites do, but once in the total.
+Synonymous changes count towards \eqn{n_S};
 nonsynonymous and nonsense changes towards \eqn{n_N}. Sites outside
 every coding sequence, insertions and deletions, and codons holding an
 ambiguous base are not counted. An iSNV is present in a sample when

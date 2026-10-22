@@ -44,7 +44,8 @@ cycle.
   Nei-Gojobori sites are counted over the distinct codons of the genome,
   so codons shared by same-frame overlapping coding sequences, such as
   ORF1a and ORF1ab, are counted once, and a warning names the overlapping
-  transcripts. On the README's SARS-CoV-2 call set the pooled ratio moves
+  transcripts. Per gene, a shared codon counts in each gene that reads
+  it, and so does an iSNV in it, each by that gene's own transcript. On the README's SARS-CoV-2 call set the pooled ratio moves
   from 0.2857 to 0.2867 with the correction removed.
 * `consensusSequences(x, ref, minFreq = 0.5)` is new. It writes each
   sample's substitutions at or above `minFreq` into the reference and

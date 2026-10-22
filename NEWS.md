@@ -2,6 +2,15 @@
 
 ## Corrections made before submission
 
+Before submission every exported function was read against its
+documentation and run on fixtures built to break it, and each
+discrepancy found was fixed, documented as implemented, or both. The
+items below record what changed. Each is pinned by a regression test in
+`tests/testthat/test-corrections.R`, named after the bug it guards
+against (for example `exact_bb matches sites by chrom, pos and allele
+(was: pos only)`), so that none can return unnoticed; the same file
+holds the README's claim that QC cannot raise pi as a test.
+
 * `compareSFS()` suppressed every warning from `chisq.test()`, so a p-value
   resting on expected counts below 5 looked as trustworthy as any other. It
   now returns the smallest expected count and `chisq_approx_ok`, which is

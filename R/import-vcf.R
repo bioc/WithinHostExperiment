@@ -192,12 +192,9 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
     g <- names(genome)
     if (length(intersect(v, g)) == 0L)
         stop("'genome' names none of the sequences the calls lie on, so ",
-             "no length could be recorded.
-",
-             "  variant seqlevels: ", paste(v, collapse = ", "), "
-",
-             "  'genome' sequences: ", paste(g, collapse = ", "), "
-",
+             "no length could be recorded.\n",
+             "  variant seqlevels: ", paste(v, collapse = ", "), "\n",
+             "  'genome' sequences: ", paste(g, collapse = ", "), "\n",
              "Rename one of them to match, for example with ",
              "GenomeInfoDb::renameSeqlevels().", call. = FALSE)
     unnamed <- setdiff(v, g)

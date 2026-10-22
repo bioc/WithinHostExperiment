@@ -77,9 +77,9 @@ test_that("a genome that disagrees with a contig length is an error", {
 lofreq_two_seqs <- function() vcf_file(c("##fileformat=VCFv4.2",
     "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
     "##INFO=<ID=AF,Number=A,Type=Float,Description=\"AF\">",
-    "#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO",
-    "segA	100	.	A	G	100	PASS	DP=1000;AF=0.1",
-    "segB	523	.	C	T	100	PASS	DP=1000;AF=0.2"))
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+    "segA\t100\t.\tA\tG\t100\tPASS\tDP=1000;AF=0.1",
+    "segB\t523\t.\tC\tT\t100\tPASS\tDP=1000;AF=0.2"))
 
 test_that("a genome naming none of the call sequences is an error (was: nothing recorded, silently)", {
     genome <- Biostrings::DNAStringSet(c(segX = strrep("A", 1000)))

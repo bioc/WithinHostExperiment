@@ -4,19 +4,47 @@
 \alias{calcSharedVariants}
 \title{Calculate shared variant statistics}
 \usage{
-calcSharedVariants(whe, pairId)
+calcSharedVariants(whe, pairId, minDepth = NULL)
 }
 \arguments{
 \item{whe}{A \code{\link{WithinHostExperiment}}.}
 
 \item{pairId}{Character. Which pair to analyse.}
+
+\item{minDepth}{Integer. The recipient depth at or above which an
+absent donor variant counts as absent at adequate depth. Defaults
+to the strictest \code{minDepth} of the filters applied with
+\code{\link{flagISNV}}, or to 100 when none was applied.}
 }
 \value{
-A named list: n_donor_only, n_recipient_only, n_shared,
-  n_total, sharing_rate.
+A named list: \code{n_donor_only} (the three groups below
+  added together), \code{n_donor_only_adequate_depth},
+  \code{n_donor_only_low_depth}, \code{n_donor_only_unknown_depth},
+  \code{n_recipient_only}, \code{n_shared}, \code{n_total},
+  \code{sharing_rate} (shared sites over all sites) and
+  \code{min_depth}, the threshold used.
 }
 \description{
-Calculate shared variant statistics
+Counts, for one transmission pair, the variant sites present in both
+hosts, in the donor alone and in the recipient alone, using the calls
+that passed QC.
+}
+\details{
+A donor variant absent from the recipient means one thing when the
+recipient was sequenced deeply enough at that site to have shown it,
+and another when it was not. The donor-only count is therefore
+split by the recipient's read depth at the site, from the
+\code{totalDepth} assay: \code{n_donor_only_adequate_depth} where
+that depth is at least \code{minDepth},
+\code{n_donor_only_low_depth} where it is lower, and
+\code{n_donor_only_unknown_depth} where it is missing. Depth is
+missing at every site the recipient's caller did not report when the
+object was read from VCF files, which list only the sites with a
+call, so with such input most donor-only sites fall in the last
+group; a depth matrix from a coverage file, or a table listing every
+assessed site, is needed to tell the first two apart. Only a
+donor-only site at adequate depth is evidence of loss in
+transmission.
 }
 \examples{
 vcf1 <- system.file("extdata", "test_donor.vcf",

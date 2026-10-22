@@ -313,12 +313,29 @@ than a discovery.
 
 ## Shared variant statistics
 
+The first question about a transmission pair is how many of the
+donor's iSNVs reached the recipient. `calcSharedVariants()` counts, for
+one pair, the QC-passed sites present in both hosts, in the donor
+alone and in the recipient alone:
+
 ```{r shared}
 sv <- calcSharedVariants(whe_qc, pairId = "pair_1")
 cat("Shared:", sv$n_shared, "\n")
 cat("Donor-only:", sv$n_donor_only, "\n")
 cat("Recipient-only:", sv$n_recipient_only, "\n")
+cat("Donor-only, recipient depth adequate / low / unknown:",
+    sv$n_donor_only_adequate_depth, "/", sv$n_donor_only_low_depth,
+    "/", sv$n_donor_only_unknown_depth, "\n")
 ```
+
+A donor variant absent from the recipient is evidence of loss in
+transmission only where the recipient was sequenced deeply enough to
+have shown it, so the donor-only count is split by the recipient's
+read depth at the site. These objects were read from VCF files, which
+list only the sites a caller reported, so the recipient's depth at the
+sites it did not call is unknown and every donor-only site lands in the
+last group; a depth matrix from a coverage file would move them into
+the first two.
 
 ## Quick bottleneck estimation
 

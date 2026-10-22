@@ -43,7 +43,52 @@ test_that("calcSharedVariants returns correct counts", {
     expect_equal(sv$n_donor_only, 10L)
     expect_equal(sv$n_recipient_only, 5L)
     expect_equal(sv$n_total, 20L)
+    ## read from VCFs, the recipient has no depth at the sites it did
+    ## not call, so every donor-only site is of unknown depth
+    expect_equal(sv$n_donor_only_unknown_depth, 10L)
+    expect_equal(sv$n_donor_only_adequate_depth, 0L)
+    expect_equal(sv$n_donor_only_low_depth, 0L)
+    expect_equal(sv$n_donor_only_adequate_depth + sv$n_donor_only_low_depth +
+                     sv$n_donor_only_unknown_depth, sv$n_donor_only)
+    ## no filter applied: the ISNVFilter default depth is the threshold
+    expect_identical(sv$min_depth, 100L)
 })
+
+test_that("calcSharedVariants splits donor-only sites by recipient depth", {
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(1:5 * 10, width = 1))
+    S4Vectors::mcols(gr)$ref <- rep("A", 5)
+    S4Vectors::mcols(gr)$alt <- rep("G", 5)
+    ## sites 1-4 donor-only, site 5 shared; the recipient's depth at the
+    ## donor-only sites is 2000, 50, NA and 100
+    freq <- cbind(d = c(0.2, 0.2, 0.2, 0.2, 0.3),
+                  r = c(NA, NA, NA, NA, 0.4))
+    depth <- cbind(d = rep(1000L, 5),
+                   r = c(2000L, 50L, NA, 100L, 1500L))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+            role = c("donor", "recipient"), pair_id = c("p", "p"),
+            row.names = c("d", "r")))
+    sv <- calcSharedVariants(whe, pairId = "p")
+    expect_equal(sv$n_donor_only, 4L)
+    expect_equal(sv$n_donor_only_adequate_depth, 2L)
+    expect_equal(sv$n_donor_only_low_depth, 1L)
+    expect_equal(sv$n_donor_only_unknown_depth, 1L)
+    expect_equal(sv$n_shared, 1L)
+    ## the strictest applied minDepth sets the threshold
+    whe_qc <- flagISNV(whe, ISNVFilter(minDepth = 500L))
+    sv_qc <- calcSharedVariants(whe_qc, pairId = "p")
+    expect_identical(sv_qc$min_depth, 500L)
+    expect_equal(sv_qc$n_donor_only_adequate_depth, 1L)
+    expect_equal(sv_qc$n_donor_only_low_depth, 2L)
+    ## an explicit threshold overrides it
+    sv_x <- calcSharedVariants(whe_qc, pairId = "p", minDepth = 10L)
+    expect_equal(sv_x$n_donor_only_adequate_depth, 3L)
+    expect_error(calcSharedVariants(whe, pairId = "p", minDepth = -1),
+                 "non-negative")
+})
+
 
 test_that("exportPairFrequencies errors without pairs", {
     vcf <- system.file("extdata", "test_donor.vcf",

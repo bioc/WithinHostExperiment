@@ -54,7 +54,10 @@ NULL
 #'     interval (likelihood-ratio or bootstrap percentile), also
 #'     bounded by \code{maxNb}.}
 #'   \item{\code{loglik}}{Numeric. Log-likelihood at the MLE.}
-#'   \item{\code{method}}{Character. Method used.}
+#'   \item{\code{method}}{Character. Method used. For
+#'     \code{"wright_fisher"} the \code{Nb} and \code{ci} are the
+#'     maximiser and interval of a heuristic score, and a message says
+#'     so when the method is run.}
 #'   \item{\code{n_variants}}{Integer. Number of donor variants used.}
 #'   \item{\code{pair_id}}{Character. Pair identifier.}
 #' }
@@ -93,6 +96,10 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     if (threshold < 0 || threshold > 1)
         stop("'threshold' must be between 0 and 1, got ", threshold, ".")
 
+    if (method == "wright_fisher")
+        message("method = \"wright_fisher\" is a heuristic score, not a ",
+                "likelihood; its Nb is not an estimate on a par with ",
+                "exact_bb or presence_absence.")
     switch(method,
         exact_bb          = .exactBBEstimate(whe, pairId, maxNb,
                                              nboot, threshold),

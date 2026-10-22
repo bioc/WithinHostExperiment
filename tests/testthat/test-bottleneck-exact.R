@@ -144,3 +144,21 @@ test_that("exactBottleneck handles no shared variants gracefully", {
                         "n_variants", "pair_id"))
     expect_equal(res$method, "presence_absence")
 })
+
+test_that("exactBottleneck says that wright_fisher is a heuristic", {
+    vcf1 <- system.file("extdata", "test_donor.vcf",
+        package = "WithinHostExperiment")
+    vcf2 <- system.file("extdata", "test_recipient.vcf",
+        package = "WithinHostExperiment")
+    whe <- readWithinHost(c(vcf1, vcf2),
+        colData = S4Vectors::DataFrame(
+            sample_id = c("donor", "recipient"),
+            role = c("donor", "recipient"),
+            pair_id = c("p1", "p1")),
+        caller = "ivar")
+    expect_message(exactBottleneck(whe, pairId = "p1", maxNb = 20L,
+                                   method = "wright_fisher"),
+                   "heuristic score, not a likelihood")
+    expect_no_message(exactBottleneck(whe, pairId = "p1", maxNb = 20L,
+                                      method = "presence_absence"))
+})

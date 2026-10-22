@@ -165,9 +165,17 @@
   `exportPairFrequencies()`, `calcSharedVariants()`, and
   `quickBottleneck()` (approximate beta-binomial MLE, Sobel
   Leonard et al. 2017) for bottleneck estimation.
-* Exact bottleneck estimation: `exactBottleneck()` implements
-  the exact beta-binomial, Wright-Fisher, and presence-absence
-  methods (Sobel Leonard et al. 2017).
+  `calcSharedVariants()` splits the donor-only count by the
+  recipient's read depth at the site: absent at adequate depth, absent
+  at low depth, or depth unknown, which is the case at every site a
+  VCF does not list.
+* Exact bottleneck estimation: `exactBottleneck()` offers a
+  beta-binomial likelihood over the transmitted virions that models
+  finite recipient depth, in the spirit of Sobel Leonard et al. (2017)
+  with two stated departures, a presence-absence likelihood, and a
+  Wright-Fisher score. The last is a heuristic rather than a
+  likelihood, and the function says so with a message when it is run;
+  `exact_bb` and `presence_absence` are the estimators.
 * Strand bias detection: `sciStrandBias()` and
   `flagStrandBiasSCI()` for strand bias filtering that accounts
   for unequal strand coverage.

@@ -49,17 +49,22 @@ test_that("calcNeutralityTests works on WHE from test VCF", {
 })
 
 test_that("calcNeutralityTests needs no genome length (was: required, without effect)", {
-    vcf <- system.file("extdata", "test_donor.vcf",
-        package = "WithinHostExperiment")
-    whe <- readWithinHost(vcf,
-        colData = S4Vectors::DataFrame(sample_id = "donor"),
-        caller = "ivar")
+    ## five calls at a median depth of 1600, so the sample size is capped
+    ## at 100
+    freq <- c(0.35, 0.08, 0.12, 0.20, 0.30)
+    gr <- GenomicRanges::GRanges("seg",
+        IRanges::IRanges(c(45, 112, 230, 401, 889), width = 1))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(freq, ncol = 1),
+                      totalDepth = matrix(c(1500L, 800L, 1600L, 2000L,
+                                            1700L), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "donor"))
     res <- calcNeutralityTests(whe)
     ## the statistics use pi summed over the genome, so a length that the
     ## old interface demanded only cancelled out
     S <- res$n_sites
-    freq <- SummarizedExperiment::assay(whe, "altFreq")[, 1]
-    freq <- freq[!is.na(freq)]
+    expect_identical(S, 5L)
     n <- 100L
     theta_pi <- 2 * sum(freq * (1 - freq)) * n / (n - 1L)
     expect_equal(res$tajimaD, tajimaD(S, n, theta_pi / 29903, 29903))

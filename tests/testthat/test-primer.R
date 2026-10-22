@@ -29,11 +29,14 @@ test_that("flagPrimerSites remove action drops rows", {
 })
 
 test_that("flagPrimerSites stops when primers and sites share no sequence name (was: nothing flagged, silently)", {
-    vcf <- system.file("extdata", "test_donor.vcf",
-                       package = "WithinHostExperiment")
-    whe <- readWithinHost(vcf,
-        colData = S4Vectors::DataFrame(sample_id = "donor"),
-        caller = "ivar")
+    ## a site at 45 on test_segment, inside a primer if the names matched
+    gr <- GenomicRanges::GRanges("test_segment",
+                                 IRanges::IRanges(45, width = 1))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(0.35, 1, 1),
+                      qcPass = matrix(TRUE, 1, 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "donor"))
     primers <- GRanges("NC_045512.2", IRanges::IRanges(start = 40, end = 65))
     expect_error(flagPrimerSites(whe, primers),
                  "share no sequence names, so no site could be flagged")

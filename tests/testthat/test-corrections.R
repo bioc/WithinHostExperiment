@@ -9,10 +9,11 @@
 ## A donor-recipient pair with read counts, on the sequences and positions
 ## given; donor frequencies 0.1 and 0.8, recipient 90 of 100 reads at the
 ## first site and 0 of 100 at the second.
-.pair_with_counts <- function(seqnames, pos) {
+.pair_with_counts <- function(seqnames, pos, ref = c("A", "C"),
+                              alt = c("G", "T")) {
     gr <- GenomicRanges::GRanges(seqnames, IRanges::IRanges(pos, width = 1))
-    S4Vectors::mcols(gr)$ref <- c("A", "C")
-    S4Vectors::mcols(gr)$alt <- c("G", "T")
+    S4Vectors::mcols(gr)$ref <- ref
+    S4Vectors::mcols(gr)$alt <- alt
     freq  <- cbind(d = c(0.1, 0.8), r = c(0.9, NA))
     alt   <- cbind(d = c(10L, 80L), r = c(90L, 0L))
     depth <- cbind(d = c(100L, 100L), r = c(100L, 100L))
@@ -32,11 +33,48 @@
         meanDepth = 1000, threshold = threshold, corrected = FALSE)
 }
 
+## An object on one 1000-base segment from a frequency matrix with one
+## column per sample, with read counts and depths to match and every call
+## passing so far.
+.whe_from_freq <- function(freq, depth, pos, colData) {
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(pos, width = 1))
+    GenomeInfoDb::seqlengths(gr) <- c(seg = 1000L)
+    S4Vectors::mcols(gr)$ref <- rep("A", length(pos))
+    S4Vectors::mcols(gr)$alt <- rep("G", length(pos))
+    dimnames(depth) <- dimnames(freq)
+    alt <- matrix(as.integer(round(freq * depth)), nrow(freq),
+                  dimnames = dimnames(freq))
+    WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth, altCount = alt,
+                      qcPass = matrix(TRUE, nrow(freq), ncol(freq),
+                                      dimnames = dimnames(freq))),
+        rowRanges = gr, colData = colData)
+}
+
+## Six calls in one sample, all passing ISNVFilter().
 .single_whe <- function() {
-    readWithinHost(system.file("extdata", "test_donor.vcf",
-                               package = "WithinHostExperiment"),
-        colData = S4Vectors::DataFrame(sample_id = "donor"),
-        caller = "ivar")
+    freq <- matrix(c(0.35, 0.08, 0.12, 0.20, 0.05, 0.30), ncol = 1,
+                   dimnames = list(NULL, "donor"))
+    depth <- matrix(c(1500L, 800L, 1200L, 2000L, 900L, 1100L), ncol = 1)
+    .whe_from_freq(freq, depth, pos = c(45, 112, 230, 401, 655, 889),
+        colData = S4Vectors::DataFrame(sample_id = "donor",
+                                       row.names = "donor"))
+}
+
+## A donor-recipient pair whose frequencies reach both ends of the range,
+## where jitter or a histogram bin falls outside the axis.
+.edge_pair <- function() {
+    freq <- cbind(
+        donor = c(0.01, 0.02, 0.99, 0.97, 0.50, 0.30, 0.04, 0.60, NA, NA,
+                  0.25, 0.015),
+        recipient = c(0.99, NA, 0.98, 0.03, 0.02, 0.31, NA, 0.01, 0.40,
+                      0.97, 0.26, 0.99))
+    depth <- matrix(1000L, nrow(freq), 2L)
+    .whe_from_freq(freq, depth, pos = seq_len(nrow(freq)) * 50L,
+        colData = S4Vectors::DataFrame(
+            sample_id = c("donor", "recipient"),
+            role = c("donor", "recipient"), pair_id = c("p1", "p1"),
+            row.names = c("donor", "recipient")))
 }
 
 # -- 1. compareSFS ----------------------------------------------------------
@@ -95,6 +133,23 @@ test_that("exact_bb matches sites by chrom, pos and allele (was: pos only)", {
     reversed <- one_segment[2:1, ]
     expect_equal(exactBottleneck(reversed, pairId = "p", maxNb = 20L,
                                  method = "exact_bb")$loglik, b$loglik)
+})
+
+test_that("exact_bb matches sites by allele at a multi-allelic position (was: pos only)", {
+    ## two alternative alleles at one position: G at 0.1 in the donor and
+    ## 90 of 100 recipient reads, T at 0.8 and 0 reads. Matching on
+    ## chromosome and position alone cannot tell the rows apart.
+    one_position <- .pair_with_counts(c("seg", "seg"), c(100, 100),
+                                      ref = c("A", "A"), alt = c("G", "T"))
+    two_positions <- .pair_with_counts(c("seg", "seg"), c(100, 200),
+                                       ref = c("A", "A"), alt = c("G", "T"))
+    a <- exactBottleneck(one_position, pairId = "p", maxNb = 20L,
+                         method = "exact_bb")
+    b <- exactBottleneck(two_positions, pairId = "p", maxNb = 20L,
+                         method = "exact_bb")
+    expect_identical(a$n_variants, 2L)
+    expect_equal(a$loglik, b$loglik)
+    expect_equal(a$Nb, b$Nb)
 })
 
 test_that("exact_bb warns when the estimate reaches maxNb (was: silent)", {
@@ -187,6 +242,29 @@ test_that("the consensus object holds frequencies and qcPass only", {
                      c("altFreq", "qcPass"))
 })
 
+test_that("replicate intersection flags only sites one replicate lacks, in every replicate", {
+    ## the documented recipe: requireBothDetected = TRUE with an infinite
+    ## tolerance. Site 1 differs by 14 points between the replicates,
+    ## site 2 is seen in one replicate only, site 3 agrees; 'other' is
+    ## in no replicate group.
+    freq <- cbind(r1 = c(0.37, 0.04, 0.10), r2 = c(0.23, NA, 0.10),
+                  other = c(0.37, 0.04, 0.10))
+    whe <- .whe_from_freq(freq, matrix(1000L, 3, 3), pos = c(10, 20, 30),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g", NA), replicate_id = c("1", "2", NA),
+            row.names = colnames(freq)))
+    q <- SummarizedExperiment::assay(flagReplicateDiscordance(whe,
+        freqTolerance = Inf, requireBothDetected = TRUE), "qcPass")
+    expect_identical(unname(q[, "r1"]), c(TRUE, FALSE, TRUE))
+    expect_identical(unname(q[, "r2"]), c(TRUE, FALSE, TRUE))
+    expect_true(all(q[, "other"]))
+    ## a finite tolerance flags the frequency difference too, in both
+    q5 <- SummarizedExperiment::assay(flagReplicateDiscordance(whe,
+        freqTolerance = 0.05), "qcPass")
+    expect_identical(unname(q5[, "r1"]), c(FALSE, FALSE, TRUE))
+    expect_identical(unname(q5[, "r2"]), c(FALSE, FALSE, TRUE))
+})
+
 test_that("the plausibility ranges are the package's own heuristics", {
     res <- checkDiversityPlausibility(
         S4Vectors::DataFrame(pi = 1e-4, shannon = 1), pathogen = "tb")
@@ -229,15 +307,7 @@ test_that("trackFrequency keeps column-major order (was: a nested loop)", {
 
 test_that("plots clip the view instead of dropping points (was: a warning)", {
     skip_if_not_installed("ggplot2")
-    vcf1 <- system.file("extdata", "test_donor.vcf",
-                        package = "WithinHostExperiment")
-    vcf2 <- system.file("extdata", "test_recipient.vcf",
-                        package = "WithinHostExperiment")
-    pair <- readWithinHost(c(vcf1, vcf2),
-        colData = S4Vectors::DataFrame(
-            sample_id = c("donor", "recipient"),
-            role = c("donor", "recipient"), pair_id = c("p1", "p1")),
-        caller = "ivar")
+    pair <- .edge_pair()
     expect_no_warning(built <- ggplot2::ggplot_build(
         plotPairScatter(pair, pairId = "p1")))
     n_sites <- nrow(exportPairFrequencies(pair, pairId = "p1"))
@@ -247,6 +317,25 @@ test_that("plots clip the view instead of dropping points (was: a warning)", {
     n_points <- sum(vapply(built$data[is_point], nrow, integer(1)))
     expect_identical(n_points, n_sites)
     expect_no_warning(ggplot2::ggplot_build(plotFrequencySpectrum(pair)))
+})
+
+test_that("plotQCDashboard clips the frequency panel instead of dropping calls (was: a warning)", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("patchwork")
+    pair <- .edge_pair()
+    ## the layout is (a + b) / (c + d): panel a is the first of the first row
+    panel_a <- plotQCDashboard(pair)[[1]][[1]]
+    expect_true("freq" %in% names(panel_a$data))
+    ## the limits sit on the coordinate system, which clips the view, and
+    ## not on the scale, which would remove what falls outside; with
+    ## ggplot2 4 the old scale limits no longer drop these bars, so the
+    ## mechanism is checked as well as the result
+    expect_false(is.null(panel_a$coordinates$limits$x))
+    expect_null(panel_a$scales$get_scales("x")$limits)
+    expect_no_warning(built <- ggplot2::ggplot_build(panel_a))
+    ## every call is counted in some bar of the histogram
+    n_calls <- sum(!is.na(SummarizedExperiment::assay(pair, "altFreq")))
+    expect_equal(sum(built$data[[1]]$count), n_calls)
 })
 
 test_that("trajectory and SFS plots use the Okabe-Ito palette, recycled", {
@@ -279,14 +368,20 @@ test_that("trajectory and SFS plots use the Okabe-Ito palette, recycled", {
 # -- README claim: QC only removes calls, so pi cannot rise ------------------
 
 test_that("QC cannot raise pi, as the README states", {
-    vcfs <- system.file("extdata",
-        c("test_donor.vcf", "test_recipient.vcf", "test_independent.vcf"),
-        package = "WithinHostExperiment")
-    whe <- readWithinHost(vcfs,
-        colData = S4Vectors::DataFrame(sample_id = c("d", "r", "i")),
-        caller = "ivar",
-        genome = Biostrings::readDNAStringSet(system.file("extdata",
-            "test_ref.fa", package = "WithinHostExperiment")))
+    ## twelve sites in three samples on a 1000-base segment; s1 and s2 are
+    ## replicates of one sample, so the replicate step applies to them
+    freq <- cbind(
+        s1 = c(0.02, 0.05, 0.08, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40,
+               0.45, 0.04),
+        s2 = c(0.03, 0.05, 0.15, 0.12, 0.30, 0.20, NA, 0.30, 0.36, 0.40,
+               0.44, NA),
+        s3 = c(NA, 0.06, 0.09, NA, 0.18, 0.22, 0.27, NA, 0.33, 0.41, NA, 0.05))
+    depth <- matrix(rep(c(60L, 150L, 400L, 800L, 1500L, 3000L),
+                        length.out = 36L), 12L, 3L)
+    whe <- .whe_from_freq(freq, depth, pos = seq(40, 920, by = 80),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g", NA), replicate_id = c("1", "2", NA),
+            row.names = colnames(freq)))
     before <- calcDiversity(whe, indices = "pi", usePassedOnly = FALSE)$pi
     for (filt in list(ISNVFilter(), ISNVFilter(minDepth = 500L),
                       ISNVFilter(minFreq = 0.10),
@@ -295,6 +390,16 @@ test_that("QC cannot raise pi, as the README states", {
         after <- calcDiversity(flagISNV(whe, filt), indices = "pi")$pi
         expect_true(all(after <= before), info = format(slot(filt, "minFreq")))
     }
+    ## the replicate step, which is what the README describes, at every
+    ## tolerance
+    lowered <- FALSE
+    for (tol in c(0.01, 0.03, 0.05, 0.2)) {
+        after <- calcDiversity(flagReplicateDiscordance(whe,
+            freqTolerance = tol), indices = "pi")$pi
+        expect_true(all(after <= before), info = paste("tolerance", tol))
+        lowered <- lowered || any(after < before)
+    }
+    expect_true(lowered)
     ## and a filter that removes something lowers it for that sample
     strict <- calcDiversity(flagISNV(whe, ISNVFilter(minFreq = 0.30)),
                             indices = c("pi", "richness"))

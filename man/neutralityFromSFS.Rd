@@ -19,9 +19,9 @@ A named list with components:
   \describe{
     \item{S}{Number of segregating sites.}
     \item{n}{Effective sample size used.}
-    \item{pi}{Nucleotide diversity (per site).}
-    \item{theta_W}{Watterson's theta.}
-    \item{theta_H}{Fay and Wu's theta_H.}
+    \item{pi}{Nucleotide diversity per site.}
+    \item{theta_W}{Watterson's theta per site.}
+    \item{theta_H}{Fay and Wu's theta_H per site.}
     \item{tajimaD}{Tajima's D.}
     \item{fusFs}{Fu's Fs.}
     \item{fayWuH}{Fay and Wu's H.}
@@ -57,6 +57,10 @@ where \eqn{\hat{\theta}_H =
 and \eqn{\xi_i} is the count of sites with \eqn{i} derived
 alleles. A negative H indicates an excess of high-frequency
 variants.
+
+The per-site values need the spectrum's genome length, which
+\code{\link{buildSFS}} takes from the object; a spectrum without one
+is an error rather than a set of per-genome values labelled per site.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",

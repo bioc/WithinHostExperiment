@@ -30,7 +30,12 @@ variants. Default: \code{TRUE}.}
 \item{threshold}{Numeric. Detection threshold (default: 0.03).
 The first bin starts at this value, not 0.}
 
-\item{genomeLength}{Integer (optional). Reference genome length.}
+\item{genomeLength}{Integer (optional). The genome length that the
+per-site statistics of \code{\link{neutralityFromSFS}} divide by. By
+default it is read from \code{seqlengths(rowRanges(whe))}, summed
+over every recorded sequence as in \code{\link{calcDiversity}}, and
+is \code{NA} when that is not recorded. The spectrum itself does not
+depend on it.}
 }
 \value{
 A named list of \code{\link{WithinHostSFS}} objects.

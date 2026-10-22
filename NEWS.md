@@ -99,7 +99,11 @@ cycle.
   prints it and labels the stored depth a median, which it is.
 * `neutralityFromSFS()` stops on a folded spectrum, where it printed a
   note and returned a value, because Fay and Wu's H needs derived-allele
-  frequencies; its result records the polarisation it used.
+  frequencies; its result records the polarisation it used. It also
+  stops on a spectrum without a genome length, where it returned values
+  summed over the genome under the label "per site". `buildSFS()` now
+  takes that length from `seqlengths(rowRanges(whe))` when it is not
+  given, as `calcDiversity()` does.
 * `compareSFS()` stops unless both spectra share their bin breaks, their
   folding and their polarisation and neither is bias-corrected; it used
   to compare any two spectra with the same number of bins.

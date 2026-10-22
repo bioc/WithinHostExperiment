@@ -161,7 +161,12 @@ setMethod("show", "WithinHostSFS", function(object) {
 #'   variants. Default: \code{TRUE}.
 #' @param threshold Numeric. Detection threshold (default: 0.03).
 #'   The first bin starts at this value, not 0.
-#' @param genomeLength Integer (optional). Reference genome length.
+#' @param genomeLength Integer (optional). The genome length that the
+#'   per-site statistics of \code{\link{neutralityFromSFS}} divide by. By
+#'   default it is read from \code{seqlengths(rowRanges(whe))}, summed
+#'   over every recorded sequence as in \code{\link{calcDiversity}}, and
+#'   is \code{NA} when that is not recorded. The spectrum itself does not
+#'   depend on it.
 #'
 #' @return A \code{\link{WithinHostSFS}} object.
 #'
@@ -216,7 +221,8 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
     counts <- as.integer(hist(freq[freq >= threshold & freq <= max_f],
                               breaks = breaks, plot = FALSE)$counts)
 
-    gl <- if (!is.null(genomeLength)) as.integer(genomeLength) else NA_integer_
+    gl <- as.integer(if (!is.null(genomeLength)) genomeLength else
+        .recordedGenomeLength(whe))
 
     new("WithinHostSFS",
         counts       = counts,
@@ -400,6 +406,10 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' alleles. A negative H indicates an excess of high-frequency
 #' variants.
 #'
+#' The per-site values need the spectrum's genome length, which
+#' \code{\link{buildSFS}} takes from the object; a spectrum without one
+#' is an error rather than a set of per-genome values labelled per site.
+#'
 #' @param sfs A \code{\link{WithinHostSFS}} object.
 #' @param n Integer. Effective sample size for neutrality tests.
 #'   For deep sequencing data, do \strong{not} use raw depth.
@@ -410,9 +420,9 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #'   \describe{
 #'     \item{S}{Number of segregating sites.}
 #'     \item{n}{Effective sample size used.}
-#'     \item{pi}{Nucleotide diversity (per site).}
-#'     \item{theta_W}{Watterson's theta.}
-#'     \item{theta_H}{Fay and Wu's theta_H.}
+#'     \item{pi}{Nucleotide diversity per site.}
+#'     \item{theta_W}{Watterson's theta per site.}
+#'     \item{theta_H}{Fay and Wu's theta_H per site.}
 #'     \item{tajimaD}{Tajima's D.}
 #'     \item{fusFs}{Fu's Fs.}
 #'     \item{fayWuH}{Fay and Wu's H.}
@@ -457,7 +467,12 @@ neutralityFromSFS <- function(sfs, n = NULL) {
     if (n <= 1L) stop("'n' must be > 1.")
 
     gl <- sfs@genomeLength
-    if (is.na(gl)) gl <- 1L  # per-site
+    if (is.na(gl))
+        stop("neutralityFromSFS() reports pi, Watterson's theta and ",
+             "theta_H per site, which needs the genome length, and this ",
+             "spectrum has none. Build it from an object whose ",
+             "seqlengths(rowRanges()) are recorded, or pass genomeLength ",
+             "to buildSFS().", call. = FALSE)
 
     ## Reconstruct per-site pi from SFS bin midpoints
     breaks <- sfs@breaks

@@ -32,6 +32,14 @@ NULL
     sum(as.numeric(lens))
 }
 
+## The same length, or NA when it is not fully recorded; for objects such
+## as a spectrum that can be built without it.
+.recordedGenomeLength <- function(x) {
+    lens <- seqlengths(rowRanges(x))
+    if (length(lens) == 0L || anyNA(lens)) return(NA_real_)
+    sum(as.numeric(lens))
+}
+
 ## The lowest frequency a call could have kept through QC: the strictest
 ## minFreq of the filters applied, or NA when none was, or when QC is
 ## not being applied.

@@ -204,6 +204,25 @@ test_that("neutralityFromSFS refuses a folded spectrum (was: a message)", {
     expect_error(neutralityFromSFS(sfs), "calcNeutralityTests")
 })
 
+test_that("buildSFS takes the genome length from the object (was: NA unless typed)", {
+    whe <- .make_whe(20)
+    expect_true(is.na(buildSFS(whe)@genomeLength))
+    GenomeInfoDb::seqlengths(whe) <- c(seg = 2500L)
+    expect_identical(buildSFS(whe)@genomeLength, 2500L)
+    ## an explicit length still wins
+    expect_identical(buildSFS(whe, genomeLength = 1000L)@genomeLength, 1000L)
+})
+
+test_that("neutralityFromSFS stops without a genome length (was: per-genome values labelled per site)", {
+    whe <- .make_whe(20)
+    sfs <- buildSFS(whe, fold = FALSE)
+    expect_error(neutralityFromSFS(sfs), "needs the genome length")
+    GenomeInfoDb::seqlengths(whe) <- c(seg = 2500L)
+    expect_equal(neutralityFromSFS(buildSFS(whe, fold = FALSE)),
+                 neutralityFromSFS(buildSFS(whe, fold = FALSE,
+                                            genomeLength = 2500L)))
+})
+
 test_that("neutralityFromSFS reports which allele it treats as ancestral", {
     whe <- .make_whe(20)
     res <- neutralityFromSFS(buildSFS(whe, fold = FALSE,

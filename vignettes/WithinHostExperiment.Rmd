@@ -424,9 +424,9 @@ column, Freebayes carries `AO`, `RO` and `DP`. The default `"auto"` reads the
 header's `##source` line and chooses. `genome` takes the reference sequence as a
 `DNAStringSet`, from which the length of each sequence is recorded in
 `seqlengths()`; a header carrying `##contig` lines records it without help. This
-is why `calcDiversity()` and `calcNeutralityTests()` never ask you for a genome
-length, and why `buildSFS()`, which takes one, can be handed
-`sum(seqlengths(x))` rather than a typed number, as every chunk below does.
+is why no function below asks you to type a genome length: `calcDiversity()` and
+`buildSFS()` read it from the object, and `calcNeutralityTests()` does not need
+it.
 
 ```{r import-vcf}
 vcf1 <- system.file("extdata", "test_donor.vcf",
@@ -1014,18 +1014,16 @@ ancestral at every site. Fold unless you have a reason to believe the reference
 is close to the population the host was infected from. The second choice is the
 detection threshold, which sets where the first bin starts: below it variants
 are unobservable, so starting at zero would invent an empty region of the
-spectrum. The genome length is read off the object and passed in, rather than
-typed. Unlike the length, the threshold is not read off the object: `buildSFS()`
-defaults it to 0.03 whatever filters were applied, so pass `threshold` yourself
-to match the `detection_limit` that `calcDiversity()` reports. With the Nanopore
-preset's 10% floor, leaving the default would start the spectrum below the
-lowest frequency any call could have. `buildSFSList()` takes the same arguments
-and returns one spectrum per sample, named by `sample_id`.
+spectrum. The genome length, which only the statistics derived from the spectrum
+need, is read off the object. The threshold is not: `buildSFS()` defaults it to
+0.03 whatever filters were applied, so pass `threshold` yourself to match the
+`detection_limit` that `calcDiversity()` reports. With the Nanopore preset's 10%
+floor, leaving the default would start the spectrum below the lowest frequency
+any call could have. `buildSFSList()` takes the same arguments and returns one
+spectrum per sample, named by `sample_id`.
 
 ```{r sfs-build}
-glen <- sum(GenomeInfoDb::seqlengths(whe_qc))
-sfs_donor <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L,
-    genomeLength = glen)
+sfs_donor <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L)
 sfs_donor
 ```
 
@@ -1079,8 +1077,7 @@ neither may be bias-corrected; the function stops, naming the difference, when
 any of this fails.
 
 ```{r sfs-compare}
-sfs_recip <- buildSFS(whe_qc, sampleIdx = "recipient", nBins = 10L,
-    genomeLength = glen)
+sfs_recip <- buildSFS(whe_qc, sampleIdx = "recipient", nBins = 10L)
 cmp <- compareSFS(sfs_donor, sfs_recip)
 cmp[c("chisq_stat", "df", "chisq_p", "min_expected", "chisq_approx_ok",
     "n1", "n2")]
@@ -1159,8 +1156,7 @@ is `"reference"`: the reference allele stands in for the ancestral one, which
 holds only as far as the reference resembles the infecting population.
 
 ```{r neutrality-sfs}
-sfs_unf <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L, fold = FALSE,
-    genomeLength = glen)
+sfs_unf <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L, fold = FALSE)
 neutralityFromSFS(sfs_unf)
 ```
 

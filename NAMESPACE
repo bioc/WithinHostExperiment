@@ -84,105 +84,81 @@ importClassesFrom(GenomicFeatures,TxDb)
 importClassesFrom(GenomicRanges,GRanges)
 importClassesFrom(GenomicRanges,GRangesList)
 importClassesFrom(SummarizedExperiment,RangedSummarizedExperiment)
-importFrom(BiocGenerics,
-  ncol,
-  nrow,
-  strand
-)
-importFrom(Biostrings,
-  DNAStringSet,
-  extractAt,
-  replaceAt,
-  reverseComplement,
-  subseq
-)
-importFrom(GenomeInfoDb,
-  "seqlengths<-",
-  seqlengths,
-  seqlevelsInUse,
-  seqnames
-)
-importFrom(GenomicFeatures,
-  cdsBy,
-  extractTranscriptSeqs,
-  transcripts
-)
-importFrom(GenomicRanges,
-  GRanges,
-  findOverlaps,
-  granges,
-  intersect,
-  reduce,
-  start
-)
-importFrom(IRanges,
-  "end<-",
-  "start<-",
-  CharacterList,
-  IRanges,
-  IntegerList,
-  end,
-  start,
-  width
-)
-importFrom(S4Vectors,
-  "mcols<-",
-  DataFrame,
-  combineCols,
-  combineRows,
-  mcols,
-  queryHits,
-  split,
-  subjectHits
-)
-importFrom(SummarizedExperiment,
-  "assay<-",
-  SummarizedExperiment,
-  assay,
-  assayNames,
-  colData,
-  rowRanges
-)
-importFrom(VariantAnnotation,
-  VRanges,
-  predictCoding
-)
+importFrom(BiocGenerics,ncol)
+importFrom(BiocGenerics,nrow)
+importFrom(BiocGenerics,strand)
+importFrom(Biostrings,DNAStringSet)
+importFrom(Biostrings,extractAt)
+importFrom(Biostrings,replaceAt)
+importFrom(Biostrings,reverseComplement)
+importFrom(Biostrings,subseq)
+importFrom(GenomeInfoDb,"seqlengths<-")
+importFrom(GenomeInfoDb,seqlengths)
+importFrom(GenomeInfoDb,seqlevelsInUse)
+importFrom(GenomeInfoDb,seqnames)
+importFrom(GenomicFeatures,cdsBy)
+importFrom(GenomicFeatures,extractTranscriptSeqs)
+importFrom(GenomicFeatures,transcripts)
+importFrom(GenomicRanges,GRanges)
+importFrom(GenomicRanges,findOverlaps)
+importFrom(GenomicRanges,granges)
+importFrom(GenomicRanges,intersect)
+importFrom(GenomicRanges,reduce)
+importFrom(GenomicRanges,start)
+importFrom(IRanges,"end<-")
+importFrom(IRanges,"start<-")
+importFrom(IRanges,CharacterList)
+importFrom(IRanges,IRanges)
+importFrom(IRanges,IntegerList)
+importFrom(IRanges,end)
+importFrom(IRanges,start)
+importFrom(IRanges,width)
+importFrom(S4Vectors,"mcols<-")
+importFrom(S4Vectors,DataFrame)
+importFrom(S4Vectors,combineCols)
+importFrom(S4Vectors,combineRows)
+importFrom(S4Vectors,mcols)
+importFrom(S4Vectors,queryHits)
+importFrom(S4Vectors,split)
+importFrom(S4Vectors,subjectHits)
+importFrom(SummarizedExperiment,"assay<-")
+importFrom(SummarizedExperiment,SummarizedExperiment)
+importFrom(SummarizedExperiment,assay)
+importFrom(SummarizedExperiment,assayNames)
+importFrom(SummarizedExperiment,colData)
+importFrom(SummarizedExperiment,rowRanges)
+importFrom(VariantAnnotation,VRanges)
+importFrom(VariantAnnotation,predictCoding)
 importFrom(graphics,hist)
-importFrom(methods,
-  callNextMethod,
-  is,
-  new,
-  setAs,
-  setClass,
-  setGeneric,
-  setMethod,
-  setValidity,
-  show,
-  slot,
-  validObject
-)
-importFrom(stats,
-  as.formula,
-  chisq.test,
-  coef,
-  dbeta,
-  dbinom,
-  kruskal.test,
-  lm,
-  median,
-  optimize,
-  p.adjust,
-  pbeta,
-  pbinom,
-  pnorm,
-  quantile,
-  residuals,
-  setNames,
-  terms,
-  update,
-  wilcox.test
-)
-importFrom(utils,
-  read.csv,
-  read.delim
-)
+importFrom(methods,callNextMethod)
+importFrom(methods,is)
+importFrom(methods,new)
+importFrom(methods,setAs)
+importFrom(methods,setClass)
+importFrom(methods,setGeneric)
+importFrom(methods,setMethod)
+importFrom(methods,setValidity)
+importFrom(methods,show)
+importFrom(methods,slot)
+importFrom(methods,validObject)
+importFrom(stats,as.formula)
+importFrom(stats,chisq.test)
+importFrom(stats,coef)
+importFrom(stats,dbeta)
+importFrom(stats,dbinom)
+importFrom(stats,kruskal.test)
+importFrom(stats,lm)
+importFrom(stats,median)
+importFrom(stats,optimize)
+importFrom(stats,p.adjust)
+importFrom(stats,pbeta)
+importFrom(stats,pbinom)
+importFrom(stats,pnorm)
+importFrom(stats,quantile)
+importFrom(stats,residuals)
+importFrom(stats,setNames)
+importFrom(stats,terms)
+importFrom(stats,update)
+importFrom(stats,wilcox.test)
+importFrom(utils,read.csv)
+importFrom(utils,read.delim)

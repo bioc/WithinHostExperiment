@@ -216,10 +216,5 @@ Useful links:
 \author{
 \strong{Maintainer}: Cuiwei Gao \email{48gaocuiwei@gmail.com}
 
-Authors:
-\itemize{
-  \item Cuiwei Gao \email{48gaocuiwei@gmail.com}
-}
-
 }
 \keyword{package}

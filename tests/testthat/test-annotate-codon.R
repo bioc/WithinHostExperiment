@@ -180,7 +180,11 @@ test_that("annotateCodonChange joins the parts of a frameshifted CDS", {
     expect_identical(mc$REFCODON, substr(joined, 31, 33))
 })
 
-test_that("a nucleotide read twice by one transcript keeps its first reading (was: row order, reported as two transcripts)", {
+test_that("a nucleotide read twice by one transcript keeps its first reading (was: reported as two transcripts)", {
+    ## predictCoding() already returns the lower CDS position first on
+    ## these fixtures, so the ordering by CDSLOC in annotateCodonChange()
+    ## is a guarantee this test does not exercise; it pins the reading
+    ## kept and the message
     skip_if_not_installed("txdbmaker")
     ## parts 1-30 and 30-59 share nucleotide 30, which tx1 reads as the
     ## third base of codon 10 and the first base of codon 11

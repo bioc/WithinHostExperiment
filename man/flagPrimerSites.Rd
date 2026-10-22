@@ -11,7 +11,9 @@ flagPrimerSites(whe, primers, action = c("flag", "remove"))
 
 \item{primers}{\code{GRanges}. Primer binding site coordinates.
 Can be loaded from a BED file using
-\code{rtracklayer::import.bed()}.}
+\code{rtracklayer::import.bed()}. Their sequence names must match
+those of the sites: when the two share none, the function stops and
+prints both, rather than report that no site lies in a primer.}
 
 \item{action}{Character. \code{"flag"} (default) sets qcPass to
 FALSE for affected sites, preserving all data for audit.

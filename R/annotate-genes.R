@@ -11,18 +11,20 @@
 #' @importClassesFrom GenomicFeatures TxDb
 NULL
 
-## Stop when the variant sites and an annotation share no sequence name,
-## and warn about variant sequences the annotation does not cover.
+## Stop when the variant sites and a set of ranges share no sequence
+## name, and warn about variant sequences the ranges do not cover.
 ## Without this check a naming mismatch (for example NC_045512.2 against
 ## MN908947.3 for the same SARS-CoV-2 reference) gives an annotation
-## column that is NA everywhere and no error.
-.checkSeqlevels <- function(variants, annotation, what) {
+## column that is NA everywhere, or a QC step that flags nothing, and no
+## error. 'effect' says what the ranges would have done to a site.
+.checkSeqlevels <- function(variants, annotation, what,
+                            effect = "annotated") {
     v <- seqlevelsInUse(variants)
     a <- seqlevelsInUse(annotation)
     if (length(v) == 0L) return(invisible(TRUE))
     if (length(intersect(v, a)) == 0L) {
         stop("The variant sites and '", what, "' share no sequence ",
-             "names, so no site could be annotated.\n",
+             "names, so no site could be ", effect, ".\n",
              "  variant seqlevels: ", paste(v, collapse = ", "), "\n",
              "  '", what, "' seqlevels: ",
              if (length(a)) paste(a, collapse = ", ") else "(none)", "\n",
@@ -33,7 +35,7 @@ NULL
     if (length(uncovered)) {
         warning("'", what, "' has no ranges on variant seqlevel(s) ",
                 paste(uncovered, collapse = ", "),
-                "; sites there are left unannotated.", call. = FALSE)
+                "; sites there are not ", effect, ".", call. = FALSE)
     }
     invisible(TRUE)
 }

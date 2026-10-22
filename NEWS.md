@@ -122,6 +122,9 @@ cycle.
   `n_donor_only_low_depth` and `n_donor_only_unknown_depth`; only the
   first is evidence that a variant was lost in transmission.
   `n_donor_only` is still their sum.
+* `flagPrimerSites()` stops, naming both sets, when the primers and the
+  sites share no sequence name, where it reported that no site overlapped
+  a primer and flagged nothing.
 * `exactBottleneck(method = "wright_fisher")` says in a message that its
   result is a heuristic score, not a likelihood; `exact_bb` and
   `presence_absence` are the estimators.

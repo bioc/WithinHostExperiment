@@ -266,7 +266,9 @@ qcSummary <- function(whe) {
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #' @param primers \code{GRanges}. Primer binding site coordinates.
 #'   Can be loaded from a BED file using
-#'   \code{rtracklayer::import.bed()}.
+#'   \code{rtracklayer::import.bed()}. Their sequence names must match
+#'   those of the sites: when the two share none, the function stops and
+#'   prints both, rather than report that no site lies in a primer.
 #' @param action Character. \code{"flag"} (default) sets qcPass to
 #'   FALSE for affected sites, preserving all data for audit.
 #'   \code{"remove"} is provided as an explicit convenience for
@@ -292,6 +294,10 @@ flagPrimerSites <- function(whe, primers, action = c("flag", "remove")) {
         stop("'whe' must be a WithinHostExperiment object.")
     if (!is(primers, "GRanges"))
         stop("'primers' must be a GRanges object.")
+
+    ## A naming mismatch between primers and sites would flag nothing
+    ## and look like a clean result
+    .checkSeqlevels(rowRanges(whe), primers, "primers", effect = "flagged")
 
     ## Find variant sites overlapping primers
     hits <- findOverlaps(rowRanges(whe), primers)

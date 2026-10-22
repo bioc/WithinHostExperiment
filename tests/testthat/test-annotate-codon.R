@@ -614,3 +614,30 @@ test_that("annotateCodonChange agrees with the reference annotator transcript by
     expect_identical(old_both$GFF_FEATURE[!overlap],
                      new_longest$GENEID[!overlap])
 })
+
+test_that("two transcripts sharing a name are counted as two (was: one reading twice)", {
+    skip_if_not_installed("txdbmaker")
+    ## a TxDb whose transcripts 1 and 2 are both named "dup", neither
+    ## frameshifted; site 10 lies in both
+    tx <- data.frame(tx_id = 1:2, tx_name = c("dup", "dup"),
+                     tx_chrom = "seg1", tx_strand = "+",
+                     tx_start = c(1L, 1L), tx_end = c(60L, 30L))
+    splicings <- data.frame(tx_id = 1:2, exon_rank = 1L,
+                            exon_start = c(1L, 1L), exon_end = c(60L, 30L),
+                            cds_start = c(1L, 1L), cds_end = c(60L, 30L))
+    genes <- data.frame(tx_id = 1:2, gene_id = c("gX", "gY"))
+    txdb <- suppressWarnings(txdbmaker::makeTxDb(tx, splicings, genes,
+        chrominfo = data.frame(chrom = "seg1", length = 60L,
+                               is_circular = FALSE)))
+    ref <- Biostrings::DNAStringSet(c(seg1 = codon_seq20))
+    whe <- codon_whe(10, substr(codon_seq20, 10, 10), "A")
+    msgs <- character()
+    withCallingHandlers(annotateCodonChange(whe, txdb, ref),
+        message = function(m) {
+            msgs <<- c(msgs, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        })
+    expect_true(any(grepl("1 site\\(s\\) fall in more than one transcript",
+                          msgs)))
+    expect_false(any(grepl("reads twice", msgs)))
+})

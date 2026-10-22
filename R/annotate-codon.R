@@ -504,6 +504,7 @@ setMethod("annotateCodonChange",
                      VARCODON = character(), REFAA = character(),
                      VARAA = character())
         site <- integer()
+        site_tx <- character()
         if (length(use)) {
             query <- GRanges(chrom[use], IRanges(pos[use], width = 1L))
             pc <- withCallingHandlers(
@@ -553,13 +554,16 @@ setMethod("annotateCodonChange",
                 ## nucleotide twice, its first reading
                 o <- order(site, -tx_len, as.integer(txid), cols$CDSLOC)
                 site <- site[o]
+                site_tx <- txid[o]
                 cols <- lapply(cols, `[`, o)
             }
         }
 
         if (collapse == "longest") {
-            ## one row per site and transcript: its first reading
-            tx_key <- paste(site, cols$TXNAME, sep = "\r")
+            ## one row per site and transcript: its first reading. The
+            ## transcript is identified by its id, since names need not be
+            ## unique in a TxDb
+            tx_key <- paste(site, site_tx, sep = "\r")
             first_tx <- !duplicated(tx_key)
             multi <- tabulate(site[first_tx], nbins = n) > 1L
             if (any(multi)) {

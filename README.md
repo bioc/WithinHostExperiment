@@ -169,12 +169,14 @@ of the two replicates.
 </div>
 
 > **Figure 5 | Population-genetic summaries of the flagged data.**
-> **(a)** Tajima's D for the 65 samples with at least one
-> concordant iSNV and a finite D, using read depth capped at 100 as the sample size:
-> median -0.57, 65% below zero. These are weak summaries and are
-> shown as such: 41 of the 65 samples (63%) carry a single
-> concordant call, where D is a monotone function of that one frequency rather
-> than a description of a spectrum, and only 10 carry three or more. Calls
+> **(a)** Tajima's D for the 10 samples carrying at least three
+> concordant iSNVs, using read depth capped at 100 as the sample size:
+> median -0.32, 60% below zero. They are the minority:
+> of the 65 samples with any concordant call, 41 carry one
+> (63%) and 14 carry two. Below three segregating sites D
+> is a function of one or two frequencies rather than a description of a
+> spectrum, so `tajimaD()` returns `NA` and those samples are absent from the
+> panel. Calls
 > below the 2% frequency threshold are absent, and negative D is expected both
 > under purifying selection and after population growth, so these values
 > describe the spectra rather than test either.
@@ -208,16 +210,17 @@ of the two replicates.
 </div>
 
 > **Figure 6 | What replicate QC changes.**
-> **(a)** Tajima's D before and after QC in the 65 samples with a
-> finite value in both: median -0.35 before QC and -0.57 after. QC
-> removed no call in most of them, so it changed D in 20 samples, and among
-> those the median change is -0.23 (95% CI -0.42 to 0.09, distribution-free
-> from binomial order statistics). Taken over all 65 the median change is
-> 0.00 with an interval of 0.00 to 0.00: the unchanged samples
-> outnumber the rest, so that interval collapses onto the median and carries no
-> information about the size of the change. A further 18 samples leave the
-> comparison altogether because QC removed every call and D has no value after
-> it -- the samples QC affected most.
+> **(a)** Tajima's D before and after QC in the 10 samples carrying at
+> least three calls both before and after: median -0.32 before QC and
+> -0.32 after. QC removed no call from most of them, so it changed D in
+> 3, where the median change is -0.09; so few values admit no
+> distribution-free 95% interval, which needs at least six. Over all
+> 10 the median change is 0.00, with a 95% interval of
+> -0.09 to 0.00 from binomial order statistics: the
+> unchanged samples outnumber the rest, so the interval sits against zero and
+> carries little information about the size of the change. A further
+> 6 samples leave the comparison because QC left them fewer
+> than three calls, so they have no D after QC.
 > **(b)** Frequency spectra of the calls QC kept and the calls it removed
 > (86 and 49 of them fall inside the binned
 > frequency range), compared with `compareSFS()`:

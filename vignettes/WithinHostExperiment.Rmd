@@ -471,7 +471,7 @@ nt_hiv <- calcNeutralityTests(whe_hiv, genomeLength = 1000L)
 nt_tb  <- calcNeutralityTests(whe_tb,  genomeLength = 4411532L)
 results <- data.frame(
     pathogen = c("Influenza", "HIV-1", "M. tuberculosis"),
-    n_sites = c(nrow(whe_flu), nrow(whe_hiv), nrow(whe_tb)),
+    n_sites = c(nt_flu$n_sites, nt_hiv$n_sites, nt_tb$n_sites),
     tajimaD = c(nt_flu$tajimaD, nt_hiv$tajimaD, nt_tb$tajimaD),
     fusFs = c(nt_flu$fusFs, nt_hiv$fusFs, nt_tb$fusFs)
 )

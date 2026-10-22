@@ -169,12 +169,14 @@ of the two replicates.
 </div>
 
 > **Figure 5 | Population-genetic summaries of the flagged data.**
-> **(a)** Tajima's D for the {{fig5::a::samples with >= 1 concordant iSNV::%d}} samples with at least one
-> concordant iSNV and a finite D, using read depth capped at 100 as the sample size:
-> median {{fig5::a::median Tajima D (QC, n capped at 100)::%.2f}}, {{fig5::a::percentage of samples with D < 0::%.0f}}% below zero. These are weak summaries and are
-> shown as such: {{fig5::a::samples resting on a single concordant call::%d}} of the {{fig5::a::samples with >= 1 concordant iSNV::%d}} samples ({{fig5::a::percentage resting on a single concordant call::%.0f}}%) carry a single
-> concordant call, where D is a monotone function of that one frequency rather
-> than a description of a spectrum, and only {{fig5::a::samples with at least three concordant calls::%d}} carry three or more. Calls
+> **(a)** Tajima's D for the {{fig5::a::samples with at least three concordant calls::%d}} samples carrying at least three
+> concordant iSNVs, using read depth capped at 100 as the sample size:
+> median {{fig5::a::median Tajima D (QC, n capped at 100)::%.2f}}, {{fig5::a::percentage of samples with D < 0::%.0f}}% below zero. They are the minority:
+> of the {{fig5::a::samples with >= 1 concordant iSNV::%d}} samples with any concordant call, {{fig5::a::samples resting on a single concordant call::%d}} carry one
+> ({{fig5::a::percentage resting on a single concordant call::%.0f}}%) and {{fig5::a::samples with two concordant calls::%d}} carry two. Below three segregating sites D
+> is a function of one or two frequencies rather than a description of a
+> spectrum, so `tajimaD()` returns `NA` and those samples are absent from the
+> panel. Calls
 > below the 2% frequency threshold are absent, and negative D is expected both
 > under purifying selection and after population growth, so these values
 > describe the spectra rather than test either.
@@ -208,16 +210,17 @@ of the two replicates.
 </div>
 
 > **Figure 6 | What replicate QC changes.**
-> **(a)** Tajima's D before and after QC in the {{fig6::a::samples with finite D before and after QC::%d}} samples with a
-> finite value in both: median {{fig6::a::median Tajima D naive::%.2f}} before QC and {{fig6::a::median Tajima D QC::%.2f}} after. QC
-> removed no call in most of them, so it changed D in {{fig6::a::samples whose D changed under QC::%d}} samples, and among
-> those the median change is {{fig6::a::median change in D among samples QC altered::%.2f}} (95% CI {{fig6::a::95% CI lower, altered samples::%.2f}} to {{fig6::a::95% CI upper, altered samples::%.2f}}, distribution-free
-> from binomial order statistics). Taken over all {{fig6::a::samples with finite D before and after QC::%d}} the median change is
-> {{fig6::a::median paired change in D (QC minus naive)::%.2f}} with an interval of {{fig6::a::95% CI lower (order statistics)::%.2f}} to {{fig6::a::95% CI upper (order statistics)::%.2f}}: the unchanged samples
-> outnumber the rest, so that interval collapses onto the median and carries no
-> information about the size of the change. A further {{fig6::a::samples excluded because QC left no call::%d}} samples leave the
-> comparison altogether because QC removed every call and D has no value after
-> it -- the samples QC affected most.
+> **(a)** Tajima's D before and after QC in the {{fig6::a::samples with finite D before and after QC::%d}} samples carrying at
+> least three calls both before and after: median {{fig6::a::median Tajima D naive::%.2f}} before QC and
+> {{fig6::a::median Tajima D QC::%.2f}} after. QC removed no call from most of them, so it changed D in
+> {{fig6::a::samples whose D changed under QC::%d}}, where the median change is {{fig6::a::median change in D among samples QC altered::%.2f}}; so few values admit no
+> distribution-free 95% interval, which needs at least six. Over all
+> {{fig6::a::samples with finite D before and after QC::%d}} the median change is {{fig6::a::median paired change in D (QC minus naive)::%.2f}}, with a 95% interval of
+> {{fig6::a::95% CI lower (order statistics)::%.2f}} to {{fig6::a::95% CI upper (order statistics)::%.2f}} from binomial order statistics: the
+> unchanged samples outnumber the rest, so the interval sits against zero and
+> carries little information about the size of the change. A further
+> {{fig6::a::samples excluded because QC left fewer than three calls::%d}} samples leave the comparison because QC left them fewer
+> than three calls, so they have no D after QC.
 > **(b)** Frequency spectra of the calls QC kept and the calls it removed
 > ({{fig6::b::calls kept by QC in the spectrum::%d}} and {{fig6::b::calls removed by QC in the spectrum::%d}} of them fall inside the binned
 > frequency range), compared with `compareSFS()`:

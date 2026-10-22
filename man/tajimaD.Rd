@@ -25,7 +25,8 @@ meaningful value. See Details.}
 in bp.}
 }
 \value{
-Numeric scalar. Tajima's D.
+Numeric scalar. Tajima's D, or \code{NA} with a warning when
+  \code{S} is below three.
 }
 \description{
 Computes Tajima's D (Tajima 1989) from summary statistics of
@@ -40,6 +41,15 @@ while a positive D suggests balancing selection or population
 contraction.
 }
 \details{
+\strong{Fewer than three segregating sites:} with one segregating
+site D is a monotone function of that site's frequency, and with two
+it is a function of two frequencies; neither describes a frequency
+spectrum, and at \code{S = 0} the statistic is 0/0. The function
+therefore returns \code{NA}, with a warning, whenever \code{S < 3}.
+Report \code{S} alongside every D, as
+\code{\link{calcNeutralityTests}} does in its \code{n_sites}
+column.
+
 \strong{Deep sequencing caveat:} The classical Tajima (1989)
 formula was designed for independent haplotype samples (e.g.,
 Sanger-sequenced clones or individual genomes). In deep

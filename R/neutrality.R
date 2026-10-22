@@ -59,9 +59,19 @@ setGeneric("calcNeutralityTests", function(x, ...)
 #' @param genomeLength Integer scalar. Reference genome length
 #'   in bp.
 #'
-#' @return Numeric scalar. Tajima's D.
+#' @return Numeric scalar. Tajima's D, or \code{NA} with a warning when
+#'   \code{S} is below three.
 #'
 #' @details
+#' \strong{Fewer than three segregating sites:} with one segregating
+#' site D is a monotone function of that site's frequency, and with two
+#' it is a function of two frequencies; neither describes a frequency
+#' spectrum, and at \code{S = 0} the statistic is 0/0. The function
+#' therefore returns \code{NA}, with a warning, whenever \code{S < 3}.
+#' Report \code{S} alongside every D, as
+#' \code{\link{calcNeutralityTests}} does in its \code{n_sites}
+#' column.
+#'
 #' \strong{Deep sequencing caveat:} The classical Tajima (1989)
 #' formula was designed for independent haplotype samples (e.g.,
 #' Sanger-sequenced clones or individual genomes). In deep
@@ -112,7 +122,11 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
         genomeLength <= 0)
         stop("'genomeLength' must be a single positive number.")
 
-    if (S == 0) return(0)
+    if (S < 3) {
+        warning("Tajima's D needs at least three segregating sites; ",
+                "with S = ", S, " it is returned as NA.", call. = FALSE)
+        return(NA_real_)
+    }
 
     n <- as.integer(round(n))
     a1 <- sum(1 / seq_len(n - 1L))
@@ -286,7 +300,12 @@ fusFs <- function(S, n, theta_pi) {
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
-#'   \code{sample_id} plus one column per requested test.
+#'   \code{sample_id}, \code{n_sites} (the number of segregating sites
+#'   each statistic rests on, that is, the variant sites present in the
+#'   sample after QC) and one column per requested test. Tajima's D is
+#'   \code{NA} for a sample with fewer than three segregating sites (see
+#'   \code{\link{tajimaD}}); one warning names how many samples that
+#'   affected.
 #'
 #' @references
 #' Tajima F (1989). Statistical method for testing the neutral
@@ -366,10 +385,13 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
             0
         }
 
-        vals <- list(sample_id = sample_ids[j])
+        vals <- list(sample_id = sample_ids[j], n_sites = S)
 
         if ("tajimaD" %in% indices) {
-            vals$tajimaD <- tajimaD(S, n, pi_hat, genomeLength)
+            ## below three sites tajimaD() warns per sample; one summary
+            ## warning is given for the whole object instead
+            vals$tajimaD <- if (S < 3L) NA_real_ else
+                tajimaD(S, n, pi_hat, genomeLength)
         }
         if ("fusFs" %in% indices) {
             theta_pi <- pi_hat * genomeLength
@@ -379,5 +401,13 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
         as.data.frame(vals, stringsAsFactors = FALSE)
     })
 
-    DataFrame(do.call(rbind, results))
+    out <- DataFrame(do.call(rbind, results))
+    if ("tajimaD" %in% indices) {
+        few <- out$n_sites < 3L
+        if (any(few))
+            warning("Tajima's D is NA for ", sum(few), " of ", nrow(out),
+                    " sample(s), which have fewer than three segregating ",
+                    "sites.", call. = FALSE)
+    }
+    out
 })

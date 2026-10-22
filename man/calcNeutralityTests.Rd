@@ -33,7 +33,12 @@ variants where \code{qcPass == TRUE}.}
 A \code{DataFrame} of neutrality statistics.
 
 A \code{DataFrame} with one row per sample and columns
-  \code{sample_id} plus one column per requested test.
+  \code{sample_id}, \code{n_sites} (the number of segregating sites
+  each statistic rests on, that is, the variant sites present in the
+  sample after QC) and one column per requested test. Tajima's D is
+  \code{NA} for a sample with fewer than three segregating sites (see
+  \code{\link{tajimaD}}); one warning names how many samples that
+  affected.
 }
 \description{
 Generic for computing neutrality tests from within-host

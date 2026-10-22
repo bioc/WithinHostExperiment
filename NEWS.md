@@ -71,7 +71,10 @@
 * Neutrality tests: `tajimaD()`, `fusFs()`, and
   `calcNeutralityTests()` for site-frequency-spectrum-based
   neutrality testing with deep-sequencing-aware sample size
-  capping.
+  capping. `tajimaD()` returns `NA`, with a warning, below three
+  segregating sites, where D is a function of one or two frequencies
+  rather than of a spectrum; `calcNeutralityTests()` reports
+  `n_sites`, the number of sites each statistic rests on.
 * **Site frequency spectrum as a first-class object**:
   `WithinHostSFS` S4 class stores the within-host SFS with
   metadata (sample, genome length, depth, detection threshold).

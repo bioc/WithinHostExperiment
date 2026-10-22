@@ -58,9 +58,21 @@ test_that("calcNeutralityTests errors on missing genomeLength", {
         "genomeLength.*required")
 })
 
-test_that("tajimaD returns 0 when S is 0", {
-    D <- tajimaD(S = 0, n = 1000, pi_hat = 0, genomeLength = 10000)
-    expect_equal(D, 0)
+test_that("tajimaD gives NA below three segregating sites (was: 0 at S = 0)", {
+    ## With one site D is a monotone function of that site's frequency and
+    ## with none it is 0/0; neither describes a spectrum.
+    for (S in 0:2) {
+        expect_warning(D <- tajimaD(S = S, n = 1000, pi_hat = 0.001,
+                                    genomeLength = 10000),
+                       "at least three segregating sites")
+        expect_true(is.na(D), info = paste("S =", S))
+    }
+    expect_warning(tajimaD(S = 1, n = 1000, pi_hat = 0.001,
+                           genomeLength = 10000), "with S = 1")
+    ## three sites is enough
+    expect_no_warning(D3 <- tajimaD(S = 3, n = 100, pi_hat = 1e-4,
+                                    genomeLength = 10000))
+    expect_true(is.finite(D3))
 })
 
 test_that("fusFs returns 0 when S is 0", {
@@ -82,4 +94,55 @@ test_that("fusFs returns NA with a warning when S + 1 exceeds n", {
                    "undefined")
     expect_true(is.na(res))
     expect_true(is.finite(fusFs(S = 10, n = 100, theta_pi = 5)))
+})
+
+# ---- n_sites and the three-site rule in calcNeutralityTests ----
+
+.neutrality_whe <- function(counts) {
+    ## one column per entry of counts, with that many variant sites present
+    n <- max(counts)
+    gr <- GenomicRanges::GRanges("seg",
+        IRanges::IRanges(seq_len(n) * 10L, width = 1))
+    freq <- vapply(counts, function(k)
+        c(seq(0.05, 0.45, length.out = k), rep(NA_real_, n - k))[seq_len(n)],
+        numeric(n))
+    colnames(freq) <- paste0("s", seq_along(counts))
+    WithinHostExperiment(
+        assays = list(altFreq = freq,
+                      totalDepth = matrix(1000L, nrow = n,
+                                          ncol = length(counts),
+                                          dimnames = dimnames(freq))),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+                                       row.names = colnames(freq)))
+}
+
+test_that("calcNeutralityTests reports n_sites and NA D below three sites", {
+    whe <- .neutrality_whe(c(5, 2, 1))
+    expect_warning(res <- calcNeutralityTests(whe, genomeLength = 1000L),
+                   "NA for 2 of 3 sample\\(s\\)")
+    expect_identical(res$n_sites, c(5L, 2L, 1L))
+    expect_true(is.finite(res$tajimaD[1]))
+    expect_true(all(is.na(res$tajimaD[2:3])))
+    ## Fu's Fs is still computed, since it is defined on one site
+    expect_true(all(is.finite(res$fusFs)))
+})
+
+test_that("calcNeutralityTests is silent when every sample has three sites", {
+    whe <- .neutrality_whe(c(4, 3))
+    expect_no_warning(res <- calcNeutralityTests(whe, genomeLength = 1000L))
+    expect_identical(res$n_sites, c(4L, 3L))
+    expect_true(all(is.finite(res$tajimaD)))
+})
+
+test_that("n_sites counts only the QC-passed sites it used", {
+    whe <- .neutrality_whe(c(5))
+    qc <- matrix(c(TRUE, TRUE, TRUE, FALSE, FALSE), ncol = 1,
+                 dimnames = dimnames(SummarizedExperiment::assay(whe,
+                                                                 "altFreq")))
+    SummarizedExperiment::assay(whe, "qcPass", withDimnames = FALSE) <- qc
+    expect_identical(calcNeutralityTests(whe, genomeLength = 1000L)$n_sites,
+                     3L)
+    expect_identical(calcNeutralityTests(whe, genomeLength = 1000L,
+                                         usePassedOnly = FALSE)$n_sites, 5L)
 })

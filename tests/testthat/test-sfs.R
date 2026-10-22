@@ -86,9 +86,10 @@ test_that("neutralityFromSFS handles empty SFS", {
         folded = FALSE, polarization = "reference", sampleId = "empty",
         genomeLength = 1000L, nSites = 0L, meanDepth = 1000,
         threshold = 0.03, corrected = FALSE)
-    res <- neutralityFromSFS(sfs)
+    expect_warning(res <- neutralityFromSFS(sfs),
+                   "at least three segregating sites")
     expect_equal(res$S, 0L)
-    expect_equal(res$tajimaD, 0)
+    expect_true(is.na(res$tajimaD))
 })
 
 # ---- compareSFS ----

@@ -500,9 +500,16 @@ save_figure((p4a + p4b) / (p4c + p4d), "fig4_diversity_landscape", 7.0, 5.8)
 ## ================================================================
 ## Figure 5: population genetics
 ## ================================================================
+## Count axes tick at whole numbers only, however few samples a panel holds
+whole_breaks <- function(lim) {
+    b <- pretty(lim)
+    unique(round(b[b == round(b)]))
+}
 tajima_sample <- function(freq, depth, cap = 100L) {
     S <- length(freq)
-    if (S == 0L) return(NA_real_)
+    ## tajimaD() gives NA, with a warning, below three segregating sites;
+    ## such samples are counted below and left out of the panels
+    if (S < 3L) return(NA_real_)
     n <- min(max(as.integer(round(depth)), 2L), cap)
     tajimaD(S, n, piISNV(freq, GL, meanDepth = n), GL)
 }
@@ -513,16 +520,17 @@ taj <- do.call(rbind, lapply(samples, function(s) {
                D_naive = tajima_sample(vars$ALT_FREQ_1[vars$sample == s], d),
                S_qc = sum(concordant$sample == s))
 }))
-taj_qc <- taj[taj$S_qc > 0 & is.finite(taj$D_qc), ]
-record("fig5", "a", "samples with >= 1 concordant iSNV", nrow(taj_qc))
+taj_qc <- taj[is.finite(taj$D_qc), ]
+record("fig5", "a", "samples with >= 1 concordant iSNV", sum(taj$S_qc > 0))
 record("fig5", "a", "median Tajima D (QC, n capped at 100)", median(taj_qc$D_qc))
 record("fig5", "a", "percentage of samples with D < 0", 100 * mean(taj_qc$D_qc < 0))
-## With one segregating site D is a monotone function of that call's frequency,
-## so the summary describes single calls in most of these samples.
-record("fig5", "a", "samples resting on a single concordant call", sum(taj_qc$S_qc == 1))
+## Below three segregating sites D is a function of one or two frequencies, not
+## of a spectrum; those samples are counted and left out of the panel.
+record("fig5", "a", "samples resting on a single concordant call", sum(taj$S_qc == 1))
 record("fig5", "a", "percentage resting on a single concordant call",
-       100 * mean(taj_qc$S_qc == 1))
-record("fig5", "a", "samples with at least three concordant calls", sum(taj_qc$S_qc >= 3))
+       100 * mean(taj$S_qc[taj$S_qc > 0] == 1))
+record("fig5", "a", "samples with two concordant calls", sum(taj$S_qc == 2))
+record("fig5", "a", "samples with at least three concordant calls", nrow(taj_qc))
 p5a <- ggplot(taj_qc, aes(x = D_qc)) +
     geom_histogram(bins = 15, fill = pal$blue, colour = "white", linewidth = 0.2, alpha = 0.90) +
     geom_vline(xintercept = 0, linetype = "dashed", colour = pal$grey, linewidth = 0.5) +
@@ -531,7 +539,8 @@ p5a <- ggplot(taj_qc, aes(x = D_qc)) +
              colour = pal$vermillion,
              label = sprintf("median = %.2f\n%.0f%% < 0", median(taj_qc$D_qc), 100 * mean(taj_qc$D_qc < 0))) +
     scale_x_continuous("Tajima's D (n capped at 100)") +
-    scale_y_continuous("Samples", expand = expansion(mult = c(0, 0.12))) + labs(tag = "a") + theme_pub(10)
+    scale_y_continuous("Samples", breaks = whole_breaks, expand = expansion(mult = c(0, 0.12))) +
+    labs(tag = "a") + theme_pub(10)
 
 ## b: Nei-Gojobori pN/pS, pooling the concordant iSNVs of all samples.
 ## The CDS records are grouped into one transcript per protein by their ID;
@@ -644,9 +653,9 @@ taj_pair <- taj[is.finite(taj$D_naive) & is.finite(taj$D_qc), ]
 d_diff <- taj_pair$D_qc - taj_pair$D_naive
 d_diff_ci <- median_ci(d_diff)
 record("fig6", "a", "samples with finite D before and after QC", nrow(taj_pair))
-## D has no value after QC exactly where QC removed every call, so the samples
-## it changed most are the ones the paired comparison cannot include.
-record("fig6", "a", "samples excluded because QC left no call",
+## D has no value after QC where QC left fewer than three calls, so the
+## samples it changed most are the ones the paired comparison cannot include.
+record("fig6", "a", "samples excluded because QC left fewer than three calls",
        sum(is.finite(taj$D_naive) & !is.finite(taj$D_qc)))
 record("fig6", "a", "samples whose D changed under QC", sum(d_diff != 0))
 record("fig6", "a", "median Tajima D naive", median(taj_pair$D_naive))
@@ -670,14 +679,19 @@ p6a <- ggplot(d_long, aes(x = D, fill = condition)) +
     geom_vline(xintercept = 0, linetype = "dashed", colour = pal$grey, linewidth = 0.4) +
     scale_fill_manual(name = NULL, values = c(Naive = pal$orange, QC = pal$green)) +
     annotate("text", x = max(d_long$D), y = Inf, hjust = 1, vjust = 1.5, size = 3.0,
-             label = if (length(d_changed)) {
+             label = if (length(d_changed) && all(is.finite(d_changed_ci))) {
                  sprintf("%d of %d samples changed\nmedian change %.2f\n(95%% CI %.2f to %.2f)",
                          length(d_changed), nrow(taj_pair), median(d_changed),
                          d_changed_ci[1], d_changed_ci[2])
+             } else if (length(d_changed)) {
+                 ## order statistics give no 95% interval below six values
+                 sprintf("%d of %d samples changed\nmedian change %.2f\n(too few for a 95%% CI)",
+                         length(d_changed), nrow(taj_pair), median(d_changed))
              } else {
                  sprintf("no sample of %d changed", nrow(taj_pair))
              }) +
-    scale_x_continuous("Tajima's D") + scale_y_continuous("Samples", expand = expansion(mult = c(0, 0.15))) +
+    scale_x_continuous("Tajima's D") +
+    scale_y_continuous("Samples", breaks = whole_breaks, expand = expansion(mult = c(0, 0.15))) +
     labs(tag = "a") + theme_pub(10) + inside(0.02, 0.98)
 
 ## The QC spectrum is built from a subset of the naive calls, so the two are

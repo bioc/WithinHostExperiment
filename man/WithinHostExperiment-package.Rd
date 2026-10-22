@@ -209,6 +209,7 @@ data using multiple methods.
 Useful links:
 \itemize{
   \item \url{https://github.com/CuiweiG/WithinHostExperiment}
+  \item \url{https://cuiweig.github.io/WithinHostExperiment/}
   \item Report bugs at \url{https://github.com/CuiweiG/WithinHostExperiment/issues}
 }
 

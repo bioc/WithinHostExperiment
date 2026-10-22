@@ -308,15 +308,30 @@ test_that("trackFrequency keeps column-major order (was: a nested loop)", {
 test_that("plots clip the view instead of dropping points (was: a warning)", {
     skip_if_not_installed("ggplot2")
     pair <- .edge_pair()
-    expect_no_warning(built <- ggplot2::ggplot_build(
-        plotPairScatter(pair, pairId = "p1")))
-    n_sites <- nrow(exportPairFrequencies(pair, pairId = "p1"))
-    ## every site is still drawn: count the rows of the point layers
+    p <- plotPairScatter(pair, pairId = "p1")
+    s <- plotFrequencySpectrum(pair)
+    ## the limits sit on the coordinate system, which clips the view, and
+    ## not on the scales, which would remove what falls outside
+    for (g in list(p, s)) {
+        expect_false(is.null(g$coordinates$limits$x))
+        expect_null(g$scales$get_scales("x")$limits)
+    }
+    expect_false(is.null(p$coordinates$limits$y))
+    expect_null(p$scales$get_scales("y")$limits)
+    ## ggplot2 removes rows outside a scale when the plot is drawn, so the
+    ## whole table is built, on a device that writes nothing
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    expect_no_warning(ggplot2::ggplotGrob(p))
+    expect_no_warning(ggplot2::ggplotGrob(s))
+    ## every site is still drawn: count the point rows with a position
+    built <- ggplot2::ggplot_build(p)
     is_point <- vapply(built$plot$layers,
                        function(l) inherits(l$geom, "GeomPoint"), logical(1))
-    n_points <- sum(vapply(built$data[is_point], nrow, integer(1)))
-    expect_identical(n_points, n_sites)
-    expect_no_warning(ggplot2::ggplot_build(plotFrequencySpectrum(pair)))
+    n_points <- sum(vapply(built$data[is_point], function(d)
+        sum(is.finite(d$x) & is.finite(d$y)), integer(1)))
+    expect_identical(n_points,
+                     nrow(exportPairFrequencies(pair, pairId = "p1")))
 })
 
 test_that("plotQCDashboard clips the frequency panel instead of dropping calls (was: a warning)", {
@@ -327,15 +342,19 @@ test_that("plotQCDashboard clips the frequency panel instead of dropping calls (
     panel_a <- plotQCDashboard(pair)[[1]][[1]]
     expect_true("freq" %in% names(panel_a$data))
     ## the limits sit on the coordinate system, which clips the view, and
-    ## not on the scale, which would remove what falls outside; with
-    ## ggplot2 4 the old scale limits no longer drop these bars, so the
-    ## mechanism is checked as well as the result
+    ## not on the scale, which would remove the edge bars when the panel
+    ## is drawn
     expect_false(is.null(panel_a$coordinates$limits$x))
     expect_null(panel_a$scales$get_scales("x")$limits)
-    expect_no_warning(built <- ggplot2::ggplot_build(panel_a))
-    ## every call is counted in some bar of the histogram
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    expect_no_warning(ggplot2::ggplotGrob(panel_a))
+    ## every call is counted in some bar that has a position
+    built <- ggplot2::ggplot_build(panel_a)
+    bars <- built$data[[1]]
     n_calls <- sum(!is.na(SummarizedExperiment::assay(pair, "altFreq")))
-    expect_equal(sum(built$data[[1]]$count), n_calls)
+    expect_equal(sum(bars$count[is.finite(bars$xmin) & is.finite(bars$xmax)]),
+                 n_calls)
 })
 
 test_that("trajectory and SFS plots use the Okabe-Ito palette, recycled", {

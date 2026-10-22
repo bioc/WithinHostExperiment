@@ -24,7 +24,8 @@
   al. (2020) found over 99% sensitivity and precision for single-nucleotide
   variants; it was 30.
 * `correctSFSBias()`, `compareSFS()`, the `WithinHostSFS` bins and depth slot,
-  `consensusISNV()`, `flagReplicateDiscordance()` and `validateDiversity()` are
+  `consensusISNV()`, `flagReplicateDiscordance()` and
+  `checkDiversityPlausibility()` are
   documented as implemented: truncation rescales the whole spectrum, bins are
   right-closed, the stored depth is a median, the consensus object holds only
   allele frequencies, and the diversity ranges are heuristic plausibility
@@ -176,8 +177,13 @@
   modelling of diversity measures, `multitestCorrection()` for
   multiple testing correction, `permutationTest()` for
   non-parametric hypothesis testing.
-* Validation: `validateDiversity()` for cross-checking diversity
-  estimates against literature-reported ranges.
+* Plausibility check: `checkDiversityPlausibility()` (formerly
+  `validateDiversity()`) compares diversity estimates with wide,
+  heuristic ranges per pathogen, listed on its man page, as a check on
+  units and orders of magnitude; the ranges are the package's own, not
+  literature values, and a value inside one is no evidence that an
+  estimate is correct. Every sample of a `calcDiversity()` table is
+  checked, where only the first row used to be.
 * ViralBottleneck bridge: `asViralBottleneckInput()` exports
   standardised data for the ViralBottleneck package (Zheng
   et al. 2025).

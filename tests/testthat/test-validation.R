@@ -1,6 +1,6 @@
-test_that("validateDiversity flags out-of-range pi", {
+test_that("checkDiversityPlausibility flags out-of-range pi", {
     div <- S4Vectors::DataFrame(pi = 0.5, shannon = 5.0)
-    res <- validateDiversity(div, pathogen = "sars_cov_2")
+    res <- checkDiversityPlausibility(div, pathogen = "sars_cov_2")
     expect_s4_class(res, "DataFrame")
     expect_true("in_range" %in% colnames(res))
     ## pi = 0.5 is way above SARS-CoV-2 range [1e-6, 1e-3]
@@ -11,15 +11,43 @@ test_that("validateDiversity flags out-of-range pi", {
     expect_true(sh_row$in_range)
 })
 
-test_that("validateDiversity accepts long-format input", {
+test_that("checkDiversityPlausibility accepts long-format input", {
     div <- data.frame(
         metric = c("pi", "shannon"),
         value  = c(1e-4, 10.0),
         stringsAsFactors = FALSE
     )
-    res <- validateDiversity(div, pathogen = "influenza")
+    res <- checkDiversityPlausibility(div, pathogen = "influenza")
     expect_equal(nrow(res), 2L)
     expect_true(all(res$in_range))
+    expect_true(all(is.na(res$sample_id)))
+})
+
+test_that("checkDiversityPlausibility checks every sample (was: first row)", {
+    div <- S4Vectors::DataFrame(sample_id = c("a", "b", "c"),
+        pi = c(1e-4, 0.3, 2e-5), shannon = c(5, 7.5, 40))
+    res <- checkDiversityPlausibility(div, pathogen = "sars_cov_2")
+    expect_equal(nrow(res), 6L)
+    expect_identical(res$sample_id, rep(c("a", "b", "c"), 2L))
+    expect_identical(res$in_range[res$metric == "pi"], c(TRUE, FALSE, TRUE))
+    expect_identical(res$in_range[res$metric == "shannon"],
+                     c(TRUE, TRUE, FALSE))
+    ## no sample_id column: rows are numbered
+    res2 <- checkDiversityPlausibility(div[, c("pi", "shannon")],
+                                       pathogen = "sars_cov_2")
+    expect_identical(res2$sample_id, rep(c("1", "2", "3"), 2L))
+    ## NA is never in range
+    div$pi[1] <- NA
+    expect_false(checkDiversityPlausibility(div, "sars_cov_2")$in_range[1])
+})
+
+test_that("the ranges are the heuristics the man page lists", {
+    res <- checkDiversityPlausibility(
+        S4Vectors::DataFrame(pi = 1e-4, shannon = 1), pathogen = "tb")
+    expect_equal(res$expected_min, c(1e-9, 0))
+    expect_equal(res$expected_max, c(1e-4, 5))
+    expect_error(validateDiversity(S4Vectors::DataFrame(pi = 1e-4)),
+                 "could not find function")
 })
 
 test_that("benchmarkCallers computes TP/FP/FN with truth", {
@@ -53,36 +81,36 @@ test_that("benchmarkCallers computes TP/FP/FN with truth", {
 
 # ---- Multi-pathogen validation ----
 
-test_that("validateDiversity passes for influenza-range diversity", {
+test_that("the influenza fixture is in range", {
     flu <- system.file("extdata", "test_influenza_donor.tsv",
                        package = "WithinHostExperiment")
     whe <- readWithinHostTable(flu, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "flu_donor"))
     GenomeInfoDb::seqlengths(whe) <- c(HA = 1701L)
     div <- calcDiversity(whe, indices = c("pi", "shannon"))
-    res <- validateDiversity(div, pathogen = "influenza")
+    res <- checkDiversityPlausibility(div, pathogen = "influenza")
     expect_true(all(res$in_range))
 })
 
-test_that("validateDiversity passes for HIV-range diversity", {
+test_that("the HIV fixture is in range", {
     hiv <- system.file("extdata", "test_hiv_sample.tsv",
                        package = "WithinHostExperiment")
     whe <- readWithinHostTable(hiv, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "hiv_sample"))
     GenomeInfoDb::seqlengths(whe) <- c(pol = 1000L)
     div <- calcDiversity(whe, indices = c("pi", "shannon"))
-    res <- validateDiversity(div, pathogen = "hiv")
+    res <- checkDiversityPlausibility(div, pathogen = "hiv")
     expect_true(all(res$in_range))
 })
 
-test_that("validateDiversity passes for TB-range diversity", {
+test_that("the TB fixture is in range", {
     tb <- system.file("extdata", "test_tb_sample.tsv",
                       package = "WithinHostExperiment")
     whe <- readWithinHostTable(tb, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "tb_sample"))
     GenomeInfoDb::seqlengths(whe) <- c(Rv0001 = 4411532L)
     div <- calcDiversity(whe, indices = c("pi", "shannon"))
-    res <- validateDiversity(div, pathogen = "tb")
+    res <- checkDiversityPlausibility(div, pathogen = "tb")
     expect_true(all(res$in_range))
 })
 

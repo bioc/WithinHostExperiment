@@ -12,28 +12,50 @@ NULL
 # Literature-range validation
 # ============================================================
 
-#' Check diversity estimates against plausibility ranges
+#' Check diversity estimates against heuristic plausibility ranges
 #'
 #' Compares observed diversity metrics against wide plausibility
-#' ranges for common pathogens, as a sanity check on units and
-#' orders of magnitude rather than a reference interval. The bounds
-#' are the package's own heuristics, not estimates from a specific
-#' study, and are deliberately generous: \eqn{\pi} is compared on a
-#' per-site scale and Shannon entropy on the scale returned by
-#' \code{\link{calcDiversity}}. A value inside the range is not
-#' evidence that an estimate is correct.
+#' ranges for common pathogens, as a check on units and orders of
+#' magnitude. The ranges are heuristic: they are the package's own,
+#' set generously enough that a correctly computed estimate on a
+#' typical data set falls inside them, and they are not taken from
+#' the literature or from any study. Each is listed in Details. A value
+#' inside its range is therefore no evidence that an estimate is
+#' correct, and one outside it most often points to a unit, depth or
+#' QC problem rather than to biology.
+#'
+#' @details
+#' The ranges, per site for \eqn{\pi} and on the scale
+#' \code{\link{calcDiversity}} returns for Shannon entropy:
+#' \tabular{lll}{
+#'   \strong{pathogen} \tab \strong{pi} \tab \strong{shannon} \cr
+#'   \code{sars_cov_2} \tab 1e-6 to 1e-3 \tab 0 to 15 \cr
+#'   \code{influenza} \tab 1e-5 to 5e-3 \tab 0 to 20 \cr
+#'   \code{hiv} \tab 1e-4 to 5e-2 \tab 0 to 30 \cr
+#'   \code{tb} \tab 1e-9 to 1e-4 \tab 0 to 5 \cr
+#'   \code{generic} \tab 0 to 1 \tab 0 to 100
+#' }
+#'
+#' A wide table, as \code{\link{calcDiversity}} returns, is checked
+#' row by row, one row per sample and metric; a long table with
+#' \code{metric} and \code{value} columns is checked as given. Metrics
+#' without a range are left out.
 #'
 #' @param div_df A \code{DataFrame} or \code{data.frame} with columns
 #'   \code{metric} and \code{value}, or containing diversity columns
 #'   such as \code{pi} and \code{shannon} (as returned by
-#'   \code{\link{calcDiversity}}).
+#'   \code{\link{calcDiversity}}), with an optional \code{sample_id}.
 #' @param pathogen Character scalar. Pathogen whose plausibility
 #'   range is used.
 #'   One of \code{"sars_cov_2"}, \code{"influenza"}, \code{"hiv"},
 #'   \code{"tb"}, or \code{"generic"}.
 #'
-#' @return A \code{DataFrame} with columns:
+#' @return A \code{DataFrame} with one row per sample and metric and
+#'   columns:
 #'   \describe{
+#'     \item{sample_id}{Sample identifier, taken from \code{div_df}
+#'       when it has that column, otherwise the row number; \code{NA}
+#'       for long input.}
 #'     \item{metric}{Diversity metric name.}
 #'     \item{observed}{Observed value.}
 #'     \item{expected_min}{Lower bound of the plausibility range.}
@@ -44,11 +66,13 @@ NULL
 #'
 #' @export
 #' @examples
-#' div <- S4Vectors::DataFrame(pi = 1e-4, shannon = 5.0)
-#' validateDiversity(div, pathogen = "sars_cov_2")
-validateDiversity <- function(div_df,
-                              pathogen = c("sars_cov_2", "influenza",
-                                           "hiv", "tb", "generic")) {
+#' div <- S4Vectors::DataFrame(sample_id = c("a", "b"),
+#'     pi = c(1e-4, 0.3), shannon = c(5.0, 7.5))
+#' checkDiversityPlausibility(div, pathogen = "sars_cov_2")
+checkDiversityPlausibility <- function(div_df,
+                                       pathogen = c("sars_cov_2",
+                                                    "influenza", "hiv",
+                                                    "tb", "generic")) {
     pathogen <- match.arg(pathogen)
 
     ranges <- list(
@@ -65,21 +89,25 @@ validateDiversity <- function(div_df,
     if (is.data.frame(div_df) || is(div_df, "DataFrame")) {
         cn <- colnames(div_df)
         if (all(c("metric", "value") %in% cn)) {
-            ## Long format
+            ## Long format: one row per metric, no sample
             metrics <- as.character(div_df$metric)
             values  <- as.numeric(div_df$value)
+            samples <- rep(NA_character_, length(metrics))
         } else {
-            ## Wide format (e.g., calcDiversity output)
+            ## Wide format, as calcDiversity() returns: every row is a
+            ## sample, and every sample is checked
             avail <- intersect(cn, names(ref))
             if (length(avail) == 0L)
                 stop("No recognised diversity metrics found in 'div_df'. ",
                      "Expected columns: ",
                      paste(names(ref), collapse = ", "))
-            ## Use the first row (single sample) or warn
-            metrics <- avail
-            values  <- vapply(avail, function(m) {
-                as.numeric(div_df[[m]][1L])
-            }, numeric(1))
+            n <- nrow(div_df)
+            ids <- if ("sample_id" %in% cn) as.character(div_df$sample_id)
+                   else as.character(seq_len(n))
+            metrics <- rep(avail, each = n)
+            samples <- rep(ids, times = length(avail))
+            values  <- unlist(lapply(avail, function(m)
+                as.numeric(div_df[[m]])), use.names = FALSE)
         }
     } else {
         stop("'div_df' must be a DataFrame or data.frame.")
@@ -89,20 +117,22 @@ validateDiversity <- function(div_df,
     keep <- metrics %in% names(ref)
     metrics <- metrics[keep]
     values  <- values[keep]
+    samples <- samples[keep]
 
     if (length(metrics) == 0L)
         stop("No metrics with known ranges for pathogen '", pathogen, "'.")
 
     exp_min <- vapply(metrics, function(m) ref[[m]][1L], numeric(1))
     exp_max <- vapply(metrics, function(m) ref[[m]][2L], numeric(1))
-    in_range <- values >= exp_min & values <= exp_max
+    in_range <- !is.na(values) & values >= exp_min & values <= exp_max
 
     DataFrame(
-        metric       = metrics,
-        observed     = values,
-        expected_min = exp_min,
-        expected_max = exp_max,
-        in_range     = in_range
+        sample_id    = samples,
+        metric       = unname(metrics),
+        observed     = unname(values),
+        expected_min = unname(exp_min),
+        expected_max = unname(exp_max),
+        in_range     = unname(in_range)
     )
 }
 

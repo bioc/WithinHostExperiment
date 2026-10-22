@@ -95,7 +95,7 @@ No script in this repository produces these three files. They have been
 present unchanged since the first commit, and how they were made was
 not recorded. They are synthetic: none of them is derived from any
 measurement, and none should be read as one. They exist so that the
-vignette and the tests can show `validateDiversity()` and the
+vignette and the tests can show `checkDiversityPlausibility()` and the
 neutrality tests running on something other than SARS-CoV-2, and the
 vignette says of them that they are illustrative fixtures rather than
 measurements.

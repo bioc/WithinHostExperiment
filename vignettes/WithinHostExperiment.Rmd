@@ -403,9 +403,9 @@ cat("Bottleneck Nb:", nb$Nb, "(95% CI:", nb$ci[1], "-", nb$ci[2], ")\n")
 
 The example files describe a synthetic 1,000-base segment, so these numbers
 show the form of the output and are not evidence that the estimators are
-accurate. `validateDiversity()`, used below, compares an estimate with the
-package's own plausibility range for a pathogen: a sanity check, not a
-validation.
+accurate. `checkDiversityPlausibility()`, used below, compares an
+estimate with the package's own heuristic range for a pathogen: a check
+on units and orders of magnitude, not a validation.
 
 # Case study: SARS-CoV-2 transmission pair
 
@@ -467,7 +467,7 @@ cat("Shared:", sv$n_shared, "/ Donor-only:", sv$n_donor_only,
 To show that the workflow is not specific to SARS-CoV-2, we run it on
 small synthetic example files for three further pathogens and check the
 diversity estimates against the plausibility ranges of
-`validateDiversity()`. The files are illustrative fixtures, not
+`checkDiversityPlausibility()`. The files are illustrative fixtures, not
 measurements, and the ranges are the package's own heuristics, so these
 sections demonstrate the interface rather than validate the estimates.
 Each file is a table without a reference, so the length of the region
@@ -486,7 +486,7 @@ whe_flu <- flagISNV(whe_flu, adaptiveFilter("illumina"))
 div_flu <- calcDiversity(whe_flu, indices = c("pi", "shannon"))
 cat("Influenza pi:", format(div_flu$pi[1], digits = 3), "\n")
 cat("Influenza Shannon:", round(div_flu$shannon[1], 2), "\n")
-validateDiversity(div_flu, pathogen = "influenza")
+checkDiversityPlausibility(div_flu, pathogen = "influenza")
 ```
 
 ## HIV-1 (pol region)
@@ -501,7 +501,7 @@ whe_hiv <- flagISNV(whe_hiv, adaptiveFilter("illumina"))
 div_hiv <- calcDiversity(whe_hiv, indices = c("pi", "shannon"))
 cat("HIV pi:", format(div_hiv$pi[1], digits = 3), "\n")
 cat("HIV Shannon:", round(div_hiv$shannon[1], 2), "\n")
-validateDiversity(div_hiv, pathogen = "hiv")
+checkDiversityPlausibility(div_hiv, pathogen = "hiv")
 ```
 
 ## Mycobacterium tuberculosis
@@ -516,7 +516,7 @@ whe_tb <- flagISNV(whe_tb, adaptiveFilter("illumina"))
 div_tb <- calcDiversity(whe_tb, indices = c("pi", "shannon"))
 cat("TB pi:", format(div_tb$pi[1], digits = 3), "\n")
 cat("TB Shannon:", round(div_tb$shannon[1], 2), "\n")
-validateDiversity(div_tb, pathogen = "tb")
+checkDiversityPlausibility(div_tb, pathogen = "tb")
 ```
 
 ## Neutrality tests across pathogens
@@ -816,13 +816,25 @@ multitestCorrection(raw_p)
 
 ## Plausibility check
 
-Cross-check observed diversity against the package's plausibility
-range for a given pathogen:
+A diversity estimate far from the values usually seen for a pathogen is
+more often a unit, depth or QC problem than a discovery.
+`checkDiversityPlausibility()` compares each sample's estimates with a
+wide range per pathogen. The ranges are the package's own heuristics,
+listed on its man page, not values from the literature, and a result
+inside them says only that nothing is grossly wrong. Here two
+hand-written samples are checked, one of them with a `pi` far above
+anything SARS-CoV-2 shows:
 
-```{r validate}
-div_check <- S4Vectors::DataFrame(pi = 1e-4, shannon = 5.0)
-validateDiversity(div_check, pathogen = "sars_cov_2")
+```{r plausibility}
+div_check <- S4Vectors::DataFrame(sample_id = c("plausible", "suspect"),
+    pi = c(1e-4, 0.3), shannon = c(5.0, 7.5))
+checkDiversityPlausibility(div_check, pathogen = "sars_cov_2")
 ```
+
+One row per sample and metric: `observed` is the estimate,
+`expected_min` and `expected_max` the range, and `in_range` the verdict.
+The suspect sample fails on `pi` alone; its Shannon entropy is
+unremarkable.
 
 # Scope and limitations
 

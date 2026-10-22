@@ -97,7 +97,7 @@
 #'   }
 #'   \item{Diversity modelling}{
 #'     \code{\link{fitDiversityModel}},
-#'     \code{\link{validateDiversity}}
+#'     \code{\link{checkDiversityPlausibility}}
 #'   }
 #'   \item{Site frequency spectrum}{
 #'     \code{\link{WithinHostSFS-class}} (S4 class),

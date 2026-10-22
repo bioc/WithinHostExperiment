@@ -40,15 +40,14 @@ reference:
   - title: "Quality control"
     desc: >
       Choose filters and flag, without deleting, calls that fail depth,
-      frequency, strand, primer, replicate or temporal criteria; report
-      likely cross-contamination and summarise what QC removed.
+      frequency, strand, primer or replicate criteria; report likely
+      cross-contamination and summarise what QC removed.
     contents:
       - ISNVFilter
       - adaptiveFilter
       - flagISNV
       - flagPrimerSites
       - flagReplicateDiscordance
-      - flagTemporalInconsistency
       - sciStrandBias
       - flagStrandBiasSCI
       - detectCrossContamination
@@ -80,14 +79,14 @@ reference:
   - title: "Site frequency spectrum"
     desc: >
       Bin allele frequencies into a spectrum, correct it for the
-      detection threshold, compare spectra and plot them.
+      detection threshold, compare spectra and compute statistics from
+      one.
     contents:
       - buildSFS
       - buildSFSList
       - correctSFSBias
       - compareSFS
       - neutralityFromSFS
-      - plotSFS
 
   - title: "Neutrality and selection"
     desc: >
@@ -116,11 +115,11 @@ reference:
   - title: "Longitudinal"
     desc: >
       Follow variant frequencies through the samples of one host over
-      time.
+      time, and flag sites seen at too few timepoints.
     contents:
       - trackFrequency
       - detectEmergingVariants
-      - plotFrequencyTrajectory
+      - flagTemporalInconsistency
 
   - title: "Multi-caller"
     desc: >
@@ -141,9 +140,12 @@ reference:
 
   - title: "Visualisation"
     desc: >
-      Frequency spectra, donor-recipient scatter plots and a QC
-      dashboard.
+      Frequency spectra of an object or of WithinHostSFS objects,
+      donor-recipient scatter plots, a QC dashboard and frequency
+      trajectories.
     contents:
       - plotFrequencySpectrum
       - plotPairScatter
       - plotQCDashboard
+      - plotSFS
+      - plotFrequencyTrajectory

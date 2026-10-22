@@ -1609,6 +1609,30 @@ expect Jaccard values well below 1 at low frequencies, which is the whole reason
 this check exists. `benchmarkCallers()` extends the comparison with precision,
 recall and F1 when a truth set is available.
 
+# Statistics
+
+Two general tools serve the summaries above. One, `multitestCorrection()`, was
+shown with the diversity model. The other, `permutationTest()`, compares a
+summary between two groups of samples without assuming any distribution for it:
+the difference in group means is set against the differences obtained when the
+group labels are shuffled at random, and the p-value is the proportion of
+shuffles at least as extreme as the data, counting the data themselves. Its
+limitation is the number of distinct shuffles, which is small with few samples.
+The chunk uses the six hand-written Shannon values of the diversity model, three
+per group, and fixes the random seed so that the p-value can be reproduced.
+
+```{r stats-permutation}
+set.seed(1)
+permutationTest(div_df$shannon, div_df$group, n_perm = 999)
+```
+
+The observed difference between the group means is -0.07, and the p-value is 1:
+every shuffle gives a difference at least that large, so the groups are no more
+different than chance would make them. Even a clear difference could not have
+done much better here. Three samples per group can be split in only 20 ways, and
+a two-sided p-value below 0.1 is impossible, whatever the values; report the
+group sizes with any permutation result.
+
 # Visualisation
 
 ## The frequency spectrum of an object

@@ -307,6 +307,17 @@ source("inst/scripts/generate_readme_figures.R")
 source("inst/scripts/fill_readme.R")
 ```
 
+`inst/scripts/reproduce_all.R` runs the whole chain from the raw data:
+the Bendall *et al.* excerpts, the synthetic fixtures, the example
+dataset, an install of the source, the test suite, the figures, this
+README and the functional checks, each in its own R process, and reports
+whether every derived file came out as committed.
+
+```r
+# From the package root of a clone:
+system2(file.path(R.home("bin"), "Rscript"), "inst/scripts/reproduce_all.R")
+```
+
 Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
 
 | File | Source | Description |

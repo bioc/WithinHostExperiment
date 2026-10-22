@@ -19,3 +19,4 @@
 ^inst/scripts/real_data/sars2_NC045512\.gff3$
 ^readme_figure_output$
 ^inst/(?!(extdata|doc|scripts)$)[^/]+$
+^inst/scripts/reproduce_all\.R$

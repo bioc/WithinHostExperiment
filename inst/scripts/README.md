@@ -7,7 +7,12 @@ run from the package root.
 
 `inst/extdata` holds nineteen files: four derived from published data,
 twelve written by a generator script in this directory, and three that
-have no generator in the repository.
+have no generator in the repository. `make_extdata.R` runs the
+generators in order, with the seed each uses, and checks the three
+files without one against their recorded checksums; `reproduce_all.R`
+goes further and rebuilds every derived file of the repository, from
+these fixtures to the README figures, checking each against the
+committed copy.
 
 ## Real data: the HH6 transmission pair
 

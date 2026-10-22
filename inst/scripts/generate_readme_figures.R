@@ -19,10 +19,13 @@
 ##
 ## Outputs
 ##   man/figures/fig1..fig6 *.png            README figures (300 dpi)
-##   readme_figure_output/*.pdf              vector versions (cairo_pdf)
-##   readme_figure_output/readme_figure_values.csv
+##   inst/scripts/readme_values/*.pdf        vector versions (cairo_pdf),
+##                                           not tracked
+##   inst/scripts/readme_values/readme_figure_values.csv
 ##                                           every number quoted in the captions
-##   readme_figure_output/input_md5.csv, sessionInfo.txt
+##   inst/scripts/readme_values/input_md5.csv, figure_md5.csv, sessionInfo.txt
+##                                           checksums of the inputs and
+##                                           figures, and the session
 
 suppressPackageStartupMessages({
     library(ggplot2)
@@ -39,7 +42,7 @@ if (!file.exists("DESCRIPTION") ||
 pkgload::load_all(".", quiet = TRUE)
 
 DATA <- file.path("inst", "scripts", "real_data")
-OUT <- "readme_figure_output"
+OUT <- file.path("inst", "scripts", "readme_values")
 FIGDIR <- file.path("man", "figures")
 dir.create(OUT, showWarnings = FALSE)
 dir.create(FIGDIR, showWarnings = FALSE)

@@ -16,7 +16,7 @@
 ##                                 Farjo et al. repository at a pinned
 ##                                 commit
 ##   1. inputs                     every input file against the checksums
-##                                 committed in readme_figure_output/
+##                                 committed in inst/scripts/readme_values/
 ##   2. install                    this source into a temporary library
 ##   3. prepare_lauring_data.R     Bendall et al. excerpts: real_data/MHM*
 ##                                 and the four HH6 files in inst/extdata
@@ -63,7 +63,7 @@ lib_env <- c(R_LIBS = paste(c(lib_dir, .libPaths()),
 
 DATA <- file.path("inst", "scripts", "real_data")
 EXT <- file.path("inst", "extdata")
-OUT <- "readme_figure_output"
+OUT <- file.path("inst", "scripts", "readme_values")
 
 md5 <- function(files) {
     v <- rep(NA_character_, length(files))

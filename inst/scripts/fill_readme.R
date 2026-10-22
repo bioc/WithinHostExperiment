@@ -3,7 +3,7 @@
 ## Writes README.md from inst/scripts/README_template.md, replacing every
 ## placeholder {{figure::panel::quantity::format}} with the value that
 ## generate_readme_figures.R recorded in
-## readme_figure_output/readme_figure_values.csv. No number in the README
+## inst/scripts/readme_values/readme_figure_values.csv. No number in the README
 ## is typed by hand. Run from the package root after that script:
 ##   Rscript inst/scripts/fill_readme.R
 ##
@@ -17,7 +17,8 @@
 
 args <- commandArgs(trailingOnly = TRUE)
 outFile <- if (length(args) >= 1L) args[[1]] else "README.md"
-valuesDir <- if (length(args) >= 2L) args[[2]] else "readme_figure_output"
+valuesDir <- if (length(args) >= 2L) args[[2]] else
+    file.path("inst", "scripts", "readme_values")
 templateFile <- file.path("inst", "scripts", "README_template.md")
 valuesFile <- file.path(valuesDir, "readme_figure_values.csv")
 sessionFile <- file.path(valuesDir, "sessionInfo.txt")

@@ -10,8 +10,8 @@
 doc/
 Meta/
 inst/doc/
-# The figure run's provenance files are tracked so that the README can be
-# checked against the figures without re-running it; the vector copies are not.
-readme_figure_output/*
-!readme_figure_output/*.csv
-!readme_figure_output/sessionInfo.txt
+# The figure run's provenance files under inst/scripts/readme_values are
+# tracked so that the README can be checked against the figures without
+# re-running it; the vector copies of the figures are not.
+inst/scripts/readme_values/*.pdf
+readme_figure_output/

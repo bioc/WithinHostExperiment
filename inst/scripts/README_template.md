@@ -242,7 +242,8 @@ if (!require("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 BiocManager::install("WithinHostExperiment")
 
-# Development version from GitHub:
+# Development version from GitHub. Not recommended: it is not the version
+# Bioconductor builds and checks, and it can change between commits.
 BiocManager::install("CuiweiG/WithinHostExperiment")
 ```
 

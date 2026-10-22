@@ -1325,7 +1325,9 @@ control, the sites present in both hosts, in the donor alone and in the
 recipient alone. The subtlety is in the donor-only count. A donor variant absent
 from the recipient is evidence of loss in transmission only where the recipient
 was sequenced deeply enough at that site to have shown it, so the count is split
-three ways by the recipient's depth: adequate, low, or unknown.
+three ways by the recipient's depth: adequate, low, or unknown. A fourth group
+holds the sites where the recipient did make a call but quality control removed
+it, which are not absences at all.
 
 ```{r transmission-shared}
 sv <- calcSharedVariants(whe_qc, pairId = "pair_1")
@@ -1333,19 +1335,20 @@ cat("Shared:", sv$n_shared, "| donor-only:", sv$n_donor_only,
     "| recipient-only:", sv$n_recipient_only, "\n")
 cat("Donor-only at adequate / low / unknown recipient depth:",
     sv$n_donor_only_adequate_depth, "/", sv$n_donor_only_low_depth, "/",
-    sv$n_donor_only_unknown_depth, "\n")
+    sv$n_donor_only_unknown_depth, "| recipient call failed QC:",
+    sv$n_donor_only_recipient_failed_qc, "\n")
 ```
 
 Five sites are shared, nine are donor-only and five recipient-only, 19 in all,
-which is the union of the donor's 14 and the recipient's 10 passing calls. Every
-one of the nine donor-only sites falls in the unknown-depth group, and that is
-the output to attend to. These objects were read from VCF files, which list only
-the positions a caller reported, so the recipient's depth at the positions it
-did not report is simply not recorded, and no absence here can be distinguished
-from a failure to look. A depth matrix from a coverage file, or a table listing
-every assessed position, would move these sites into the first two groups and
-make the sharing rate interpretable. Until then, report the split, not just the
-total.
+which is the union of the donor's 14 and the recipient's 10 passing calls. No
+recipient call was removed at a donor site, and every one of the nine donor-only
+sites falls in the unknown-depth group, which is the output to attend to. These
+objects were read from VCF files, which list only the positions a caller
+reported, so the recipient's depth at the positions it did not report is simply
+not recorded, and no absence here can be distinguished from a failure to look. A
+depth matrix from a coverage file, or a table listing every assessed position,
+would move these sites into the first two groups and make the sharing rate
+interpretable. Until then, report the split, not just the total.
 
 ## A quick bottleneck estimate
 
@@ -1817,7 +1820,8 @@ cat("Shared:", sv2$n_shared, "| donor-only:", sv2$n_donor_only,
     "| recipient-only:", sv2$n_recipient_only, "\n")
 cat("Donor-only at adequate / low / unknown recipient depth:",
     sv2$n_donor_only_adequate_depth, "/", sv2$n_donor_only_low_depth, "/",
-    sv2$n_donor_only_unknown_depth, "\n")
+    sv2$n_donor_only_unknown_depth, "| recipient call failed QC:",
+    sv2$n_donor_only_recipient_failed_qc, "\n")
 ```
 
 No site is shared: 2 donor-only, 1 recipient-only, 3 in all. Both donor-only

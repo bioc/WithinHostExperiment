@@ -177,9 +177,13 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
 #' object was read from VCF files, which list only the sites with a
 #' call, so with such input most donor-only sites fall in the last
 #' group; a depth matrix from a coverage file, or a table listing every
-#' assessed site, is needed to tell the first two apart. Only a
-#' donor-only site at adequate depth is evidence of loss in
-#' transmission.
+#' assessed site, is needed to tell the first two apart. A fourth
+#' group, \code{n_donor_only_recipient_failed_qc}, holds the sites where
+#' the recipient did make a call but QC removed it, for example a call
+#' above \code{maxFreq} in a recipient where the variant rose towards
+#' fixation: such a site is not absent, so it is kept out of the three
+#' depth groups. Only a donor-only site at adequate depth is evidence of
+#' loss in transmission.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #' @param pairId Character. Which pair to analyse.
@@ -188,9 +192,10 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
 #'   to the strictest \code{minDepth} of the filters applied with
 #'   \code{\link{flagISNV}}, or to 100 when none was applied.
 #'
-#' @return A named list: \code{n_donor_only} (the three groups below
+#' @return A named list: \code{n_donor_only} (the four groups below
 #'   added together), \code{n_donor_only_adequate_depth},
 #'   \code{n_donor_only_low_depth}, \code{n_donor_only_unknown_depth},
+#'   \code{n_donor_only_recipient_failed_qc},
 #'   \code{n_recipient_only}, \code{n_shared}, \code{n_total},
 #'   \code{sharing_rate} (shared sites over all sites) and
 #'   \code{min_depth}, the threshold used.
@@ -244,15 +249,19 @@ calcSharedVariants <- function(whe, pairId, minDepth = NULL) {
     } else {
         rep(NA_integer_, nrow(pf))
     }
-    adequate <- d_only & !is.na(r_depth) & r_depth >= minDepth
-    low      <- d_only & !is.na(r_depth) & r_depth < minDepth
-    unknown  <- d_only & is.na(r_depth)
+    ## a recipient call at the site that QC removed is not an absence
+    r_call <- assay(whe, "altFreq")[match(key_pf, key_all), r_col]
+    failed   <- d_only & !is.na(r_call)
+    adequate <- d_only & !failed & !is.na(r_depth) & r_depth >= minDepth
+    low      <- d_only & !failed & !is.na(r_depth) & r_depth < minDepth
+    unknown  <- d_only & !failed & is.na(r_depth)
 
     list(
         n_donor_only                = sum(d_only),
         n_donor_only_adequate_depth = sum(adequate),
         n_donor_only_low_depth      = sum(low),
         n_donor_only_unknown_depth  = sum(unknown),
+        n_donor_only_recipient_failed_qc = sum(failed),
         n_recipient_only            = sum(r_only),
         n_shared                    = shared,
         n_total                     = total,

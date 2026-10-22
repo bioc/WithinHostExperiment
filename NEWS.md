@@ -120,9 +120,11 @@ cycle.
 * `calcSharedVariants()` gains `minDepth`, by default the strictest
   `minDepth` applied with `flagISNV()` (100 when none was), and splits the
   donor-only count into `n_donor_only_adequate_depth`,
-  `n_donor_only_low_depth` and `n_donor_only_unknown_depth`; only the
-  first is evidence that a variant was lost in transmission.
-  `n_donor_only` is still their sum.
+  `n_donor_only_low_depth` and `n_donor_only_unknown_depth`, with
+  `n_donor_only_recipient_failed_qc` for the sites where the recipient
+  made a call that QC removed, which are not absences; only the first is
+  evidence that a variant was lost in transmission. `n_donor_only` is
+  still their sum.
 * `flagPrimerSites()` stops, naming both sets, when the primers and the
   sites share no sequence name, where it reported that no site overlapped
   a primer and flagged nothing.

@@ -48,8 +48,10 @@ test_that("calcSharedVariants returns correct counts", {
     expect_equal(sv$n_donor_only_unknown_depth, 10L)
     expect_equal(sv$n_donor_only_adequate_depth, 0L)
     expect_equal(sv$n_donor_only_low_depth, 0L)
+    expect_equal(sv$n_donor_only_recipient_failed_qc, 0L)
     expect_equal(sv$n_donor_only_adequate_depth + sv$n_donor_only_low_depth +
-                     sv$n_donor_only_unknown_depth, sv$n_donor_only)
+                     sv$n_donor_only_unknown_depth +
+                     sv$n_donor_only_recipient_failed_qc, sv$n_donor_only)
     ## no filter applied: the ISNVFilter default depth is the threshold
     expect_identical(sv$min_depth, 100L)
 })
@@ -89,6 +91,29 @@ test_that("calcSharedVariants splits donor-only sites by recipient depth", {
                  "non-negative")
 })
 
+
+test_that("a recipient call removed by QC is not an absence at adequate depth (was: counted as one)", {
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(c(10, 20), width = 1))
+    S4Vectors::mcols(gr)$ref <- c("A", "A")
+    S4Vectors::mcols(gr)$alt <- c("G", "G")
+    ## the donor carries both at 20%; the recipient carries the first at
+    ## 60%, which maxFreq = 0.5 removes, and has no call at the second
+    freq <- cbind(d = c(0.2, 0.2), r = c(0.6, NA))
+    depth <- cbind(d = c(1000L, 1000L), r = c(5000L, NA))
+    alt <- cbind(d = c(200L, 200L), r = c(3000L, NA))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth, altCount = alt),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+            role = c("donor", "recipient"), pair_id = c("p", "p"),
+            row.names = c("d", "r")))
+    whe <- flagISNV(whe, ISNVFilter())
+    sv <- calcSharedVariants(whe, pairId = "p")
+    expect_equal(sv$n_donor_only, 2L)
+    expect_equal(sv$n_donor_only_recipient_failed_qc, 1L)
+    expect_equal(sv$n_donor_only_adequate_depth, 0L)
+    expect_equal(sv$n_donor_only_unknown_depth, 1L)
+})
 
 test_that("exportPairFrequencies errors without pairs", {
     vcf <- system.file("extdata", "test_donor.vcf",

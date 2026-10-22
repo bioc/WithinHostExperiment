@@ -41,7 +41,8 @@ pNpSWithinHost(x, cds, ref, ...)
 CDS records, or a \code{GRangesList} with one element per transcript.}
 
 \item{ref}{A \code{DNAStringSet} with the reference sequence of each
-seqlevel carrying coding sequences.}
+seqlevel carrying coding sequences, for example from
+\code{Biostrings::readDNAStringSet()}.}
 
 \item{...}{Not used; supplying anything is an error.}
 

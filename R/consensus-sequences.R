@@ -50,8 +50,9 @@ NULL
 #' @param x A \code{\link{WithinHostExperiment}} with \code{ref} and
 #'   \code{alt} columns in \code{mcols(rowRanges(x))}.
 #' @param ref A \code{DNAStringSet} holding the reference sequence the
-#'   variants were called against. Sequence names are cut at the first
-#'   space.
+#'   variants were called against, for example from
+#'   \code{Biostrings::readDNAStringSet()}. Sequence names are cut at the
+#'   first space.
 #' @param minFreq Numeric scalar in (0, 1]. The frequency at or above
 #'   which a substitution is written in (default 0.5).
 #' @param usePassedOnly Logical. If \code{TRUE} (default), only sites

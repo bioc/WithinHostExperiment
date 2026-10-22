@@ -181,7 +181,8 @@ NULL
 #'   \code{\link{annotateCodonChange}}: a \code{TxDb}, a \code{GRanges} of
 #'   CDS records, or a \code{GRangesList} with one element per transcript.
 #' @param ref A \code{DNAStringSet} with the reference sequence of each
-#'   seqlevel carrying coding sequences.
+#'   seqlevel carrying coding sequences, for example from
+#'   \code{Biostrings::readDNAStringSet()}.
 #' @param usePassedOnly Logical. If \code{TRUE} (default), only iSNVs
 #'   with \code{qcPass == TRUE} are counted.
 #' @param txCol,geneCol As for \code{\link{annotateCodonChange}}: the

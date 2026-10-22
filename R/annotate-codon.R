@@ -196,14 +196,16 @@ NULL
 #'   CDS records; or a \code{GRangesList} with one element per
 #'   transcript, holding its CDS parts.
 #' @param ref A \code{DNAStringSet} with the reference sequence of each
-#'   seqlevel carrying coding sequences.
+#'   seqlevel carrying coding sequences, for example from
+#'   \code{Biostrings::readDNAStringSet()}.
 #' @param txCol For a \code{GRanges} \code{cds}: the column identifying
 #'   the transcript each CDS record belongs to (default \code{"ID"}).
-#' @param geneCol The column of gene labels reported as \code{GENEID}:
-#'   a column of \code{mcols(cds)} for a \code{GRanges}, defaulting to
-#'   \code{"gene"}, or of \code{mcols(cds)} for a \code{GRangesList},
-#'   where it defaults to \code{NULL}. \code{NULL} reports the
-#'   transcript name instead of a gene label.
+#' @param geneCol The column of gene labels reported as \code{GENEID}.
+#'   For a \code{GRanges} it is a column of the CDS records,
+#'   \code{mcols(cds)}, defaulting to \code{"gene"}; for a
+#'   \code{GRangesList} it is a column of the list's own metadata, one
+#'   value per transcript, defaulting to \code{NULL}. \code{NULL} reports
+#'   the transcript name instead of a gene label.
 #' @param collapse Either \code{"longest"} (default) or \code{"all"};
 #'   see Details.
 #' @param ... Not used; supplying anything is an error.

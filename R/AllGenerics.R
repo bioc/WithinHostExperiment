@@ -123,8 +123,7 @@ setGeneric("flagISNV", function(x, filter = ISNVFilter(), ...)
 #' one row per sample.
 #'
 #' @param x A within-host variant container.
-#' @param ... Additional arguments (e.g., \code{genomeLength},
-#'   \code{indices}).
+#' @param ... Arguments for methods.
 #' @return A \code{DataFrame} of diversity metrics.
 #'
 #' @export

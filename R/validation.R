@@ -9,7 +9,7 @@
 NULL
 
 # ============================================================
-# Literature-range validation
+# Heuristic plausibility check
 # ============================================================
 
 #' Check diversity estimates against heuristic plausibility ranges

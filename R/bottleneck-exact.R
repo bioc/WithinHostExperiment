@@ -53,7 +53,8 @@ NULL
 #'   \item{\code{ci}}{Numeric vector of length 2. 95\% confidence
 #'     interval (likelihood-ratio or bootstrap percentile), also
 #'     bounded by \code{maxNb}.}
-#'   \item{\code{loglik}}{Numeric. Log-likelihood at the MLE.}
+#'   \item{\code{loglik}}{Numeric. Log-likelihood at the MLE; for
+#'     \code{"wright_fisher"}, the heuristic score at its maximiser.}
 #'   \item{\code{method}}{Character. Method used. For
 #'     \code{"wright_fisher"} the \code{Nb} and \code{ci} are the
 #'     maximiser and interval of a heuristic score, and a message says

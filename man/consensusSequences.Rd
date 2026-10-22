@@ -28,8 +28,9 @@ consensusSequences(x, ref, ...)
 \code{alt} columns in \code{mcols(rowRanges(x))}.}
 
 \item{ref}{A \code{DNAStringSet} holding the reference sequence the
-variants were called against. Sequence names are cut at the first
-space.}
+variants were called against, for example from
+\code{Biostrings::readDNAStringSet()}. Sequence names are cut at the
+first space.}
 
 \item{...}{Not used; supplying anything is an error.}
 

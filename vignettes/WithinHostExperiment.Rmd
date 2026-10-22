@@ -364,8 +364,9 @@ that the vignette continues after each error.
 ```{r object-validity}
 gr <- GRanges("seg", IRanges::IRanges(1:3, width = 1))
 try(WithinHostExperiment(
-    assays = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1),
-                  qcPass = matrix(c(1L, 1L, 0L), ncol = 1)),
+    assays = list(
+        altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1),
+        qcPass = matrix(c(1L, 1L, 0L), ncol = 1)),
     rowRanges = gr,
     colData = S4Vectors::DataFrame(sample_id = "S1")))
 bad_filters <- example_whe

@@ -33,8 +33,8 @@ cycle.
   message says so. Three classifications change with the
   delegation: losing a stop codon is nonsynonymous rather than nonsense,
   an alternative start codon (`CTG` or `TTG`) at the first base of a
-  coding sequence reads as `M`, and a codon holding an ambiguous base is
-  left unannotated, with a warning. The reference length is recorded in
+  coding sequence reads as `M`, and a site whose reference codon holds an
+  ambiguous base is left unannotated, with a warning. The reference length is recorded in
   `seqlengths(rowRanges(x))`. The `GRanges` and `GRangesList` routes build
   the `TxDb` with txdbmaker; a `TxDb` built with
   `txdbmaker::makeTxDbFromGFF()` can lack transcripts the GFF3 holds (for
@@ -223,7 +223,7 @@ return unnoticed.
 * `ISNVFilter()` documents `minBaseQual`, `minMapQual` and `replicateConc` as
   recorded but not applied, and `flagISNV()` warns when they are set, instead
   of ignoring them silently. `WithinHostExperiment()` requires an `altFreq`
-  assay, as documented. (0.99.1 removes `minBaseQual` and `minMapQual`.)
+  assay, as documented.
 * `trackFrequency()` builds its table in one vectorised step, which is much
   faster on genome-wide data and gives the same rows.
 * `plotFrequencySpectrum()`, `plotPairScatter()` and `plotQCDashboard()` clip the

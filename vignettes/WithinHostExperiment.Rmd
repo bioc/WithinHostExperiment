@@ -876,18 +876,19 @@ head(as.data.frame(mc[, c("GENEID", "PROTEINLOC", "REFCODON", "VARCODON",
 The table classifies all 20 sites: 15 nonsynonymous, 3 synonymous and 2
 nonsense, with no `NA` because every site here falls inside the coding sequence.
 In real data the `NA` class collects sites outside every coding sequence,
-insertions and deletions, multi-nucleotide substitutions, and codons holding an
-ambiguous base, which are left untranslated with a warning rather than guessed
-at. In the per-site columns, `REFCODON` and `VARCODON` are the codon before and
-after the substitution, read on the coding sequence's own strand, `REFAA` and
-`VARAA` the amino acids they encode, with `*` for a stop codon, and `PROTEINLOC`
-the codon's position in the protein. Row 1, `TTC` to `TTT`, keeps phenylalanine
-and so is synonymous; row 2, `CAA` to `CAC`, turns glutamine into histidine. The
-classes carry no biological meaning here: the segment is a synthetic sequence,
-and a fixture with two nonsense changes among twenty sites would be
-extraordinary in a real infection. Where coding sequences overlap, as ORF1a and
-ORF1ab do in SARS-CoV-2, a site lies in several; the longest is reported by
-default and `collapse = "all"` keeps every one.
+insertions and deletions, multi-nucleotide substitutions, alleles other than A,
+C, G and T, and sites whose reference codon holds an ambiguous base, which are
+left untranslated with a warning rather than guessed at. In the per-site
+columns, `REFCODON` and `VARCODON` are the codon before and after the
+substitution, read on the coding sequence's own strand, `REFAA` and `VARAA` the
+amino acids they encode, with `*` for a stop codon, and `PROTEINLOC` the codon's
+position in the protein. Row 1, `TTC` to `TTT`, keeps phenylalanine and so is
+synonymous; row 2, `CAA` to `CAC`, turns glutamine into histidine. The classes
+carry no biological meaning here: the segment is a synthetic sequence, and a
+fixture with two nonsense changes among twenty sites would be extraordinary in a
+real infection. Where coding sequences overlap, as ORF1a and ORF1ab do in
+SARS-CoV-2, a site lies in several; the longest is reported by default and
+`collapse = "all"` keeps every one.
 
 # Diversity
 
@@ -1630,9 +1631,10 @@ permutationTest(div_df$shannon, div_df$group, n_perm = 999)
 The observed difference between the group means is -0.07, and the p-value is 1:
 every shuffle gives a difference at least that large, so the groups are no more
 different than chance would make them. Even a clear difference could not have
-done much better here. Three samples per group can be split in only 20 ways, and
-a two-sided p-value below 0.1 is impossible, whatever the values; report the
-group sizes with any permutation result.
+done much better here. Three samples per group can be split in only 20 ways, so
+an exact two-sided p-value cannot fall below 0.1, whatever the values, and the
+estimate that `permutationTest()` returns from random shuffles scatters a little
+either side of that floor. Report the group sizes with any permutation result.
 
 # Visualisation
 

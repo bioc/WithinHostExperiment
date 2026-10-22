@@ -62,8 +62,21 @@ if (length(missing_inputs)) {
 }
 farjo_files <- sort(list.files(inputs[["farjo"]], pattern = "ivar",
                                full.names = TRUE))
+## The checksum of a text file is taken with carriage returns removed, so
+## that it is the checksum of the committed file on any platform: a Windows
+## checkout with core.autocrlf adds a carriage return to every line.
+md5_text <- function(files) {
+    vapply(files, function(f) {
+        if (!file.exists(f)) return(NA_character_)
+        b <- readBin(f, "raw", file.size(f))
+        tf <- tempfile()
+        on.exit(unlink(tf))
+        writeBin(b[b != as.raw(13L)], tf)
+        unname(tools::md5sum(tf))
+    }, character(1), USE.NAMES = FALSE)
+}
 md5_files <- c(inputs[setdiff(names(inputs), "farjo")], farjo_files)
-write.csv(data.frame(file = md5_files, md5 = unname(tools::md5sum(md5_files))),
+write.csv(data.frame(file = md5_files, md5 = md5_text(md5_files)),
           file.path(OUT, "input_md5.csv"), row.names = FALSE)
 
 values <- data.frame(figure = character(), panel = character(),

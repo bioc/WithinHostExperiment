@@ -68,6 +68,22 @@ DATA <- file.path("inst", "scripts", "real_data")
 EXT <- file.path("inst", "extdata")
 OUT <- file.path("inst", "scripts", "readme_values")
 
+## The checksum of a text file is taken with carriage returns removed, so
+## that it is the checksum of the committed file on any platform: a Windows
+## checkout with core.autocrlf adds a carriage return to every line.
+md5_text <- function(files) {
+    vapply(files, function(f) {
+        if (!file.exists(f)) return(NA_character_)
+        b <- readBin(f, "raw", file.size(f))
+        tf <- tempfile()
+        on.exit(unlink(tf))
+        writeBin(b[b != as.raw(13L)], tf)
+        unname(tools::md5sum(tf))
+    }, character(1), USE.NAMES = FALSE)
+}
+
+## Byte checksums, for comparing a file with itself before and after a
+## stage in the same checkout
 md5 <- function(files) {
     v <- rep(NA_character_, length(files))
     ok <- file.exists(files)
@@ -154,7 +170,7 @@ if (!download) {
 ## ---- 1. Inputs against the committed checksums --------------------------
 recorded <- utils::read.csv(file.path(OUT, "input_md5.csv"),
                             stringsAsFactors = FALSE)
-now <- md5(recorded$file)
+now <- md5_text(recorded$file)
 bad <- recorded$file[is.na(now) | now != recorded$md5]
 if (length(bad)) {
     note("1 inputs", "FAIL", paste("differ from input_md5.csv:",
@@ -199,7 +215,7 @@ is_unchanged <- vapply(extdata_exprs, function(e)
     is.call(e) && identical(e[[1L]], as.name("<-")) &&
         identical(e[[2L]], as.name("unchanged")), logical(1))
 unchanged <- eval(extdata_exprs[[which(is_unchanged)]][[3L]])
-now <- unname(md5(file.path(EXT, names(unchanged))))
+now <- md5_text(file.path(EXT, names(unchanged)))
 moved <- names(unchanged)[is.na(now) | now != unname(unchanged)]
 note("4 fixtures, no generator", if (length(moved)) "FAIL" else "PASS",
      if (length(moved)) paste("changed:", paste(moved, collapse = ", "))

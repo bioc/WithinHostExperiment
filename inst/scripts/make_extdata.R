@@ -70,13 +70,27 @@ if (file.exists(file.path("inst", "scripts", "real_data",
         "present (it is kept out of the installed package)\n")
 }
 
+## The checksum of a text file is taken with carriage returns removed, so
+## that it is the checksum of the committed file on any platform: a Windows
+## checkout with core.autocrlf adds a carriage return to every line.
+md5_text <- function(files) {
+    vapply(files, function(f) {
+        if (!file.exists(f)) return(NA_character_)
+        b <- readBin(f, "raw", file.size(f))
+        tf <- tempfile()
+        on.exit(unlink(tf))
+        writeBin(b[b != as.raw(13L)], tf)
+        unname(tools::md5sum(tf))
+    }, character(1), USE.NAMES = FALSE)
+}
+
 ## 3. the three fixtures without a generator, checked against the
 ##    checksums recorded here
 unchanged <- c(
-    test_influenza_donor.tsv = "602581c4bcb90a3e902894cb80007562",
-    test_hiv_sample.tsv      = "5ef1c88c19eae2bceb04dd077f74fb1c",
-    test_tb_sample.tsv       = "933d5a403149ef079b7f8fc682ff90d8")
-now <- unname(tools::md5sum(file.path(ext, names(unchanged))))
+    test_influenza_donor.tsv = "d99f455e86b975996a5b329a54a31659",
+    test_hiv_sample.tsv      = "aadb901721491cbd17e26c6edb3470d5",
+    test_tb_sample.tsv       = "189620b80fc1615b8ec2157b68b819aa")
+now <- md5_text(file.path(ext, names(unchanged)))
 for (i in seq_along(unchanged)) {
     cat(sprintf("== %-26s %s\n", names(unchanged)[i],
                 if (identical(now[i], unname(unchanged[i]))) "unchanged"

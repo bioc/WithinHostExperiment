@@ -4,17 +4,18 @@
 #' @include methods.R
 #' @importFrom SummarizedExperiment assay assayNames colData rowRanges
 #' @importFrom S4Vectors DataFrame
-#' @importFrom GenomeInfoDb seqlengths seqlevels seqlevelsInUse
+#' @importFrom GenomeInfoDb seqlengths seqlevels
 #' @importFrom stats median wilcox.test kruskal.test
 NULL
 
 ## The genome length a per-site index divides by: the summed lengths of
-## the sequences the sites lie on, read from seqlengths(rowRanges(x)).
-## A length that is not recorded is an error that says how to record it.
+## every sequence recorded for the reference in seqlengths(rowRanges(x)),
+## whether or not a site lies on it, so that a segment without calls
+## still counts as sequence in which none was found. A length that is not
+## recorded is an error that says how to record it.
 .genomeLengthOf <- function(x, indices) {
     rr <- rowRanges(x)
-    lv <- seqlevelsInUse(rr)
-    if (length(lv) == 0L) lv <- seqlevels(rr)
+    lv <- seqlevels(rr)
     lens <- seqlengths(rr)[lv]
     missing_len <- lv[is.na(lens)]
     if (length(lv) == 0L || length(missing_len)) {
@@ -282,8 +283,9 @@ chao1ISNV <- function(counts, detected) {
 #' @details
 #' \strong{Genome length.} \code{"pi"} and \code{"watterson"} are per
 #' site and divide by the genome length, which is read from
-#' \code{seqlengths(rowRanges(x))} as the summed length of the
-#' sequences the sites lie on. It is a property of the reference the
+#' \code{seqlengths(rowRanges(x))} as the summed length of every
+#' sequence recorded there, including segments of a segmented genome on
+#' which no site lies. It is a property of the reference the
 #' calls were made against, not a number to type: \code{\link{readWithinHost}}
 #' records it from the VCF header's \code{##contig} lines or from a
 #' \code{DNAStringSet} passed as \code{genome}, and

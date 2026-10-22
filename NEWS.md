@@ -65,8 +65,10 @@ cycle.
   sequence lengths.
 * `calcDiversity()` and `compareDiversity()` lose the `genomeLength`
   argument. The length that `pi` and `watterson` divide by is read from
-  `seqlengths(rowRanges(x))`, summed over the sequences in use, and a
-  length that is not recorded is an error saying how to record it.
+  `seqlengths(rowRanges(x))`, summed over every sequence recorded for
+  the reference, so that a segment of a segmented genome without calls
+  still counts, and a length that is not recorded is an error saying
+  how to record it.
   `calcDiversity()` gains `n_sites_assessed`, the sites at which a sample
   has any call before QC, and `detection_limit`, the strictest `minFreq`
   of the filters applied, so that a diversity of zero after QC can be

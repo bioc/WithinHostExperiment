@@ -232,7 +232,7 @@ test_that("n_sites_assessed and detection_limit tell a zero apart", {
     expect_true(all(is.na(no_qc$detection_limit)))
 })
 
-test_that("the genome length is the summed length of the sequences in use", {
+test_that("the genome length sums every recorded sequence (was: only those with sites)", {
     gr <- GenomicRanges::GRanges(c("seg1", "seg2"),
                                  IRanges::IRanges(c(10, 20), width = 1))
     GenomeInfoDb::seqlengths(gr) <- c(seg1 = 600L, seg2 = 400L)
@@ -242,6 +242,12 @@ test_that("the genome length is the summed length of the sequences in use", {
         colData = S4Vectors::DataFrame(sample_id = "S1"))
     div <- calcDiversity(whe, indices = "pi")
     expect_equal(div$pi, piISNV(c(0.2, 0.3), genomeLength = 1000))
+    ## a segment without calls is sequence in which none was found, so
+    ## it stays in the denominator
+    only1 <- whe[1, ]
+    expect_identical(GenomeInfoDb::seqlevelsInUse(only1), "seg1")
+    expect_equal(calcDiversity(only1, indices = "pi")$pi,
+                 piISNV(0.2, genomeLength = 1000))
     ## one unknown length is enough to stop
     GenomeInfoDb::seqlengths(whe) <- c(seg1 = 600L, seg2 = NA_integer_)
     expect_error(calcDiversity(whe, indices = "pi"), "not recorded for seg2")

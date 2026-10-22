@@ -316,7 +316,10 @@ chao1ISNV <- function(counts, detected) {
 #' through the filters applied (the strictest \code{minFreq} among
 #' them), \code{NA} when no filter was applied or
 #' \code{usePassedOnly = FALSE}. \code{richness} counts the sites that
-#' entered the indices after QC.
+#' entered the indices after QC. A site counts as assessed only when the
+#' sample has a call there: a VCF lists only the sites a caller reported,
+#' so a site sequenced without a call cannot be told apart from one not
+#' sequenced at all, and neither is counted.
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
 #'   \code{sample_id}, \code{n_sites_assessed}, \code{detection_limit}

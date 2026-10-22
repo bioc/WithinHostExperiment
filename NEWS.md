@@ -80,7 +80,15 @@
   the detection threshold (truncation or binomial method);
   `neutralityFromSFS()` computes Tajima's D, Fu's Fs, and
   **Fay and Wu's H** (new) from a single SFS object;
-  `compareSFS()` tests SFS homogeneity between samples;
+  `compareSFS()` tests SFS homogeneity between samples. The object
+  records its `polarization`: `"none"` when folded, `"reference"` for
+  an unfolded spectrum of alternative-allele frequencies, which treats
+  the reference allele as ancestral, or `"outgroup"`.
+  `neutralityFromSFS()` stops on a folded spectrum, since Fay and Wu's
+  H needs derived-allele frequencies, and reports the polarisation it
+  used. `compareSFS()` stops unless both spectra share their breaks,
+  folding and polarisation and neither is bias-corrected, the
+  conditions its chi-squared test assumes;
   `plotSFS()` provides publication-quality SFS visualisation.
 * **Temporal QC for longitudinal data**:
   `flagTemporalInconsistency()` identifies transient iSNVs that

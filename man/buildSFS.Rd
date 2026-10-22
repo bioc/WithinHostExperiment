@@ -23,7 +23,10 @@ use. Default: 1.}
 \item{nBins}{Integer. Number of frequency bins (default: 20).}
 
 \item{fold}{Logical. If \code{TRUE}, fold the SFS to minor
-allele frequency (0 to 0.5). Default: \code{TRUE}.}
+allele frequency (0 to 0.5), giving \code{polarization = "none"}.
+If \code{FALSE}, bin the alternative allele frequency from 0 to 1,
+treating the reference allele as ancestral
+(\code{polarization = "reference"}). Default: \code{TRUE}.}
 
 \item{usePassedOnly}{Logical. If \code{TRUE}, only use QC-passed
 variants. Default: \code{TRUE}.}

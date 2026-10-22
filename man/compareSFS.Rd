@@ -9,7 +9,8 @@ compareSFS(sfs1, sfs2)
 \arguments{
 \item{sfs1}{A \code{\link{WithinHostSFS}} object.}
 
-\item{sfs2}{A \code{\link{WithinHostSFS}} object (same binning).}
+\item{sfs2}{A \code{\link{WithinHostSFS}} object with the same
+breaks, folding and polarisation as \code{sfs1}.}
 }
 \value{
 A named list with components:
@@ -37,9 +38,12 @@ homogeneity between two \code{\link{WithinHostSFS}} objects
 (e.g., before vs. after QC, or two timepoints).
 }
 \details{
-The test compares raw variant counts, so apply it to
-uncorrected spectra: the counts of a bias-corrected spectrum are
-rescaled and no longer multinomial. Bins where both spectra are
+The test compares raw variant counts in matching bins, so the two
+spectra must share their breaks, their folding and their
+polarisation, and neither may be bias-corrected: the counts of a
+corrected spectrum are rescaled and no longer multinomial. The
+function stops, naming the difference, when any of these does not
+hold. Bins where both spectra are
 empty are dropped, and when only two bins remain
 \code{\link[stats]{chisq.test}} applies Yates' continuity
 correction. The chi-squared approximation is unreliable

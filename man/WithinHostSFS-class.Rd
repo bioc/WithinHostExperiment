@@ -36,15 +36,26 @@ bin. Default: 20 equal bins from the detection threshold to
 the maximum frequency.}
 
 \item{\code{folded}}{Logical scalar. If \code{TRUE}, the SFS is folded
-(minor allele frequency); if \code{FALSE}, unfolded
-(derived allele frequency).}
+(minor allele frequency, 0 to 0.5); if \code{FALSE}, unfolded:
+the frequency of the alternative allele, 0 to 1.}
+
+\item{\code{polarization}}{Character scalar: which allele is treated as
+ancestral. \code{"none"} for a folded spectrum, which carries no
+polarisation; \code{"reference"} for an unfolded spectrum built by
+\code{\link{buildSFS}}, whose frequencies are those of the
+alternative allele, so the reference allele stands in for the
+ancestral one; \code{"outgroup"} for a spectrum whose frequencies
+are of alleles derived relative to an outgroup, which this package
+does not build but accepts. Statistics that need derived-allele
+frequencies, such as Fay and Wu's H, refuse \code{"none"}.}
 
 \item{\code{sampleId}}{Character scalar. Sample identifier.}
 
 \item{\code{genomeLength}}{Integer scalar. Reference genome length.}
 
-\item{\code{nSites}}{Integer scalar. Total number of variant sites
-used to build the SFS.}
+\item{\code{nSites}}{Integer scalar. Number of variant sites counted in
+the spectrum, that is, with a frequency between the lowest and the
+highest break.}
 
 \item{\code{meanDepth}}{Numeric scalar. Typical sequencing depth;
 \code{\link{buildSFS}} stores the median depth across sites.}

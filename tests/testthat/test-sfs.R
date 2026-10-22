@@ -3,11 +3,12 @@
 library(GenomicRanges)
 library(S4Vectors)
 
-## Helper
+## Helper: fixed frequencies and depths, so every run builds the same
+## spectrum
 .make_whe <- function(n = 10) {
     gr <- GRanges("seg", IRanges::IRanges(seq_len(n) * 100L, width = 1))
-    freq <- matrix(runif(n, 0.03, 0.45), ncol = 1)
-    depth <- matrix(as.integer(runif(n, 500, 3000)), ncol = 1)
+    freq <- matrix(seq(0.04, 0.44, length.out = n), ncol = 1)
+    depth <- matrix(as.integer(seq(500, 3000, length.out = n)), ncol = 1)
     WithinHostExperiment(
         assays = list(altFreq = freq, totalDepth = depth),
         rowRanges = gr,
@@ -81,10 +82,10 @@ test_that("neutralityFromSFS returns all statistics", {
 
 test_that("neutralityFromSFS handles empty SFS", {
     sfs <- new("WithinHostSFS",
-        counts = integer(20), breaks = seq(0.03, 0.5, length.out = 21),
-        folded = TRUE, sampleId = "empty", genomeLength = 1000L,
-        nSites = 0L, meanDepth = 1000, threshold = 0.03,
-        corrected = FALSE)
+        counts = integer(20), breaks = seq(0.03, 1, length.out = 21),
+        folded = FALSE, polarization = "reference", sampleId = "empty",
+        genomeLength = 1000L, nSites = 0L, meanDepth = 1000,
+        threshold = 0.03, corrected = FALSE)
     res <- neutralityFromSFS(sfs)
     expect_equal(res$S, 0L)
     expect_equal(res$tajimaD, 0)
@@ -105,9 +106,9 @@ test_that("compareSFS compares two SFS objects", {
     new("WithinHostSFS",
         counts = as.integer(counts),
         breaks = seq(0.03, 0.5, length.out = length(counts) + 1L),
-        folded = TRUE, sampleId = "s", genomeLength = 1000L,
-        nSites = as.integer(sum(counts)), meanDepth = 1000,
-        threshold = 0.03, corrected = FALSE)
+        folded = TRUE, polarization = "none", sampleId = "s",
+        genomeLength = 1000L, nSites = as.integer(sum(counts)),
+        meanDepth = 1000, threshold = 0.03, corrected = FALSE)
 }
 
 test_that("compareSFS reports small expected counts instead of warning", {
@@ -153,4 +154,92 @@ test_that("show method prints without error", {
     whe <- .make_whe()
     sfs <- buildSFS(whe, genomeLength = 1000L)
     expect_output(show(sfs), "WithinHostSFS")
+})
+
+# ---- polarisation ----
+
+test_that("buildSFS records the polarisation the folding implies", {
+    whe <- .make_whe()
+    expect_identical(buildSFS(whe, genomeLength = 1000L)@polarization,
+                     "none")
+    expect_identical(buildSFS(whe, fold = FALSE,
+                              genomeLength = 1000L)@polarization,
+                     "reference")
+})
+
+test_that("correctSFSBias keeps the polarisation", {
+    whe <- .make_whe()
+    for (fold in c(TRUE, FALSE)) {
+        sfs <- buildSFS(whe, fold = fold, genomeLength = 1000L)
+        for (m in c("truncation", "binomial"))
+            expect_identical(correctSFSBias(sfs, method = m)@polarization,
+                             sfs@polarization, info = paste(fold, m))
+    }
+})
+
+test_that("validity ties the polarisation to the folding", {
+    expect_error(new("WithinHostSFS", counts = 0L, breaks = c(0.03, 0.5),
+                     folded = TRUE, polarization = "reference"),
+                 "folded spectrum carries no polarisation")
+    expect_error(new("WithinHostSFS", counts = 0L, breaks = c(0.03, 1),
+                     folded = FALSE, polarization = "none"),
+                 "must say which allele is ancestral")
+    expect_error(new("WithinHostSFS", counts = 0L, breaks = c(0.03, 1),
+                     folded = FALSE, polarization = "derived"),
+                 "polarization must be one of")
+    ## the prototype is unfolded, so its polarisation must not be "none"
+    proto <- new("WithinHostSFS")
+    expect_false(proto@folded)
+    expect_identical(proto@polarization, "reference")
+    expect_true(validObject(new("WithinHostSFS", counts = 0L,
+        breaks = c(0.03, 1), folded = FALSE, polarization = "outgroup")))
+})
+
+test_that("neutralityFromSFS refuses a folded spectrum (was: a message)", {
+    whe <- .make_whe(20)
+    sfs <- buildSFS(whe, genomeLength = 1000L)
+    expect_error(neutralityFromSFS(sfs),
+                 "Fay and Wu's H needs derived-allele frequencies")
+    expect_error(neutralityFromSFS(sfs), "calcNeutralityTests")
+})
+
+test_that("neutralityFromSFS reports which allele it treats as ancestral", {
+    whe <- .make_whe(20)
+    res <- neutralityFromSFS(buildSFS(whe, fold = FALSE,
+                                      genomeLength = 1000L))
+    expect_identical(res$polarization, "reference")
+})
+
+test_that("compareSFS refuses spectra with different breaks", {
+    whe <- .make_whe(20)
+    ## same number of bins, different threshold, so different breaks
+    sfs1 <- buildSFS(whe, threshold = 0.03, nBins = 5, genomeLength = 1000L)
+    sfs2 <- buildSFS(whe, threshold = 0.10, nBins = 5, genomeLength = 1000L)
+    expect_identical(length(sfs1@counts), length(sfs2@counts))
+    expect_error(compareSFS(sfs1, sfs2), "must share their bin breaks")
+})
+
+test_that("compareSFS refuses a folded and an unfolded spectrum", {
+    folded <- new("WithinHostSFS", counts = c(3L, 2L),
+                  breaks = c(0.03, 0.5, 1), folded = TRUE,
+                  polarization = "none")
+    unfolded <- new("WithinHostSFS", counts = c(1L, 4L),
+                    breaks = c(0.03, 0.5, 1), folded = FALSE,
+                    polarization = "reference")
+    expect_error(compareSFS(folded, unfolded),
+                 "sfs1: folded; sfs2: reference")
+})
+
+test_that("compareSFS refuses bias-corrected spectra", {
+    whe <- .make_whe(20)
+    sfs <- buildSFS(whe, genomeLength = 1000L)
+    expect_error(compareSFS(sfs, correctSFSBias(sfs)),
+                 "bias-corrected spectrum holds rescaled counts")
+})
+
+test_that("show prints the polarisation and labels the depth a median", {
+    whe <- .make_whe()
+    sfs <- buildSFS(whe, fold = FALSE, genomeLength = 1000L)
+    expect_output(show(sfs), "polarization: reference")
+    expect_output(show(sfs), "median depth")
 })

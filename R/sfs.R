@@ -36,12 +36,22 @@ NULL
 #'   bin. Default: 20 equal bins from the detection threshold to
 #'   the maximum frequency.
 #' @slot folded Logical scalar. If \code{TRUE}, the SFS is folded
-#'   (minor allele frequency); if \code{FALSE}, unfolded
-#'   (derived allele frequency).
+#'   (minor allele frequency, 0 to 0.5); if \code{FALSE}, unfolded:
+#'   the frequency of the alternative allele, 0 to 1.
+#' @slot polarization Character scalar: which allele is treated as
+#'   ancestral. \code{"none"} for a folded spectrum, which carries no
+#'   polarisation; \code{"reference"} for an unfolded spectrum built by
+#'   \code{\link{buildSFS}}, whose frequencies are those of the
+#'   alternative allele, so the reference allele stands in for the
+#'   ancestral one; \code{"outgroup"} for a spectrum whose frequencies
+#'   are of alleles derived relative to an outgroup, which this package
+#'   does not build but accepts. Statistics that need derived-allele
+#'   frequencies, such as Fay and Wu's H, refuse \code{"none"}.
 #' @slot sampleId Character scalar. Sample identifier.
 #' @slot genomeLength Integer scalar. Reference genome length.
-#' @slot nSites Integer scalar. Total number of variant sites
-#'   used to build the SFS.
+#' @slot nSites Integer scalar. Number of variant sites counted in
+#'   the spectrum, that is, with a frequency between the lowest and the
+#'   highest break.
 #' @slot meanDepth Numeric scalar. Typical sequencing depth;
 #'   \code{\link{buildSFS}} stores the median depth across sites.
 #' @slot threshold Numeric scalar. Detection threshold applied
@@ -69,7 +79,8 @@ NULL
         nSites       = "integer",
         meanDepth    = "numeric",
         threshold    = "numeric",
-        corrected    = "logical"
+        corrected    = "logical",
+        polarization = "character"
     ),
     prototype = list(
         counts       = integer(0),
@@ -80,7 +91,8 @@ NULL
         nSites       = 0L,
         meanDepth    = NA_real_,
         threshold    = 0.03,
-        corrected    = FALSE
+        corrected    = FALSE,
+        polarization = "reference"
     )
 )
 
@@ -92,6 +104,19 @@ setValidity("WithinHostSFS", function(object) {
         msg <- c(msg, "counts must be non-negative")
     if (is.unsorted(object@breaks))
         msg <- c(msg, "breaks must be sorted")
+    pol <- object@polarization
+    if (length(pol) != 1L || is.na(pol) ||
+        !pol %in% c("none", "reference", "outgroup")) {
+        msg <- c(msg, paste("polarization must be one of \"none\",",
+                            "\"reference\" or \"outgroup\""))
+    } else if (isTRUE(object@folded) && pol != "none") {
+        msg <- c(msg, paste("a folded spectrum carries no polarisation:",
+                            "polarization must be \"none\""))
+    } else if (isFALSE(object@folded) && pol == "none") {
+        msg <- c(msg, paste("an unfolded spectrum must say which allele is",
+                            "ancestral: polarization \"reference\" or",
+                            "\"outgroup\""))
+    }
     if (length(msg) == 0L) TRUE else msg
 })
 
@@ -103,12 +128,13 @@ setMethod("show", "WithinHostSFS", function(object) {
         length(object@counts), "bins\n")
     cat("  sample:", object@sampleId, "\n")
     cat("  folded:", object@folded, "\n")
+    cat("  polarization:", object@polarization, "\n")
     cat("  threshold:", object@threshold, "\n")
     cat("  corrected:", object@corrected, "\n")
     if (!is.na(object@genomeLength))
         cat("  genome:", object@genomeLength, "bp\n")
     if (!is.na(object@meanDepth))
-        cat("  mean depth:", round(object@meanDepth), "x\n")
+        cat("  median depth:", round(object@meanDepth), "x\n")
 })
 
 
@@ -127,7 +153,10 @@ setMethod("show", "WithinHostSFS", function(object) {
 #'   use. Default: 1.
 #' @param nBins Integer. Number of frequency bins (default: 20).
 #' @param fold Logical. If \code{TRUE}, fold the SFS to minor
-#'   allele frequency (0 to 0.5). Default: \code{TRUE}.
+#'   allele frequency (0 to 0.5), giving \code{polarization = "none"}.
+#'   If \code{FALSE}, bin the alternative allele frequency from 0 to 1,
+#'   treating the reference allele as ancestral
+#'   (\code{polarization = "reference"}). Default: \code{TRUE}.
 #' @param usePassedOnly Logical. If \code{TRUE}, only use QC-passed
 #'   variants. Default: \code{TRUE}.
 #' @param threshold Numeric. Detection threshold (default: 0.03).
@@ -198,7 +227,8 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         nSites       = as.integer(sum(counts)),
         meanDepth    = md,
         threshold    = threshold,
-        corrected    = FALSE)
+        corrected    = FALSE,
+        polarization = if (fold) "none" else "reference")
 }
 
 
@@ -334,7 +364,8 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
         nSites       = as.integer(sum(counts)),
         meanDepth    = sfs@meanDepth,
         threshold    = sfs@threshold,
-        corrected    = TRUE)
+        corrected    = TRUE,
+        polarization = sfs@polarization)
 }
 
 
@@ -351,7 +382,17 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #'
 #' \strong{Fay and Wu's H} measures an excess of high-frequency
 #' derived variants, which can indicate positive selection or
-#' genetic hitchhiking (Fay and Wu 2000). It is defined as:
+#' genetic hitchhiking (Fay and Wu 2000). It needs the frequency of
+#' the derived allele at each site, so the function stops on a folded
+#' spectrum (\code{polarization = "none"}): folding maps a derived
+#' allele at 0.9 and one at 0.1 to the same bin. For Tajima's D and
+#' Fu's Fs alone, which need no polarisation, use
+#' \code{\link{calcNeutralityTests}}. An unfolded spectrum built by
+#' \code{\link{buildSFS}} has \code{polarization = "reference"}: its
+#' frequencies are those of the alternative allele, so H here assumes
+#' that the reference allele is ancestral at every site, which holds
+#' only as far as the reference is close to the population the host was
+#' infected from. H is defined as:
 #' \deqn{H = \hat{\pi} - \hat{\theta}_H}
 #' where \eqn{\hat{\theta}_H =
 #'   \frac{2}{n(n-1)} \sum_i i^2 \xi_i}{theta_H = 2/(n(n-1)) * sum(i^2 * xi_i)}
@@ -376,6 +417,9 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #'     \item{fusFs}{Fu's Fs.}
 #'     \item{fayWuH}{Fay and Wu's H.}
 #'     \item{sfs_corrected}{Whether the input SFS was bias-corrected.}
+#'     \item{polarization}{The input's polarisation, \code{"reference"}
+#'       or \code{"outgroup"}: which allele \code{theta_H} and
+#'       \code{fayWuH} treat as ancestral.}
 #'   }
 #'
 #' @references
@@ -394,9 +438,12 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 neutralityFromSFS <- function(sfs, n = NULL) {
     if (!is(sfs, "WithinHostSFS"))
         stop("'sfs' must be a WithinHostSFS object.")
-    if (sfs@folded)
-        message("Note: Fay & Wu's H requires an unfolded SFS. ",
-                "Results may not be meaningful for folded spectra.")
+    if (sfs@folded || identical(sfs@polarization, "none"))
+        stop("Fay and Wu's H needs derived-allele frequencies, and this ",
+             "spectrum is folded (polarization \"none\"). Build it with ",
+             "buildSFS(fold = FALSE), or use calcNeutralityTests() for ",
+             "Tajima's D and Fu's Fs, which need no polarisation.",
+             call. = FALSE)
 
     S <- sfs@nSites
     if (is.null(n)) {
@@ -457,7 +504,8 @@ neutralityFromSFS <- function(sfs, n = NULL) {
         tajimaD       = D,
         fusFs         = Fs,
         fayWuH        = H,
-        sfs_corrected = sfs@corrected
+        sfs_corrected = sfs@corrected,
+        polarization  = sfs@polarization
     )
 }
 
@@ -472,9 +520,12 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #' homogeneity between two \code{\link{WithinHostSFS}} objects
 #' (e.g., before vs. after QC, or two timepoints).
 #'
-#' The test compares raw variant counts, so apply it to
-#' uncorrected spectra: the counts of a bias-corrected spectrum are
-#' rescaled and no longer multinomial. Bins where both spectra are
+#' The test compares raw variant counts in matching bins, so the two
+#' spectra must share their breaks, their folding and their
+#' polarisation, and neither may be bias-corrected: the counts of a
+#' corrected spectrum are rescaled and no longer multinomial. The
+#' function stops, naming the difference, when any of these does not
+#' hold. Bins where both spectra are
 #' empty are dropped, and when only two bins remain
 #' \code{\link[stats]{chisq.test}} applies Yates' continuity
 #' correction. The chi-squared approximation is unreliable
@@ -483,7 +534,8 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #' should then be read with caution.
 #'
 #' @param sfs1 A \code{\link{WithinHostSFS}} object.
-#' @param sfs2 A \code{\link{WithinHostSFS}} object (same binning).
+#' @param sfs2 A \code{\link{WithinHostSFS}} object with the same
+#'   breaks, folding and polarisation as \code{sfs1}.
 #'
 #' @return A named list with components:
 #'   \describe{
@@ -516,6 +568,24 @@ compareSFS <- function(sfs1, sfs2) {
         stop("Both arguments must be WithinHostSFS objects.")
     if (length(sfs1@counts) != length(sfs2@counts))
         stop("SFS objects must have the same number of bins.")
+    if (!isTRUE(all.equal(sfs1@breaks, sfs2@breaks)))
+        stop("SFS objects must share their bin breaks; the counts of ",
+             "differently placed bins cannot be compared.\n  sfs1: ",
+             paste(signif(range(sfs1@breaks), 3), collapse = " to "),
+             "\n  sfs2: ",
+             paste(signif(range(sfs2@breaks), 3), collapse = " to "),
+             call. = FALSE)
+    if (!identical(sfs1@folded, sfs2@folded) ||
+        !identical(sfs1@polarization, sfs2@polarization))
+        stop("SFS objects must both be folded or both unfolded with the ",
+             "same polarisation (sfs1: ",
+             if (sfs1@folded) "folded" else sfs1@polarization, "; sfs2: ",
+             if (sfs2@folded) "folded" else sfs2@polarization, ").",
+             call. = FALSE)
+    if (sfs1@corrected || sfs2@corrected)
+        stop("compareSFS() tests raw counts; a bias-corrected spectrum ",
+             "holds rescaled counts. Compare the spectra before ",
+             "correctSFSBias().", call. = FALSE)
 
     c1 <- sfs1@counts
     c2 <- sfs2@counts

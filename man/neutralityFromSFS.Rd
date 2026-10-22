@@ -26,6 +26,9 @@ A named list with components:
     \item{fusFs}{Fu's Fs.}
     \item{fayWuH}{Fay and Wu's H.}
     \item{sfs_corrected}{Whether the input SFS was bias-corrected.}
+    \item{polarization}{The input's polarisation, \code{"reference"}
+      or \code{"outgroup"}: which allele \code{theta_H} and
+      \code{fayWuH} treat as ancestral.}
   }
 }
 \description{
@@ -37,7 +40,17 @@ derive all statistics from it.
 \details{
 \strong{Fay and Wu's H} measures an excess of high-frequency
 derived variants, which can indicate positive selection or
-genetic hitchhiking (Fay and Wu 2000). It is defined as:
+genetic hitchhiking (Fay and Wu 2000). It needs the frequency of
+the derived allele at each site, so the function stops on a folded
+spectrum (\code{polarization = "none"}): folding maps a derived
+allele at 0.9 and one at 0.1 to the same bin. For Tajima's D and
+Fu's Fs alone, which need no polarisation, use
+\code{\link{calcNeutralityTests}}. An unfolded spectrum built by
+\code{\link{buildSFS}} has \code{polarization = "reference"}: its
+frequencies are those of the alternative allele, so H here assumes
+that the reference allele is ancestral at every site, which holds
+only as far as the reference is close to the population the host was
+infected from. H is defined as:
 \deqn{H = \hat{\pi} - \hat{\theta}_H}
 where \eqn{\hat{\theta}_H =
   \frac{2}{n(n-1)} \sum_i i^2 \xi_i}{theta_H = 2/(n(n-1)) * sum(i^2 * xi_i)}

@@ -49,8 +49,17 @@
 * Multi-caller import: `readWithinHost()` reads VCFs in the LoFreq,
   Freebayes, generic and iVar-style field layouts with auto-detection
   (`ivar variants` writes a TSV, so an iVar-style VCF comes from a
-  converter). `readWithinHostTable()` handles the iVar TSV directly,
-  and generic CSV.
+  converter). The files are read with `VariantAnnotation::readVcf()`,
+  and records with several alternative alleles are split with
+  `expand()`; a per-allele field that the header does not declare
+  `Number=A` on such a record stops the import, since `readVcf()` would
+  give every allele the first allele's value. Sequence lengths from
+  `##contig` lines, or from a `DNAStringSet` passed as `genome`, are
+  recorded in `seqlengths()`. A VCF already in R converts with
+  `as(vcf, "WithinHostExperiment")`, taking every sample it holds, and
+  `as(vr, "WithinHostExperiment")` now keeps a `VRanges`' sequence
+  lengths. `readWithinHostTable()` handles the iVar TSV directly, and
+  generic CSV.
 * Replicate-aware QC: `flagISNV()` applies configurable quality
   filters without removing data. `flagReplicateDiscordance()`
   identifies discordant technical replicates with full provenance

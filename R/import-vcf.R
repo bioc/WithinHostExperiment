@@ -1,12 +1,15 @@
 # R/import-vcf.R
-# Import iSNV data from VCF files
+# Import iSNV data from VCF files and VCF objects
 
-#' @include methods.R
-#' @importFrom utils read.delim
+#' @include methods.R annotate-codon.R
+#' @importFrom VariantAnnotation readVcf expand header info geno samples
+#'   ref alt
+#' @importClassesFrom VariantAnnotation VCF
 #' @importFrom GenomicRanges GRanges
-#' @importFrom IRanges IRanges
-#' @importFrom S4Vectors DataFrame
-#' @importFrom stats setNames
+#' @importFrom GenomeInfoDb seqnames seqlengths seqlengths<- seqlevels
+#' @importFrom IRanges IRanges start
+#' @importFrom S4Vectors DataFrame metadata metadata<-
+#' @importFrom SummarizedExperiment rowRanges rowRanges<-
 NULL
 
 # ============================================================
@@ -15,13 +18,19 @@ NULL
 
 #' Import iSNV data from VCF files
 #'
-#' Reads one or more VCF files produced by variant callers (LoFreq,
-#' Freebayes, or generic) and constructs a
-#' \code{\link{WithinHostExperiment}}.
+#' Reads one or more VCF files produced by variant callers (iVar
+#' through a VCF converter, LoFreq, Freebayes, or others) with
+#' \code{VariantAnnotation::readVcf()} and constructs a
+#' \code{\link{WithinHostExperiment}}. A VCF already read into R is
+#' converted with \code{as(vcf, "WithinHostExperiment")}, and a
+#' \code{VRanges} with \code{as(vr, "WithinHostExperiment")}; see
+#' \code{\link{coerce-WHE}}.
 #'
 #' Each VCF file corresponds to one sample. The \code{colData}
 #' argument provides sample metadata and must contain a
-#' \code{sample_id} column whose length matches the number of files.
+#' \code{sample_id} column whose length matches the number of files. A
+#' file holding more than one sample is an error; read it with
+#' \code{readVcf()} and convert the object instead.
 #'
 #' \code{caller = "ivar"} refers to a VCF carrying iVar's per-sample
 #' fields (\code{REF_DP}, \code{ALT_DP}, \code{ALT_FREQ},
@@ -37,19 +46,44 @@ NULL
 #'   \code{host_id}, \code{role}, \code{pair_id},
 #'   \code{replicate_group}, \code{replicate_id}, etc.
 #' @param caller Character scalar. Which field layout the VCF uses:
-#'   \code{"ivar"}, \code{"lofreq"}, \code{"auto"} (default),
-#'   or \code{"generic"}. See Details for what \code{"ivar"} means.
-#' @param genome Character scalar (optional). Path to reference FASTA
-#'   (stored in metadata, not currently used for annotation).
+#'   \code{"ivar"}, \code{"lofreq"}, \code{"freebayes"}, \code{"auto"}
+#'   (default) or \code{"generic"}. See Details.
+#' @param genome Optional \code{DNAStringSet} holding the reference
+#'   sequence, as returned by \code{Biostrings::readDNAStringSet()}. The
+#'   length of each sequence is recorded in
+#'   \code{seqlengths(rowRanges())}.
 #'
 #' @return A \code{\link{WithinHostExperiment}}.
 #'
 #' @details
-#' Records with several alternative alleles are split into one site per
-#' allele. Per-allele values (INFO \code{AF}; FORMAT \code{AO},
-#' \code{AF}, \code{ALT_DP}, \code{ALT_FREQ} and \code{ALT_QUAL}) are
-#' taken for that allele, and per-site values such as total depth and
-#' reference counts are shared.
+#' \strong{Caller.} With \code{caller = "auto"} the layout is chosen
+#' from the VCF header: a header naming iVar, LoFreq or Freebayes (as
+#' the \code{##source} line of each does) selects that layout, and any
+#' other gives \code{"generic"}. The layouts read: iVar, FORMAT
+#' \code{ALT_FREQ}, \code{ALT_DP} and \code{REF_DP}, with depth their
+#' sum (INFO \code{DP} where they are missing); LoFreq, INFO \code{AF}
+#' and \code{DP}, with counts derived from them; Freebayes, FORMAT
+#' \code{AO}, \code{RO} and \code{DP} (INFO \code{DP} where FORMAT has
+#' none), with frequency \code{AO / DP}; generic, the first of those
+#' field names that the file carries.
+#'
+#' \strong{Several alternative alleles.} A record with several
+#' alternative alleles is split into one site per allele with
+#' \code{VariantAnnotation::expand()}. A per-allele value is split
+#' correctly only when the header declares it \code{Number=A}, as the
+#' VCF specification requires; \code{readVcf()} keeps just the first
+#' value of a field declared otherwise. When such a record carries one
+#' of the per-allele fields read here (INFO \code{AF}; FORMAT
+#' \code{AO}, \code{AF}, \code{ALT_DP}, \code{ALT_FREQ},
+#' \code{ALT_QUAL}) under another \code{Number}, the function stops
+#' rather than give the second allele the first allele's value. Correct
+#' the header, or split the records first (for example with
+#' \code{bcftools norm -m-}).
+#'
+#' \strong{Sequence lengths.} Lengths are recorded in
+#' \code{seqlengths(rowRanges())} from the VCF header's \code{##contig}
+#' lines and from \code{genome}; two sources that disagree are an
+#' error. Functions that need the genome length read it from there.
 #'
 #' When technical replicates are not available, Roder et al. (2023,
 #' \emph{mBio} 14:e01046-23) recommend using a combination of
@@ -66,6 +100,10 @@ NULL
 #'     colData = S4Vectors::DataFrame(sample_id = "donor"),
 #'     caller = "ivar")
 #' whe
+#'
+#' ## The same file read into R first, then converted
+#' v <- VariantAnnotation::readVcf(vcf)
+#' as(v, "WithinHostExperiment")
 readWithinHost <- function(vcfFiles, colData, caller = "auto",
                            genome = NULL) {
     ## ---- Validate inputs ----
@@ -91,25 +129,46 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
         stop("Length of 'vcfFiles' (", length(vcfFiles),
              ") must match nrow(colData) (", nrow(colData), ")")
     }
+    if (is.character(genome))
+        stop("'genome' must be a DNAStringSet, not a file path. Read the ",
+             "FASTA file first, for example genome <- ",
+             "Biostrings::readDNAStringSet(\"", genome[1L], "\").",
+             call. = FALSE)
+    if (!is.null(genome) && !is(genome, "DNAStringSet"))
+        stop("'genome' must be a DNAStringSet or NULL.")
 
-    ## ---- Detect caller ----
     valid_callers <- c("ivar", "lofreq", "freebayes", "auto", "generic")
     caller <- match.arg(caller, valid_callers)
+
+    ## ---- Read each VCF ----
+    vcfs <- lapply(vcfFiles, function(f) readVcf(f))
+    n_samp <- vapply(vcfs, function(v) length(samples(header(v))),
+                     integer(1))
+    if (any(n_samp > 1L))
+        stop("readWithinHost() reads one sample per file, but ",
+             paste0(basename(vcfFiles[n_samp > 1L]), " holds ",
+                    n_samp[n_samp > 1L], " samples", collapse = "; "),
+             ". Read a multi-sample file with VariantAnnotation::readVcf() ",
+             "and convert it with as(vcf, \"WithinHostExperiment\").",
+             call. = FALSE)
+
     if (caller == "auto") {
-        caller <- .detectCaller(vcfFiles[1L])
+        caller <- .detectCaller(header(vcfs[[1L]]))
         message("Auto-detected caller: ", caller)
     }
 
-    ## ---- Parse each VCF ----
-    parsed <- lapply(vcfFiles, function(f) {
-        .parseVcf(f, caller)
+    parsed <- lapply(seq_along(vcfs), function(i) {
+        .checkPerAlleleNumbers(vcfs[[i]], basename(vcfFiles[i]))
+        .parseVcfObject(vcfs[[i]], caller)[[1L]]
     })
-
-    ## ---- Merge and build WHE ----
-    meta <- list()
-    if (!is.null(genome)) meta[["reference_genome"]] <- genome
-
-    .mergeToWHE(parsed, colData, callerName = caller, metadata = meta)
+    lens <- .combineSeqlengths(lapply(vcfs, seqlengths))
+    whe <- .mergeToWHE(parsed, colData, callerName = caller,
+                       seqlengths = lens)
+    if (!is.null(genome)) {
+        SummarizedExperiment::rowRanges(whe) <-
+            .fillSeqlengths(rowRanges(whe), .prepareReference(genome))
+    }
+    whe
 }
 
 
@@ -117,213 +176,178 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
 # Internal: caller detection
 # ============================================================
 
+## The header's metadata lines, names and values, as one string: the
+## ##source line normally names the caller. Takes a VCFHeader or a path.
 #' @keywords internal
-.detectCaller <- function(vcfFile) {
-    con <- file(vcfFile, "r")
-    on.exit(close(con))
-    lines <- character()
-    repeat {
-        line <- readLines(con, n = 1L)
-        if (length(line) == 0L || !startsWith(line, "##")) break
-        lines <- c(lines, line)
-    }
-    header_text <- paste(lines, collapse = "\n")
-
-    if (grepl("iVar", header_text, ignore.case = TRUE)) return("ivar")
-    if (grepl("lofreq", header_text, ignore.case = TRUE)) return("lofreq")
-    if (grepl("freebayes", header_text, ignore.case = TRUE)) return("freebayes")
+.detectCaller <- function(hdr) {
+    if (is.character(hdr)) hdr <- VariantAnnotation::scanVcfHeader(hdr)
+    m <- VariantAnnotation::meta(hdr)
+    fields <- unlist(lapply(m, function(d)
+        c(rownames(d), unlist(lapply(as.list(d), as.character)))),
+        use.names = FALSE)
+    text <- paste(c(names(m), fields), collapse = "\n")
+    if (grepl("iVar", text, ignore.case = TRUE)) return("ivar")
+    if (grepl("lofreq", text, ignore.case = TRUE)) return("lofreq")
+    if (grepl("freebayes", text, ignore.case = TRUE)) return("freebayes")
     "generic"
 }
 
 
 # ============================================================
-# Internal: VCF parsing (unified entry)
+# Internal: reading values from a VCF object
 # ============================================================
 
-## Split VCF records with several ALT alleles into one record per allele.
-## Number=A values are taken element-wise; everything else is repeated.
+.PER_ALLELE_INFO <- "AF"
+.PER_ALLELE_FORMAT <- c("AO", "AF", "ALT_DP", "ALT_FREQ", "ALT_QUAL")
+
+## readVcf() keeps only the first value of a field whose header does not
+## declare it per allele, so a multi-allelic record would give every allele
+## the first allele's value. Stop instead.
 #' @keywords internal
-.splitMultiallelic <- function(fields) {
-    per_allele_info <- "AF"
-    per_allele_format <- c("AO", "AF", "ALT_DP", "ALT_FREQ", "ALT_QUAL")
-    pick <- function(value, i, n_alt) {
-        parts <- strsplit(value, ",", fixed = TRUE)[[1L]]
-        if (length(parts) == n_alt) parts[i] else value
+.checkPerAlleleNumbers <- function(vcf, label = "the VCF") {
+    multi <- lengths(alt(vcf)) > 1L
+    if (!any(multi)) return(invisible(TRUE))
+    hdr <- header(vcf)
+    num <- function(d, ids) {
+        ids <- intersect(ids, rownames(d))
+        stats::setNames(as.character(d[ids, "Number"]), ids)
     }
-    expanded <- lapply(fields, function(f) {
-        if (length(f) < 5L) return(list(f))
-        alts <- strsplit(f[5L], ",", fixed = TRUE)[[1L]]
-        n_alt <- length(alts)
-        if (n_alt <= 1L) return(list(f))
-        lapply(seq_len(n_alt), function(i) {
-            g <- f
-            g[5L] <- alts[i]
-            if (length(g) >= 8L && !identical(g[8L], ".")) {
-                entries <- strsplit(g[8L], ";", fixed = TRUE)[[1L]]
-                entries <- vapply(entries, function(entry) {
-                    kv <- strsplit(entry, "=", fixed = TRUE)[[1L]]
-                    if (length(kv) == 2L && kv[1L] %in% per_allele_info) {
-                        paste0(kv[1L], "=", pick(kv[2L], i, n_alt))
-                    } else {
-                        entry
-                    }
-                }, character(1), USE.NAMES = FALSE)
-                g[8L] <- paste(entries, collapse = ";")
+    declared <- c(num(info(hdr), .PER_ALLELE_INFO),
+                  num(geno(hdr), .PER_ALLELE_FORMAT))
+    bad <- declared[!declared %in% c("A", "R")]
+    if (length(bad))
+        stop(label, " has ", sum(multi), " record(s) with several ",
+             "alternative alleles, but its header declares ",
+             paste0(names(bad), " as Number=", bad, collapse = ", "),
+             " rather than Number=A, so the value of each allele cannot ",
+             "be read. Correct the header, or split the records first, ",
+             "for example with 'bcftools norm -m-'.", call. = FALSE)
+    invisible(TRUE)
+}
+
+## One value per site from an INFO column, or NA when absent.
+#' @keywords internal
+.infoValue <- function(e, tag, n) {
+    d <- info(e)
+    if (!tag %in% colnames(d)) return(rep(NA_real_, n))
+    v <- d[[tag]]
+    if (is(v, "List") || is.list(v))
+        v <- vapply(as.list(v), function(z)
+            if (length(z)) as.numeric(z[[1L]]) else NA_real_, numeric(1))
+    as.numeric(v)
+}
+
+## One value per site for sample j from a FORMAT field, or NA when absent.
+#' @keywords internal
+.genoValue <- function(e, field, j, n) {
+    g <- geno(e)
+    if (!field %in% names(g)) return(rep(NA_real_, n))
+    m <- g[[field]]
+    v <- if (length(dim(m)) == 3L) m[, j, 1L] else m[, j]
+    if (is.list(v))
+        v <- vapply(v, function(z)
+            if (length(z)) as.numeric(z[[1L]]) else NA_real_, numeric(1))
+    suppressWarnings(as.numeric(v))
+}
+
+## Per-sample site tables in the layout .mergeToWHE() takes: one element
+## per sample, or one element for a VCF without FORMAT columns.
+#' @keywords internal
+.parseVcfObject <- function(vcf, caller) {
+    e <- expand(vcf)
+    n <- nrow(e)
+    rr <- SummarizedExperiment::rowRanges(e)
+    sites <- list(
+        chrom = as.character(seqnames(rr)),
+        pos   = as.integer(start(rr)),
+        ref   = as.character(ref(e)),
+        alt   = as.character(alt(e)))
+    as_int <- function(v) as.integer(round(v))
+    info_dp <- as_int(.infoValue(e, "DP", n))
+    info_only <- function() {
+        alt_freq <- .infoValue(e, "AF", n)
+        total_dp <- info_dp
+        alt_dp <- as_int(total_dp * alt_freq)
+        list(altFreq = alt_freq, totalDepth = total_dp,
+             refCount = total_dp - alt_dp, altCount = alt_dp)
+    }
+    n_samples <- length(samples(header(vcf)))
+    if (caller == "lofreq" || n_samples == 0L)
+        return(list(c(sites, info_only())))
+
+    lapply(seq_len(n_samples), function(j) {
+        fmt <- function(field) .genoValue(e, field, j, n)
+        first_of <- function(fields) {
+            for (f in fields) {
+                v <- fmt(f)
+                if (!all(is.na(v))) return(v)
             }
-            if (length(g) >= 10L) {
-                format_names <- strsplit(g[9L], ":", fixed = TRUE)[[1L]]
-                values <- strsplit(g[10L], ":", fixed = TRUE)[[1L]]
-                for (k in seq_along(values)) {
-                    if (k <= length(format_names) &&
-                        format_names[k] %in% per_allele_format) {
-                        values[k] <- pick(values[k], i, n_alt)
-                    }
-                }
-                g[10L] <- paste(values, collapse = ":")
-            }
-            g
-        })
+            rep(NA_real_, n)
+        }
+        vals <- if (caller == "ivar") {
+            alt_dp <- as_int(fmt("ALT_DP"))
+            ref_dp <- as_int(fmt("REF_DP"))
+            total <- alt_dp + ref_dp
+            list(altFreq = fmt("ALT_FREQ"),
+                 totalDepth = ifelse(is.na(total), info_dp, total),
+                 refCount = ref_dp, altCount = alt_dp)
+        } else if (caller == "freebayes") {
+            alt_dp <- as_int(fmt("AO"))
+            ref_dp <- as_int(fmt("RO"))
+            total <- as_int(fmt("DP"))
+            if (all(is.na(total))) total <- info_dp
+            list(altFreq = ifelse(!is.na(alt_dp) & !is.na(total) & total > 0L,
+                                  alt_dp / total, NA_real_),
+                 totalDepth = total, refCount = ref_dp, altCount = alt_dp)
+        } else {
+            alt_dp <- as_int(first_of(c("ALT_DP", "AO")))
+            ref_dp <- as_int(first_of(c("REF_DP", "RO")))
+            total <- as_int(fmt("DP"))
+            if (all(is.na(total)))
+                total <- ifelse(!is.na(alt_dp) & !is.na(ref_dp),
+                                alt_dp + ref_dp, info_dp)
+            list(altFreq = first_of(c("ALT_FREQ", "AF")),
+                 totalDepth = total, refCount = ref_dp, altCount = alt_dp)
+        }
+        c(sites, vals)
     })
-    unlist(expanded, recursive = FALSE)
 }
 
+## Merge named sequence lengths from several sources; NA means unknown,
+## and two known lengths that differ are an error.
 #' @keywords internal
-.parseVcf <- function(vcfFile, caller) {
-    ## Read data lines (skip ## and # header)
-    all_lines <- readLines(vcfFile)
-    data_lines <- all_lines[!startsWith(all_lines, "#")]
-
-    if (length(data_lines) == 0L) {
-        return(list(
-            chrom = character(), pos = integer(), ref = character(),
-            alt = character(), altFreq = numeric(), totalDepth = integer(),
-            refCount = integer(), altCount = integer()
-        ))
-    }
-
-    ## Parse tab-separated fields
-    fields <- .splitMultiallelic(strsplit(data_lines, "\t"))
-    n_cols <- length(fields[[1L]])
-    ## Validate consistent column count
-    col_counts <- vapply(fields, length, integer(1))
-    if (any(col_counts != n_cols)) {
-        warning("Inconsistent column counts in VCF: ",
-                "expected ", n_cols, " but found rows with ",
-                paste(unique(col_counts[col_counts != n_cols]),
-                      collapse = ", "),
-                " columns. Using first row format.", call. = FALSE)
-    }
-    chrom  <- vapply(fields, `[`, character(1), 1L)
-    pos    <- as.integer(vapply(fields, `[`, character(1), 2L))
-    ref    <- vapply(fields, `[`, character(1), 4L)
-    alt    <- vapply(fields, `[`, character(1), 5L)
-    info   <- vapply(fields, `[`, character(1), 8L)
-
-    ## Check if FORMAT/SAMPLE columns exist (LoFreq VCFs have only 8 cols)
-    has_format <- n_cols >= 10L
-
-    ## Helper to extract INFO field values
-    .get_info_val <- function(tag, as_type = "character") {
-        pattern <- paste0("(?:^|;)", tag, "=([^;]+)")
-        vals <- vapply(info, function(inf) {
-            m <- regmatches(inf, regexpr(pattern, inf, perl = TRUE))
-            if (length(m) == 0L || nchar(m) == 0L) {
-                NA_character_
-            } else {
-                gsub(paste0("^;?", tag, "="), "", m)
+.combineSeqlengths <- function(lens_list) {
+    out <- integer()
+    for (l in lens_list) {
+        for (nm in names(l)) {
+            v <- l[[nm]]
+            if (is.na(v)) {
+                if (!nm %in% names(out)) out[nm] <- NA_integer_
+            } else if (!nm %in% names(out) || is.na(out[[nm]])) {
+                out[nm] <- as.integer(v)
+            } else if (out[[nm]] != v) {
+                stop("The VCF headers give different lengths for ", nm,
+                     ": ", out[[nm]], " and ", v, ".", call. = FALSE)
             }
-        }, character(1), USE.NAMES = FALSE)
-        if (as_type == "numeric") return(as.numeric(vals))
-        if (as_type == "integer") return(as.integer(vals))
-        vals
-    }
-
-    if (has_format) {
-        fmt  <- vapply(fields, `[`, character(1), 9L)
-        samp <- vapply(fields, `[`, character(1), 10L)
-        ## Assume consistent FORMAT across rows within a single
-        ## caller's output. This is true for iVar, LoFreq, and
-        ## Freebayes single-sample VCFs.
-        fmt_names  <- strsplit(fmt[1L], ":")[[1L]]
-        samp_split <- strsplit(samp, ":")
-
-        .get_fmt_field <- function(field_name) {
-            idx <- match(field_name, fmt_names)
-            if (is.na(idx)) {
-                return(rep(NA_character_, length(samp_split)))
-            }
-            vapply(samp_split, function(s) {
-                if (length(s) >= idx) s[idx] else NA_character_
-            }, character(1))
         }
     }
-
-    ## Extract values based on caller
-    if (caller == "ivar" && has_format) {
-        alt_freq <- as.numeric(.get_fmt_field("ALT_FREQ"))
-        alt_dp   <- as.integer(.get_fmt_field("ALT_DP"))
-        ref_dp   <- as.integer(.get_fmt_field("REF_DP"))
-        total_dp <- alt_dp + ref_dp
-        info_dp  <- .get_info_val("DP", "integer")
-        total_dp <- ifelse(is.na(total_dp), info_dp, total_dp)
-    } else if (caller == "lofreq") {
-        ## LoFreq: AF and DP in INFO field (no FORMAT/SAMPLE columns)
-        alt_freq <- .get_info_val("AF", "numeric")
-        total_dp <- .get_info_val("DP", "integer")
-        alt_dp   <- as.integer(round(total_dp * alt_freq))
-        ref_dp   <- total_dp - alt_dp
-    } else if (caller == "freebayes" && has_format) {
-        ## Freebayes: uses RO/AO in FORMAT
-        alt_dp   <- as.integer(.get_fmt_field("AO"))
-        ref_dp   <- as.integer(.get_fmt_field("RO"))
-        total_dp <- as.integer(.get_fmt_field("DP"))
-        if (all(is.na(total_dp))) {
-            total_dp <- .get_info_val("DP", "integer")
-        }
-        alt_freq <- ifelse(!is.na(alt_dp) & !is.na(total_dp) &
-                               total_dp > 0L,
-                           alt_dp / total_dp, NA_real_)
-    } else if (has_format) {
-        ## Generic with FORMAT: try common field names
-        alt_freq_raw <- .get_fmt_field("ALT_FREQ")
-        if (all(is.na(alt_freq_raw))) {
-            alt_freq_raw <- .get_fmt_field("AF")
-        }
-        alt_freq <- as.numeric(alt_freq_raw)
-
-        alt_dp_raw <- .get_fmt_field("ALT_DP")
-        if (all(is.na(alt_dp_raw))) alt_dp_raw <- .get_fmt_field("AO")
-        alt_dp <- as.integer(alt_dp_raw)
-
-        ref_dp_raw <- .get_fmt_field("REF_DP")
-        if (all(is.na(ref_dp_raw))) ref_dp_raw <- .get_fmt_field("RO")
-        ref_dp <- as.integer(ref_dp_raw)
-
-        total_dp <- as.integer(.get_fmt_field("DP"))
-        if (all(is.na(total_dp))) {
-            info_dp  <- .get_info_val("DP", "integer")
-            total_dp <- ifelse(!is.na(alt_dp) & !is.na(ref_dp),
-                               alt_dp + ref_dp, info_dp)
-        }
-    } else {
-        ## No FORMAT columns -- parse INFO only (like LoFreq)
-        alt_freq <- .get_info_val("AF", "numeric")
-        total_dp <- .get_info_val("DP", "integer")
-        alt_dp   <- as.integer(round(total_dp * alt_freq))
-        ref_dp   <- total_dp - alt_dp
-    }
-
-    list(
-        chrom      = chrom,
-        pos        = pos,
-        ref        = ref,
-        alt        = alt,
-        altFreq    = alt_freq,
-        totalDepth = total_dp,
-        refCount   = ref_dp,
-        altCount   = alt_dp
-    )
+    out
 }
+
+
+# ============================================================
+# VCF object -> WithinHostExperiment coercion
+# ============================================================
+
+setAs("VCF", "WithinHostExperiment", function(from) {
+    caller <- .detectCaller(header(from))
+    .checkPerAlleleNumbers(from)
+    parsed <- .parseVcfObject(from, caller)
+    ids <- samples(header(from))
+    if (!length(ids)) ids <- "sample1"
+    .mergeToWHE(parsed, DataFrame(sample_id = ids), callerName = caller,
+                seqlengths = .combineSeqlengths(list(seqlengths(from))))
+})
 
 
 # ============================================================
@@ -331,7 +355,8 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
 # ============================================================
 
 #' @keywords internal
-.mergeToWHE <- function(parsed_list, colData, callerName, metadata = list()) {
+.mergeToWHE <- function(parsed_list, colData, callerName, metadata = list(),
+                        seqlengths = NULL) {
     sample_ids <- as.character(colData$sample_id)
     n_samples  <- length(parsed_list)
 
@@ -377,6 +402,14 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
     )
     S4Vectors::mcols(gr)$ref <- all_positions$ref
     S4Vectors::mcols(gr)$alt <- all_positions$alt
+    if (length(seqlengths)) {
+        known <- seqlengths[intersect(names(seqlengths), seqlevels(gr))]
+        if (length(known)) {
+            lens <- seqlengths(gr)
+            lens[names(known)] <- known
+            seqlengths(gr) <- lens
+        }
+    }
 
     ## 3. Build assay matrices
     freq_mat  <- matrix(NA_real_, nrow = n_sites, ncol = n_samples,

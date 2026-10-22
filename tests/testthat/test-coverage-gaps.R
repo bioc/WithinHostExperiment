@@ -214,14 +214,18 @@ test_that("calcDiversity usePassedOnly flag works", {
 
 # ---- readWithinHost: genome parameter ----
 
-test_that("readWithinHost stores genome in metadata", {
+test_that("readWithinHost records the genome's sequence lengths", {
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")
-    whe <- readWithinHost(vcf,
-        colData = DataFrame(sample_id = "d"),
-        caller  = "ivar",
-        genome  = "my_ref.fa")
-    expect_equal(metadata(whe)$reference_genome, "my_ref.fa")
+    ref <- Biostrings::readDNAStringSet(system.file("extdata",
+        "test_ref.fa", package = "WithinHostExperiment"))
+    whe <- readWithinHost(vcf, colData = DataFrame(sample_id = "d"),
+                          caller = "ivar", genome = ref)
+    expect_identical(GenomeInfoDb::seqlengths(rowRanges(whe))[["test_segment"]],
+                     1000L)
+    expect_error(readWithinHost(vcf, colData = DataFrame(sample_id = "d"),
+                                caller = "ivar", genome = "my_ref.fa"),
+                 "readDNAStringSet")
 })
 
 # ---- plotFrequencySpectrum: density type ----

@@ -103,6 +103,7 @@ test_that("multi-allelic LoFreq records are split per allele", {
 test_that("multi-allelic Freebayes records are split per allele", {
     vcf <- tempfile(fileext = ".vcf")
     writeLines(c("##fileformat=VCFv4.2",
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
         "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GT\">",
         "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
         "##FORMAT=<ID=RO,Number=1,Type=Integer,Description=\"RO\">",

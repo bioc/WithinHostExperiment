@@ -532,17 +532,32 @@ setMethod("combineCols", "WithinHostExperiment",
 # Coercion methods -- interoperability
 # ============================================================
 
-#' Coerce WithinHostExperiment to data.frame or VRanges
+#' Convert between WithinHostExperiment, data.frame, VRanges and VCF
+#'
+#' \code{as(x, "data.frame")} gives one row per site and sample with an
+#' observed frequency; \code{as(x, "VRanges")} gives the same rows as a
+#' \code{\link[VariantAnnotation]{VRanges}}. In the other direction,
+#' \code{as(vr, "WithinHostExperiment")} builds the object from the
+#' \code{refDepth}, \code{altDepth} and \code{totalDepth} of a
+#' \code{VRanges}, one sample per \code{sampleNames} level, and
+#' \code{as(vcf, "WithinHostExperiment")} from a VCF read with
+#' \code{VariantAnnotation::readVcf()}, choosing the field layout from
+#' the header as \code{\link{readWithinHost}(caller = "auto")} does and
+#' taking every sample the file holds. Both keep the sequence lengths
+#' the input records.
 #'
 #' @name coerce-WHE
 #' @rdname coerce-WHE
 #' @aliases coerce,WithinHostExperiment,data.frame-method
 #'   coerce,WithinHostExperiment,VRanges-method
 #'   coerce,VRanges,WithinHostExperiment-method
+#'   coerce,VCF,WithinHostExperiment-method
 #'
-#' @return A \code{data.frame} or \code{\link[VariantAnnotation]{VRanges}}
-#'   object containing the variant data from the
-#'   \code{WithinHostExperiment} object.
+#' @return A \code{data.frame}, a
+#'   \code{\link[VariantAnnotation]{VRanges}} or a
+#'   \code{\link{WithinHostExperiment}}.
+#'
+#' @seealso \code{\link{readWithinHost}} for VCF files.
 #'
 #' @examples
 #' data(example_whe)
@@ -551,6 +566,11 @@ setMethod("combineCols", "WithinHostExperiment",
 #'
 #' vr <- as(example_whe, "VRanges")
 #' vr
+#' as(vr, "WithinHostExperiment")
+#'
+#' vcf <- VariantAnnotation::readVcf(system.file("extdata",
+#'     "test_donor.vcf", package = "WithinHostExperiment"))
+#' as(vcf, "WithinHostExperiment")
 NULL
 
 setAs("WithinHostExperiment", "data.frame", function(from) {
@@ -692,6 +712,15 @@ setAs("VRanges", "WithinHostExperiment", function(from) {
     )
     mcols(gr)$ref <- vapply(site_parts, `[`, character(1), 3L)
     mcols(gr)$alt <- vapply(site_parts, `[`, character(1), 4L)
+    ## keep the sequence lengths the VRanges records
+    lens <- GenomeInfoDb::seqlengths(from)
+    known <- lens[intersect(names(lens), GenomeInfoDb::seqlevels(gr))]
+    known <- known[!is.na(known)]
+    if (length(known)) {
+        gr_lens <- GenomeInfoDb::seqlengths(gr)
+        gr_lens[names(known)] <- known
+        GenomeInfoDb::seqlengths(gr) <- gr_lens
+    }
 
     ## Initialize matrices
     alt_dp_mat <- matrix(NA_integer_, nrow = n_sites,

@@ -5,14 +5,25 @@
 \alias{coerce,WithinHostExperiment,data.frame-method}
 \alias{coerce,WithinHostExperiment,VRanges-method}
 \alias{coerce,VRanges,WithinHostExperiment-method}
-\title{Coerce WithinHostExperiment to data.frame or VRanges}
+\alias{coerce,VCF,WithinHostExperiment-method}
+\title{Convert between WithinHostExperiment, data.frame, VRanges and VCF}
 \value{
-A \code{data.frame} or \code{\link[VariantAnnotation]{VRanges}}
-  object containing the variant data from the
-  \code{WithinHostExperiment} object.
+A \code{data.frame}, a
+  \code{\link[VariantAnnotation]{VRanges}} or a
+  \code{\link{WithinHostExperiment}}.
 }
 \description{
-Coerce WithinHostExperiment to data.frame or VRanges
+\code{as(x, "data.frame")} gives one row per site and sample with an
+observed frequency; \code{as(x, "VRanges")} gives the same rows as a
+\code{\link[VariantAnnotation]{VRanges}}. In the other direction,
+\code{as(vr, "WithinHostExperiment")} builds the object from the
+\code{refDepth}, \code{altDepth} and \code{totalDepth} of a
+\code{VRanges}, one sample per \code{sampleNames} level, and
+\code{as(vcf, "WithinHostExperiment")} from a VCF read with
+\code{VariantAnnotation::readVcf()}, choosing the field layout from
+the header as \code{\link{readWithinHost}(caller = "auto")} does and
+taking every sample the file holds. Both keep the sequence lengths
+the input records.
 }
 \examples{
 data(example_whe)
@@ -21,4 +32,12 @@ head(df)
 
 vr <- as(example_whe, "VRanges")
 vr
+as(vr, "WithinHostExperiment")
+
+vcf <- VariantAnnotation::readVcf(system.file("extdata",
+    "test_donor.vcf", package = "WithinHostExperiment"))
+as(vcf, "WithinHostExperiment")
+}
+\seealso{
+\code{\link{readWithinHost}} for VCF files.
 }

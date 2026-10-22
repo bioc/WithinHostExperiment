@@ -15,24 +15,32 @@ metadata. Must contain \code{sample_id}. May also contain
 \code{replicate_group}, \code{replicate_id}, etc.}
 
 \item{caller}{Character scalar. Which field layout the VCF uses:
-\code{"ivar"}, \code{"lofreq"}, \code{"auto"} (default),
-or \code{"generic"}. See Details for what \code{"ivar"} means.}
+\code{"ivar"}, \code{"lofreq"}, \code{"freebayes"}, \code{"auto"}
+(default) or \code{"generic"}. See Details.}
 
-\item{genome}{Character scalar (optional). Path to reference FASTA
-(stored in metadata, not currently used for annotation).}
+\item{genome}{Optional \code{DNAStringSet} holding the reference
+sequence, as returned by \code{Biostrings::readDNAStringSet()}. The
+length of each sequence is recorded in
+\code{seqlengths(rowRanges())}.}
 }
 \value{
 A \code{\link{WithinHostExperiment}}.
 }
 \description{
-Reads one or more VCF files produced by variant callers (LoFreq,
-Freebayes, or generic) and constructs a
-\code{\link{WithinHostExperiment}}.
+Reads one or more VCF files produced by variant callers (iVar
+through a VCF converter, LoFreq, Freebayes, or others) with
+\code{VariantAnnotation::readVcf()} and constructs a
+\code{\link{WithinHostExperiment}}. A VCF already read into R is
+converted with \code{as(vcf, "WithinHostExperiment")}, and a
+\code{VRanges} with \code{as(vr, "WithinHostExperiment")}; see
+\code{\link{coerce-WHE}}.
 }
 \details{
 Each VCF file corresponds to one sample. The \code{colData}
 argument provides sample metadata and must contain a
-\code{sample_id} column whose length matches the number of files.
+\code{sample_id} column whose length matches the number of files. A
+file holding more than one sample is an error; read it with
+\code{readVcf()} and convert the object instead.
 
 \code{caller = "ivar"} refers to a VCF carrying iVar's per-sample
 fields (\code{REF_DP}, \code{ALT_DP}, \code{ALT_FREQ},
@@ -43,11 +51,34 @@ An iVar TSV is read directly by
 \code{\link{readWithinHostTable}(format = "ivar")}.
 
 
-Records with several alternative alleles are split into one site per
-allele. Per-allele values (INFO \code{AF}; FORMAT \code{AO},
-\code{AF}, \code{ALT_DP}, \code{ALT_FREQ} and \code{ALT_QUAL}) are
-taken for that allele, and per-site values such as total depth and
-reference counts are shared.
+\strong{Caller.} With \code{caller = "auto"} the layout is chosen
+from the VCF header: a header naming iVar, LoFreq or Freebayes (as
+the \code{##source} line of each does) selects that layout, and any
+other gives \code{"generic"}. The layouts read: iVar, FORMAT
+\code{ALT_FREQ}, \code{ALT_DP} and \code{REF_DP}, with depth their
+sum (INFO \code{DP} where they are missing); LoFreq, INFO \code{AF}
+and \code{DP}, with counts derived from them; Freebayes, FORMAT
+\code{AO}, \code{RO} and \code{DP} (INFO \code{DP} where FORMAT has
+none), with frequency \code{AO / DP}; generic, the first of those
+field names that the file carries.
+
+\strong{Several alternative alleles.} A record with several
+alternative alleles is split into one site per allele with
+\code{VariantAnnotation::expand()}. A per-allele value is split
+correctly only when the header declares it \code{Number=A}, as the
+VCF specification requires; \code{readVcf()} keeps just the first
+value of a field declared otherwise. When such a record carries one
+of the per-allele fields read here (INFO \code{AF}; FORMAT
+\code{AO}, \code{AF}, \code{ALT_DP}, \code{ALT_FREQ},
+\code{ALT_QUAL}) under another \code{Number}, the function stops
+rather than give the second allele the first allele's value. Correct
+the header, or split the records first (for example with
+\code{bcftools norm -m-}).
+
+\strong{Sequence lengths.} Lengths are recorded in
+\code{seqlengths(rowRanges())} from the VCF header's \code{##contig}
+lines and from \code{genome}; two sources that disagree are an
+error. Functions that need the genome length read it from there.
 
 When technical replicates are not available, Roder et al. (2023,
 \emph{mBio} 14:e01046-23) recommend using a combination of
@@ -63,4 +94,8 @@ whe <- readWithinHost(vcf,
     colData = S4Vectors::DataFrame(sample_id = "donor"),
     caller = "ivar")
 whe
+
+## The same file read into R first, then converted
+v <- VariantAnnotation::readVcf(vcf)
+as(v, "WithinHostExperiment")
 }

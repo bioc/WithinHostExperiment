@@ -202,6 +202,16 @@ test_that("a nucleotide read twice by one transcript keeps its first reading (wa
     mc <- codon_mc(out)
     expect_identical(mc$CDSLOC, 30L)
     expect_identical(mc$CONSEQUENCE, as.list(all$CONSEQUENCE)[[1L]][1L])
+    ## the reference annotator reported the second reading instead
+    fa <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1", codon_seq20), fa)
+    gff <- tempfile(fileext = ".gff3")
+    writeLines(c("##gff-version 3",
+        paste("seg1", ".", "CDS", c(1, 30), c(30, 59), ".", "+", "0",
+              "ID=tx1;gene=g1", sep = "\t")), gff)
+    old <- refAnnotateCodonChange(whe, gff, fa)
+    expect_identical(old$REF_CODON, as.list(all$REFCODON)[[1L]][2L])
+    expect_false(identical(old$REF_CODON, mc$REFCODON))
 })
 
 test_that("annotateCodonChange keeps the longest transcript by default", {
@@ -523,7 +533,12 @@ test_that("annotateCodonChange agrees with the removed in-house annotator", {
         ## codon is "Nonsense" in the old code and nonsynonymous in
         ## predictCoding(); and the first codon of a coding sequence is
         ## read as an initiator, so a change at that one base into CTG or
-        ## TTG gives M rather than L.
+        ## TTG gives M rather than L. Two more differences need more than
+        ## one coding sequence and are pinned in the next test and in the
+        ## frameshift test above: overlapping records resolve to the last
+        ## record in the old code and to the longest transcript in the new,
+        ## and a nucleotide read twice at a frameshift keeps its second
+        ## reading in the old code and its first in the new.
         stop_loss <- !is.na(old$REF_AA) & old$REF_AA == "*" &
             old$ALT_AA != "*"
         init <- !is.na(new$CDSLOC) & new$CDSLOC == 1L &
@@ -542,4 +557,60 @@ test_that("annotateCodonChange agrees with the removed in-house annotator", {
         expect_identical(sum(is.na(new$REFAA)), 15L, info = info)
         expect_identical(is.na(new$REFAA), is.na(old$REF_AA), info = info)
     }
+})
+
+test_that("annotateCodonChange agrees with the reference annotator transcript by transcript where coding sequences overlap", {
+    skip_if_not_installed("txdbmaker")
+    ## tx1 (1-15) reads ATG GAT GCT GCT GCT; tx2 (5-13), one frame along,
+    ## reads ATG CTG CTG. Every substitution at every base is compared.
+    seq15 <- "ATGGATGCTGCTGCT"
+    bases <- c("A", "C", "G", "T")
+    chars <- strsplit(seq15, "")[[1L]]
+    pos <- rep(seq_along(chars), each = 3L)
+    whe <- codon_whe(pos, chars[pos],
+                     unlist(lapply(chars, function(b) setdiff(bases, b))))
+    fa <- tempfile(fileext = ".fa")
+    writeLines(c(">seg1", seq15), fa)
+    ref <- Biostrings::readDNAStringSet(fa)
+    gff_line <- function(from, to, id, gene)
+        paste("seg1", ".", "CDS", from, to, ".", "+", "0",
+              paste0("ID=", id, ";gene=", gene), sep = "\t")
+    write_gff <- function(...) {
+        f <- tempfile(fileext = ".gff3")
+        writeLines(c("##gff-version 3", ...), f)
+        f
+    }
+    cds <- cds_gr(c(1, 5), c(15, 13), ID = c("tx1", "tx2"),
+                  gene = c("g1", "g2"))
+    all <- codon_mc(annotateCodonChange(whe, cds, ref, collapse = "all"))
+    tx_of <- as.list(all$TXNAME)
+    for (tx in list(list(id = "tx1", gff = gff_line(1, 15, "tx1", "g1")),
+                    list(id = "tx2", gff = gff_line(5, 13, "tx2", "g2")))) {
+        old <- refAnnotateCodonChange(whe, write_gff(tx$gff), fa)
+        k <- vapply(tx_of, function(t) match(tx$id, t), integer(1))
+        reads <- !is.na(k)
+        pick <- function(col) {
+            l <- as.list(all[[col]])
+            vapply(seq_along(k), function(i)
+                if (reads[i]) l[[i]][k[i]] else NA_character_, "")
+        }
+        expect_identical(is.na(old$REF_CODON), !reads, info = tx$id)
+        expect_identical(pick("REFCODON")[reads], old$REF_CODON[reads],
+                         info = tx$id)
+        expect_identical(pick("VARCODON")[reads], old$ALT_CODON[reads],
+                         info = tx$id)
+    }
+    ## Where the two overlap they resolve differently, by design: the
+    ## reference annotator keeps the last overlapping record, tx2, and
+    ## collapse = "longest" keeps the longest transcript, tx1.
+    old_both <- refAnnotateCodonChange(whe,
+        write_gff(gff_line(1, 15, "tx1", "g1"), gff_line(5, 13, "tx2", "g2")),
+        fa)
+    new_longest <- codon_mc(suppressMessages(annotateCodonChange(whe, cds,
+                                                                 ref)))
+    overlap <- pos >= 5L & pos <= 13L
+    expect_true(all(old_both$GFF_FEATURE[overlap] == "g2"))
+    expect_true(all(new_longest$GENEID[overlap] == "g1"))
+    expect_identical(old_both$GFF_FEATURE[!overlap],
+                     new_longest$GENEID[!overlap])
 })

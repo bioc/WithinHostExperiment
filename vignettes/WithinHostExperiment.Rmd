@@ -25,8 +25,8 @@ knitr::opts_chunk$set(
 
 This vignette is written as teaching material. It assumes that you can read R
 code and that you have met a table of variant calls before, but it assumes
-nothing about population genetics or about Bioconductor containers. Every term
-is defined where it first appears, and the Glossary near the end collects the
+nothing about population genetics or about Bioconductor containers. Terms are
+defined where they are introduced, and the Glossary near the end collects the
 definitions in one place.
 
 ## What an iSNV is
@@ -59,7 +59,7 @@ under another threshold. Donor and recipient samples, technical replicates and
 sampling days are tracked in spreadsheets beside the data rather than in the
 data.
 
-`WithinHostExperiment` closes that gap. It provides:
+`WithinHostExperiment` brings these together in one place. It provides:
 
 -   a container built on `r BiocStyle::Biocpkg("SummarizedExperiment")`, which
     keeps the call matrix, the genomic coordinates, the sample metadata and the
@@ -72,10 +72,11 @@ data.
 
 ## What this package does not do
 
-The package works one site at a time. It does not reconstruct haplotypes, does
-not separate a co-infection from genuine within-host diversity, and does not fit
-drift-aware selection models. The section on scope and limitations sets out each
-of these, with pointers to tools that do them.
+The package works one site at a time. It does not reconstruct **haplotypes**,
+the full sequences of individual genomes, does not separate a co-infection from
+genuine within-host diversity, and does not fit drift-aware selection models.
+The section on scope and limitations sets out each of these, with pointers to
+tools that do them.
 
 ## Relationship to existing tools
 
@@ -89,14 +90,12 @@ of these, with pointers to tools that do them.
 
 ## Why Bioconductor
 
-The package belongs in Bioconductor rather than on CRAN for four reasons. It
-operates on high-throughput sequencing data, which is Bioconductor's own domain.
-It extends `RangedSummarizedExperiment` and interoperates with `GRanges`,
-`VRanges` and the `r BiocStyle::Biocpkg("VariantAnnotation")` ecosystem rather
-than inventing containers. It is complementary to existing packages, sitting
-between upstream callers and downstream bottleneck estimators. And its
-flag-rather-than-delete philosophy, with a full audit log on the object, matches
-Bioconductor's emphasis on reproducible workflows.
+The package works on high-throughput sequencing data, extends
+`RangedSummarizedExperiment`, and reads and writes `GRanges`, `VRanges` and the
+objects of `r BiocStyle::Biocpkg("VariantAnnotation")` rather than containers of
+its own, so it belongs with the packages it builds on. Its quality-control steps
+flag rather than delete and record each step on the object, which is what a
+reproducible Bioconductor workflow needs from them.
 
 ## A warning about the example numbers
 
@@ -301,12 +300,15 @@ calls.
 The log says which thresholds ran, as text. The `qcFilters` slot keeps the
 filter objects themselves: a plain list of `ISNVFilter` objects, in the order
 they were applied. The difference is that a stored object can be re-applied to
-another experiment, or read programmatically to find out what the strictest
-depth threshold was, which is how `calcDiversity()` reports a detection limit
-and how `calcSharedVariants()` chooses a depth below which an absence means
-nothing. A list in `metadata()` could not be trusted to contain filters at all.
-The accessor is `qcFilters(x)`, with the replacement form
-`qcFilters(x) <- value`.
+another experiment, or read programmatically: `calcDiversity()` takes its
+detection limit from the strictest `minFreq` among them, and
+`calcSharedVariants()` takes from the strictest `minDepth` the depth below which
+an absence means nothing. Only `flagISNV()` adds to the list. The other flagging
+functions, `flagPrimerSites()`, `flagReplicateDiscordance()`,
+`flagTemporalInconsistency()` and `flagStrandBiasSCI()`, record themselves in
+`qcLog` alone, because what they apply is not an `ISNVFilter`. A list in
+`metadata()` could not be trusted to contain filters at all. The accessor is
+`qcFilters(x)`, with the replacement form `qcFilters(x) <- value`.
 
 ```{r object-qcfilters}
 qcFilters(example_whe)
@@ -420,11 +422,11 @@ sample table together, so that the object cannot exist without its metadata. One
 file corresponds to one sample; a file holding several samples is read with
 `VariantAnnotation::readVcf()` and converted, as shown next.
 
-Two arguments repay attention. `caller` names the field layout, because callers
-record the same quantities under different names: iVar-style files carry
-`ALT_FREQ`, `ALT_DP` and `REF_DP`, LoFreq carries `AF` and `DP` in the INFO
-column, Freebayes carries `AO`, `RO` and `DP`. The default `"auto"` reads the
-header's `##source` line and chooses. `genome` takes the reference sequence as a
+Two arguments matter. `caller` names the field layout, because callers record
+the same quantities under different names: iVar-style files carry `ALT_FREQ`,
+`ALT_DP` and `REF_DP`, LoFreq carries `AF` and `DP` in the INFO column,
+Freebayes carries `AO`, `RO` and `DP`. The default `"auto"` reads the header's
+`##source` line and chooses. `genome` takes the reference sequence as a
 `DNAStringSet`, from which the length of each sequence is recorded in
 `seqlengths()`; a header carrying `##contig` lines records it without help. This
 is why no function below asks you to type a genome length: `calcDiversity()` and
@@ -454,7 +456,7 @@ GenomeInfoDb::seqlengths(whe)
 ```
 
 The object has 20 variant sites and 2 samples. Twenty is the union of the
-positions the two callers reported, not the number of calls: a position reported
+positions the two files reported, not the number of calls: a position reported
 in only one sample still becomes a row, with `NA` in the other column. The
 `qcLog` line reads zero steps, as it must straight after import, and one
 transmission pair has been recognised from the `role` and `pair_id` columns we
@@ -615,8 +617,8 @@ package exists to avoid.
 
 ## Technology-specific defaults
 
-A **technical replicate** aside, the error profile of the sequencing platform is
-the other thing that should set thresholds, and a 3% frequency threshold that is
+Besides replication, the error profile of the sequencing platform is the other
+thing that should set thresholds, and a 3% frequency threshold that is
 reasonable for Illumina is not reasonable for a platform whose per-base error
 rate is 3%. `adaptiveFilter()` returns a filter with thresholds chosen for a
 platform: Illumina, Oxford Nanopore, PacBio HiFi, or a generic fallback. The
@@ -903,13 +905,14 @@ number of sites and with how even the frequencies are. **Nucleotide diversity**,
 written pi, is the expected number of differences per site between two genomes
 drawn at random from the host, with a finite-sample correction for read depth
 following Nei (1987). **Watterson's theta** is a second diversity estimate built
-from the number of segregating sites rather than their frequencies, using the
-sample's median depth as the sample size. That is the sample size the `tajimaD`
-manual page warns against, since reads are not independent lineages and a
-depth-sized n makes this theta too small; the neutrality functions cap n at 100
-instead, so their Watterson estimate is larger than this column and the two are
-not comparable. **Simpson's index** here is the probability that two alleles
-drawn at a site differ, summed over sites. **Chao1** estimates the richness that
+from the number of **segregating sites**, the sites at which more than one
+allele is present, rather than their frequencies, using the sample's median
+depth as the sample size. That is the sample size the `tajimaD` manual page
+warns against, since reads are not independent lineages and a depth-sized n
+makes this theta too small; the neutrality functions cap n at 100 instead, so
+their Watterson estimate is larger than this column and the two are not
+comparable. **Simpson's index** here is the probability that two alleles drawn
+at a site differ, summed over sites. **Chao1** estimates the richness that
 deeper sequencing would have found, from the numbers of sites whose alternative
 allele was seen in exactly one and in exactly two reads; with no doubletons the
 bias-corrected form is used, and without an `altCount` assay it simply equals
@@ -997,11 +1000,12 @@ The coefficient table gives an estimate, a standard error, a t value and a
 p-value per term. The slope on `timepoint` is -0.20 with a standard error of
 0.26, so the data are consistent with no change at all, and the group difference
 of 0.07 is far smaller than its own standard error: six hand-written values
-cannot show a trend, which is the honest reading. The correction then turns four
-raw p-values into adjusted ones, and the two middle values, 0.04 and 0.03, both
-become 0.053 and so cross from one side of the conventional 0.05 to the other.
-Correcting after choosing which tests to report is not enough; the set of tests
-has to be fixed in advance for the adjusted values to mean what they claim.
+cannot show a trend, and the output should be read that way. The correction then
+turns four raw p-values into adjusted ones, and the two middle values, 0.04 and
+0.03, both become 0.053 and so cross from one side of the conventional 0.05 to
+the other. Correcting after choosing which tests to report is not enough; the
+set of tests has to be fixed in advance for the adjusted values to mean what
+they claim.
 
 # Site frequency spectrum
 
@@ -1016,21 +1020,24 @@ building it once and reusing it is both clearer and cheaper than recomputing
 summaries separately.
 
 `buildSFS()` constructs a `WithinHostSFS` object for one sample. Two choices
-define it. The first is folding. A **folded** spectrum bins the minor allele
-frequency, from the detection threshold to 0.5, and so makes no claim about
-which allele is ancestral; an **unfolded** spectrum bins the alternative allele
-frequency from the threshold to 1, and thereby treats the reference allele as
-ancestral at every site. Fold unless you have a reason to believe the reference
-is close to the population the host was infected from. The second choice is the
-detection threshold, which sets where the first bin starts: below it variants
-are unobservable, so starting at zero would invent an empty region of the
-spectrum. The genome length, which only the statistics derived from the spectrum
-need, is read off the object. The threshold is not: `buildSFS()` defaults it to
-0.03 whatever filters were applied, so pass `threshold` yourself to match the
-`detection_limit` that `calcDiversity()` reports. With the Nanopore preset's 10%
-floor, leaving the default would start the spectrum below the lowest frequency
-any call could have. `buildSFSList()` takes the same arguments and returns one
-spectrum per sample, named by `sample_id`.
+define it. The first is folding. A **folded** spectrum bins the **minor allele
+frequency**, the frequency of the less common of a site's two alleles, from the
+detection threshold to 0.5, and so makes no claim about which allele is
+**ancestral**, the one present before the mutation arose, and which is
+**derived**, the one the mutation created; an **unfolded** spectrum bins the
+alternative allele frequency from the threshold to 1, and thereby treats the
+reference allele as ancestral at every site. Fold unless you have a reason to
+believe the reference is close to the population the host was infected from. The
+second choice is the detection threshold, which sets where the first bin starts:
+below it variants are unobservable, so starting at zero would invent an empty
+region of the spectrum. The genome length, which only the statistics derived
+from the spectrum need, is read off the object. The threshold is not:
+`buildSFS()` defaults it to 0.03 whatever filters were applied, so pass
+`threshold` yourself to match the `detection_limit` that `calcDiversity()`
+reports. With the Nanopore preset's 10% floor, leaving the default would start
+the spectrum below the lowest frequency any call could have. `buildSFSList()`
+takes the same arguments and returns one spectrum per sample, named by
+`sample_id`.
 
 ```{r sfs-build}
 sfs_donor <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L)
@@ -1127,13 +1134,14 @@ nothing checks this.
 interpretation: reads are not independent lineages. Deep sequencing samples a
 viral population whose effective size is far smaller than the depth, and using
 raw depth as the sample size inflates the harmonic number in Watterson's
-estimator and biases D upwards. The method therefore caps the effective sample
-size at 100, following Lauring (2020) as the `tajimaD` manual page explains, and
-reports `n_sites`, the number of segregating sites each statistic rests on.
-Below three segregating sites D is a function of one or two frequencies rather
-than of a spectrum, so it is returned as `NA` with a warning. No genome length
-is needed: both statistics use the nucleotide diversity summed over the genome,
-which comes straight from the frequencies.
+estimator and biases D upwards. The method therefore caps the **effective sample
+size**, the number of independently sampled genomes the statistics treat the
+reads as, at 100, following Lauring (2020) as the `tajimaD` manual page
+explains, and reports `n_sites`, the number of segregating sites each statistic
+rests on. Below three segregating sites D is a function of one or two
+frequencies rather than of a spectrum, so it is returned as `NA` with a warning.
+No genome length is needed: both statistics use the nucleotide diversity summed
+over the genome, which comes straight from the frequencies.
 
 ```{r neutrality-tests}
 nt <- calcNeutralityTests(whe_qc)
@@ -1181,7 +1189,7 @@ the frequencies themselves, and it omits the n/(n-1) finite-sample correction
 that the object route applies. The two are not expected to agree to the last
 digit, and neither is more correct than the other. Second, H is positive here
 because nothing in the fixture is a high-frequency derived variant: with the
-reference treated as ancestral, every call lies below 45%, so the high-frequency
+reference treated as ancestral, no call lies above 45%, so the high-frequency
 bins that would pull theta_H above pi are empty. Nothing in these numbers is
 biology.
 
@@ -1499,9 +1507,9 @@ One of the two variants qualifies: the site at position 100 rose from 0.02 to
 is not reported as emerging however much it rose. One row is one *interval*, not
 one variant, so a variant that rises twice appears twice, and the output should
 be read as a list of intervals to inspect. Neither threshold has any statistical
-content: a rise from 2% to 12% at a depth of 50 reads is four reads against six
-and no rise at all, so check the depth of each reported interval before taking
-it seriously.
+content: a rise from 2% to 12% at a depth of 50 reads is one read against six, a
+difference that sampling noise could produce on its own, so check the depth of
+each reported interval before taking it seriously.
 
 ## Flagging temporally inconsistent sites
 
@@ -1645,8 +1653,8 @@ Each point is one site of the pair. Points along the lower axis are the
 donor-only sites counted above, and the five shared sites are those away from
 both axes. Because the sites the recipient did not report have no recorded
 frequency, their position on this figure is an artefact of how absence is drawn,
-not a measurement; the depth split from `calcSharedVariants()` is the honest
-version of the same information.
+not a measurement; the depth split from `calcSharedVariants()` records the same
+information without that artefact.
 
 ## A quality-control dashboard
 
@@ -1663,7 +1671,10 @@ the panels.
 plotQCDashboard(whe_qc)
 ```
 
-The four panels answer the four questions above for this object. What to look
+The four panels answer the four questions above for this object. The donor's one
+flagged call, at a depth of 150 against the `minDepth` of 200, is the low tail
+of the depth panel; the pass rates are 93% for the donor, 14 of its 15 calls,
+and 100% for the recipient, at median depths of 1,600 and 1,950. What to look
 for in your own data is a depth distribution with a long low tail, which tells
 you where to set `minDepth`; a frequency distribution piling up at the detection
 threshold, which suggests the threshold is doing more than removing noise; and
@@ -1687,9 +1698,9 @@ plotSFS(list(donor = sfs_donor, recipient = sfs_recip))
 Each bar is one frequency bin and the colours distinguish the two samples, with
 `normalize = TRUE` switching from counts to proportions when the two differ in
 size. With 14 and 10 variants in 10 bins, most bars stand at one or zero, which
-is the visual form of the warning that `compareSFS()` gave numerically: there is
-no shape here to compare. The palette is the colour-blind-safe set of Wong
-(2011), recycled beyond eight series.
+is the visual form of what `compareSFS()` reported numerically with
+`chisq_approx_ok` of `FALSE`: there is no shape here to compare. The palette is
+the colour-blind-safe set of Wong (2011), recycled beyond eight series.
 
 ## A trajectory
 
@@ -1721,7 +1732,12 @@ transmission pairs in duplicate. The package ships both technical replicates of
 two samples from household HH6 as iVar tables, four of the study's 159 calls,
 and this section uses the first replicate of each. These are real but very
 small, two calls per sample, so they illustrate the workflow rather than
-reproduce the study.
+reproduce the study. The study's repository,
+github.com/lauringlab/SARS-CoV-2_VOC_transmission_bottleneck, states no licence,
+so the four files are reproduced as a short excerpt attributed to the paper and
+to that repository; `inst/scripts/README.md` in the installed package gives
+their provenance, and anyone wanting the data for their own work should take
+them from the source.
 
 One caution about direction. The study's own pair table lists this household in
 both directions, as `HH6_A` and `HH6_B`, so it does not establish who infected
@@ -1800,10 +1816,10 @@ that the units are right, which is the next check.
 
 ## Checking the magnitudes
 
-This is where the plausibility check earns its place. The same function that
-rejected the synthetic fixture's diversity should accept a real estimate from a
-real coronavirus data set, and if it does not, the units or the genome length
-are the first suspects.
+The plausibility check is most useful here. The same function that rejected the
+synthetic fixture's diversity should accept a real estimate from a real
+coronavirus data set, and if it does not, the units or the genome length are the
+first suspects.
 
 ```{r case-plausibility}
 checkDiversityPlausibility(div_sars2, pathogen = "sars_cov_2")
@@ -1855,15 +1871,17 @@ steps on small synthetic fixtures for three further pathogens whose within-host
 diversity differs by orders of magnitude, and check each estimate against its
 own plausibility range. The files are illustrative fixtures, not measurements,
 and the ranges are heuristics, so these sections demonstrate the interface. Each
-file is a table without a reference, so the length of the region it covers is
-recorded on the object before any per-site index is computed.
+file is a table without a reference, so a length is recorded on the object
+before any per-site index is computed: for influenza and HIV the length of the
+segment or window the calls lie on, and for tuberculosis the length of the whole
+genome.
 
 ## Influenza A
 
-Influenza A has a segmented genome, and here one segment, the 1,701-base
-haemagglutinin segment of an H3N2 virus, stands for it. The workflow is
-unchanged: record the length, flag with the Illumina preset, compute diversity,
-check the magnitudes.
+Influenza A has a segmented genome, and here one segment, a 1,701-base
+haemagglutinin (HA) segment, stands for it. The workflow is unchanged: record
+the length, flag with the Illumina preset, compute diversity, check the
+magnitudes.
 
 ```{r pathogen-flu}
 flu_file <- system.file("extdata", "test_influenza_donor.tsv",
@@ -1912,7 +1930,9 @@ deliberately rather than leaving it at its default.
 
 Tuberculosis is the opposite case: a 4.4-megabase genome with very little
 within-host variation, so the per-site diversity is small not because few
-variants were found but because they are divided by a large genome.
+variants were found but because they are divided by a large genome. The fixture
+names its sequence `Rv0001`, and the length recorded under that name is the
+4,411,532 bases of the whole genome.
 
 ```{r pathogen-tb}
 tb_file <- system.file("extdata", "test_tb_sample.tsv",
@@ -2002,9 +2022,18 @@ data and records it.
 **Allele frequency.** The proportion of reads at a site carrying the
 non-reference base.
 
+**Ancestral and derived allele.** At a site that has mutated, the ancestral
+allele is the one present before the mutation and the derived allele the one it
+created; an unfolded spectrum built by this package treats the reference allele
+as ancestral.
+
 **Bottleneck.** The number of viral genomes founding the infection in a
 recipient, written Nb; a small bottleneck loses most of the donor's variation by
 chance.
+
+**Chao1.** An estimate of the richness that deeper sequencing would have found,
+from the number of sites whose alternative allele was seen in exactly one and in
+exactly two reads.
 
 **Consensus sequence.** The reference with each of a sample's substitutions at
 or above a frequency, usually 0.5, written in; it represents the single
@@ -2017,13 +2046,34 @@ kept, below which variants are treated as unobservable.
 between two sequences, usually with a multiple-hit correction; a divergence
 measure, unlike pN/pS.
 
+**Effective sample size.** The number of independently sampled genomes that a
+neutrality statistic treats the reads as, capped at 100 here because reads are
+not independent lineages.
+
+**Fay and Wu's H.** The difference between nucleotide diversity and an estimator
+weighting high-frequency derived variants; negative under an excess of such
+variants, as after a selective sweep.
+
 **Folded and unfolded spectrum.** A folded site frequency spectrum bins the
 minor allele frequency from the threshold to 0.5 and claims nothing about
 ancestry; an unfolded one bins the alternative allele frequency from the
 threshold to 1 and treats the reference allele as ancestral.
 
+**Fu's Fs.** A neutrality statistic sensitive to an excess of rare alleles,
+defined on the number of distinct haplotypes, which this package takes to be one
+more than the number of segregating sites.
+
+**Haplotype.** The full sequence of one genome, as opposed to the per-site calls
+this package works with.
+
 **iSNV.** Intra-host single nucleotide variant: a single-base difference
 segregating within one host's pathogen population.
+
+**Jaccard index.** For two sets of sites, the number shared over the number in
+their union.
+
+**Minor allele frequency.** The frequency of the less common of a site's two
+alleles, at most 0.5.
 
 **Nucleotide diversity (pi).** The expected number of differences per site
 between two genomes drawn at random from the host.
@@ -2039,9 +2089,17 @@ quality-control step; the call is retained and marked, never deleted.
 
 **Read depth.** The number of reads covering a site in a sample.
 
+**Richness.** The number of iSNV sites in a sample that passed quality control.
+
+**Segregating site.** A site at which more than one allele is present in the
+sample.
+
 **Shannon entropy.** A measure of how uncertain the allele carried by a randomly
 chosen read is, summed over sites, so it rises with both the number and the
 evenness of variants.
+
+**Simpson's index.** Here, the probability that two alleles drawn at a site
+differ, summed over sites.
 
 **Site frequency spectrum.** The distribution of allele frequencies across a
 sample's variant sites, from which the neutrality statistics are computed.
@@ -2064,6 +2122,9 @@ to distinguish genuine low-frequency variants from artefacts.
 **Transmission pair.** Two samples from different hosts, one believed to have
 infected the other, declared with the `role` and `pair_id` columns of
 `colData()`.
+
+**Watterson's theta.** A diversity estimate from the number of segregating sites
+rather than their frequencies.
 
 # References
 

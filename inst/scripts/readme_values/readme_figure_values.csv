@@ -53,6 +53,8 @@
 "fig5","b","pooled synonymous iSNVs","49"
 "fig5","b","pooled nonsynonymous iSNVs","50"
 "fig5","b","pooled pN/pS","0.286736973470014"
+"fig5","b","synonymous sites (Nei-Gojobori)","6415"
+"fig5","b","nonsynonymous sites (Nei-Gojobori)","22829"
 "fig5","b","concordant iSNVs outside CDS or unannotated","7"
 "fig5","b","pN/pS E (0N/1S)","0"
 "fig5","b","pN/pS N (7N/4S)","0.520123839009288"

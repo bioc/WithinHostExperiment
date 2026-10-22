@@ -555,7 +555,7 @@ p5a <- ggplot(taj_qc, aes(x = D_qc)) +
 cds_records <- gff_features[gff_features$type == "CDS"]
 ref_dna <- Biostrings::readDNAStringSet(inputs[["fasta"]])
 names(ref_dna) <- SEQNAME
-dnds <- as.data.frame(withCallingHandlers(
+pnps <- as.data.frame(withCallingHandlers(
     pNpSWithinHost(whe_conc, cds_records, ref_dna, usePassedOnly = FALSE),
     warning = function(w) {
         if (grepl("Coding sequences of different transcripts overlap",
@@ -564,27 +564,31 @@ dnds <- as.data.frame(withCallingHandlers(
             invokeRestart("muffleWarning")
         }
     }))
-record("fig5", "b", "pooled synonymous iSNVs", dnds$nS[1])
-record("fig5", "b", "pooled nonsynonymous iSNVs", dnds$nN[1])
-record("fig5", "b", "pooled pN/pS", dnds$pNpS[1])
-record("fig5", "b", "concordant iSNVs outside CDS or unannotated", nrow(concordant) - dnds$nS[1] - dnds$nN[1])
-gene_dnds <- dnds[!is.na(dnds$gene), ]
-for (i in seq_len(nrow(gene_dnds))) {
-    record("fig5", "b", paste0("pN/pS ", gene_dnds$gene[i], " (", gene_dnds$gene_nN[i], "N/", gene_dnds$gene_nS[i], "S)"),
-           gene_dnds$gene_pNpS[i])
+record("fig5", "b", "pooled synonymous iSNVs", pnps$nS[1])
+record("fig5", "b", "pooled nonsynonymous iSNVs", pnps$nN[1])
+record("fig5", "b", "pooled pN/pS", pnps$pNpS[1])
+## the Nei-Gojobori site totals the ratio divides by, kept as a regression
+## value: 3 x 9748 distinct sense codons of NC_045512.2
+record("fig5", "b", "synonymous sites (Nei-Gojobori)", pnps$S_sites[1])
+record("fig5", "b", "nonsynonymous sites (Nei-Gojobori)", pnps$N_sites[1])
+record("fig5", "b", "concordant iSNVs outside CDS or unannotated", nrow(concordant) - pnps$nS[1] - pnps$nN[1])
+gene_pnps <- pnps[!is.na(pnps$gene), ]
+for (i in seq_len(nrow(gene_pnps))) {
+    record("fig5", "b", paste0("pN/pS ", gene_pnps$gene[i], " (", gene_pnps$gene_nN[i], "N/", gene_pnps$gene_nS[i], "S)"),
+           gene_pnps$gene_pNpS[i])
 }
 ## A gene with no synonymous call has no ratio at all; drawing it at zero would
 ## put it where the strongest purifying selection sits, so such genes are left
 ## out of the panel and counted instead.
-n_genes_any <- nrow(gene_dnds)
-gene_dnds <- gene_dnds[gene_dnds$gene_nS + gene_dnds$gene_nN >= 2L &
-                           !is.na(gene_dnds$gene_pNpS), ]
-record("fig5", "b", "genes shown", nrow(gene_dnds))
+n_genes_any <- nrow(gene_pnps)
+gene_pnps <- gene_pnps[gene_pnps$gene_nS + gene_pnps$gene_nN >= 2L &
+                           !is.na(gene_pnps$gene_pNpS), ]
+record("fig5", "b", "genes shown", nrow(gene_pnps))
 record("fig5", "b", "genes omitted (one call or no synonymous call)",
-       n_genes_any - nrow(gene_dnds))
-gene_dnds <- gene_dnds[order(gene_dnds$gene_nS + gene_dnds$gene_nN, decreasing = TRUE), ]
-gene_dnds$gene <- factor(gene_dnds$gene, levels = rev(gene_dnds$gene))
-p5b <- ggplot(gene_dnds, aes(y = gene, x = gene_pNpS)) +
+       n_genes_any - nrow(gene_pnps))
+gene_pnps <- gene_pnps[order(gene_pnps$gene_nS + gene_pnps$gene_nN, decreasing = TRUE), ]
+gene_pnps$gene <- factor(gene_pnps$gene, levels = rev(gene_pnps$gene))
+p5b <- ggplot(gene_pnps, aes(y = gene, x = gene_pNpS)) +
     geom_col(width = 0.6, alpha = 0.90, fill = pal$vermillion) +
     geom_vline(xintercept = 1, linetype = "dashed", colour = pal$grey, linewidth = 0.5) +
     geom_text(aes(label = sprintf("%.2f (%dN/%dS)", gene_pNpS, gene_nN, gene_nS)),

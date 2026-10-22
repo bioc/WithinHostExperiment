@@ -376,7 +376,8 @@ Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
 - Tajima F (1989) Statistical method for testing the neutral mutation
   hypothesis by DNA polymorphism. *Genetics* 123:585-595.
 - Fu YX (1997) Statistical tests of neutrality of mutations against
-  population growth. *Genetics* 147:915-925.
+  population growth, hitchhiking and background selection. *Genetics*
+  147:915-925.
 - Nei M, Gojobori T (1986) Simple methods for estimating the numbers
   of synonymous and nonsynonymous substitutions. *Mol. Biol. Evol.*
   3:418-426.

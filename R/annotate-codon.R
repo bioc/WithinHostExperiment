@@ -367,9 +367,14 @@ NULL
     rank <- stats::ave(seq_along(tx_index), tx_index, FUN = seq_along)
 
     if ("phase" %in% colnames(mcols(parts))) {
-        phase <- suppressWarnings(as.integer(mcols(parts)$phase))
-        if (any(!is.na(phase) & !phase %in% 0:2))
+        ## a GFF3 phase is 0, 1, 2 or missing; rtracklayer gives an
+        ## integer column, other readers may give text
+        raw_phase <- as.character(mcols(parts)$phase)
+        known <- !is.na(raw_phase) & raw_phase != "."
+        if (any(known & !raw_phase %in% c("0", "1", "2")))
             stop("GFF3 phase must be 0, 1 or 2.")
+        phase <- ifelse(known, match(raw_phase, c("0", "1", "2")) - 1L,
+                        NA_integer_)
         first_phase <- rank == 1L & !is.na(phase) & phase > 0L
         if (any(first_phase)) {
             k <- which(first_phase)

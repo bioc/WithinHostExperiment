@@ -246,8 +246,17 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
     v <- if (length(dim(m)) == 3L) m[, j, 1L] else m[, j]
     if (is.list(v))
         v <- vapply(v, function(z)
-            if (length(z)) as.numeric(z[[1L]]) else NA_real_, numeric(1))
-    suppressWarnings(as.numeric(v))
+            if (length(z)) as.character(z[[1L]]) else NA_character_,
+            character(1))
+    if (is.numeric(v)) return(as.numeric(v))
+    ## a missing value is "." in a VCF; anything else that is not a
+    ## number is NA as well
+    v <- as.character(v)
+    number <- "^[-+]?([0-9]+\\.?[0-9]*|\\.[0-9]+)([eE][-+]?[0-9]+)?$"
+    numeric_text <- grepl(number, v)
+    out <- rep(NA_real_, length(v))
+    out[numeric_text] <- as.numeric(v[numeric_text])
+    out
 }
 
 ## Per-sample site tables in the layout .mergeToWHE() takes: one element

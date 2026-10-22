@@ -3,59 +3,144 @@ template:
   bootstrap: 5
 
 reference:
-  - title: "Data Classes"
-    desc: "S4 classes for within-host viral variant data"
+  - title: "Package"
+    contents:
+      - WithinHostExperiment-package
+
+  - title: "Classes"
+    desc: >
+      The container for within-host variant calls, the filter that QC
+      applies to it, and the site frequency spectrum built from it.
     contents:
       - WithinHostExperiment-class
       - ISNVFilter-class
+      - WithinHostSFS-class
 
-  - title: "Data Import"
-    desc: "Read and construct WithinHostExperiment objects"
+  - title: "Import and conversion"
+    desc: >
+      Build the container from VCF files, variant tables or Bioconductor
+      objects, combine objects, and convert back.
     contents:
       - WithinHostExperiment
       - readWithinHost
       - readWithinHostTable
-      - combineCols
-      - combineRows
+      - coerce-WHE
+      - WHE-combine
+      - example_whe
 
-  - title: "Quality Control"
-    desc: "Filter and flag low-quality variants"
+  - title: "Accessors"
+    desc: >
+      The QC audit log, the filters applied, the calls that passed, and
+      the transmission pairs described by the sample metadata.
+    contents:
+      - qcLog
+
+  - title: "Quality control"
+    desc: >
+      Flag, without deleting, calls that fail depth, frequency, strand,
+      primer, replicate or temporal criteria.
     contents:
       - ISNVFilter
+      - adaptiveFilter
       - flagISNV
       - flagPrimerSites
       - flagReplicateDiscordance
-      - passedISNV
-      - qcFilters
-      - "qcFilters<-"
-      - qcLog
-      - "qcLog<-"
+      - flagTemporalInconsistency
+      - sciStrandBias
+      - flagStrandBiasSCI
+      - detectCrossContamination
       - qcSummary
 
-  - title: "Diversity Estimation"
-    desc: "Within-host genetic diversity metrics"
+  - title: "Annotation"
+    desc: >
+      Label sites with genes and with the codon and amino acid change
+      each substitution makes.
+    contents:
+      - annotateGenes
+      - annotateCodonChange
+
+  - title: "Diversity"
+    desc: >
+      Per-sample diversity indices, their comparison between groups, a
+      plausibility check, and a model of diversity against covariates.
     contents:
       - calcDiversity
       - compareDiversity
+      - checkDiversityPlausibility
       - shannonISNV
-      - wattersonISNV
       - piISNV
+      - wattersonISNV
+      - simpsonISNV
+      - chao1ISNV
+      - fitDiversityModel
 
-  - title: "Transmission Analysis"
-    desc: "Bottleneck estimation and transmission pair analysis"
+  - title: "Site frequency spectrum"
+    desc: >
+      Bin allele frequencies into a spectrum, correct it for the
+      detection threshold, compare spectra and plot them.
     contents:
-      - transmissionPairs
+      - buildSFS
+      - buildSFSList
+      - correctSFSBias
+      - compareSFS
+      - neutralityFromSFS
+      - plotSFS
+
+  - title: "Neutrality and selection"
+    desc: >
+      Tajima's D and Fu's Fs, the within-host pN/pS ratio, consensus
+      sequences for between-host dN/dS, and selection coefficients from
+      frequency change.
+    contents:
+      - calcNeutralityTests
+      - tajimaD
+      - fusFs
+      - pNpSWithinHost
+      - consensusSequences
+      - estimateSelectionCoefficient
+
+  - title: "Transmission"
+    desc: >
+      Shared and private variants of a donor-recipient pair, bottleneck
+      size estimates, and exports for other bottleneck tools.
+    contents:
       - calcSharedVariants
       - quickBottleneck
-      - asViralBottleneckInput
+      - exactBottleneck
       - exportPairFrequencies
+      - asViralBottleneckInput
 
-  - title: "Visualization"
+  - title: "Longitudinal"
+    desc: >
+      Follow variant frequencies through the samples of one host over
+      time.
+    contents:
+      - trackFrequency
+      - detectEmergingVariants
+      - plotFrequencyTrajectory
+
+  - title: "Multi-caller"
+    desc: >
+      Combine and compare the calls of several variant callers on the
+      same samples.
+    contents:
+      - consensusISNV
+      - calcCallerConcordance
+      - benchmarkCallers
+
+  - title: "Statistics"
+    desc: >
+      Permutation tests and multiple-testing correction for the summaries
+      above.
+    contents:
+      - permutationTest
+      - multitestCorrection
+
+  - title: "Visualisation"
+    desc: >
+      Frequency spectra, donor-recipient scatter plots and a QC
+      dashboard.
     contents:
       - plotFrequencySpectrum
       - plotPairScatter
       - plotQCDashboard
-
-  - title: "Other"
-    contents:
-      - matches(".")

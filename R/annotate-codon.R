@@ -9,6 +9,7 @@
 #' @importClassesFrom Biostrings DNAStringSet XString
 #' @importFrom BiocGenerics strand
 #' @importFrom GenomeInfoDb seqlevelsInUse seqlengths seqlengths<- seqnames
+#'   seqlevels seqlevels<-
 #' @importFrom GenomicRanges GRanges granges
 #' @importFrom IRanges IRanges CharacterList IntegerList width start end
 #'   start<- end<-
@@ -38,12 +39,17 @@ NULL
 }
 
 ## Record the length of each reference sequence in seqlengths(rr), for
-## seqlevels that have none. A recorded length that disagrees with the
-## reference is an error: the variants were called against something else.
+## seqlevels that have none, and add the reference sequences that carry no
+## call as seqlevels, since the genome length sums over every sequence. A
+## recorded length that disagrees with the reference is an error: the
+## variants were called against something else.
 .fillSeqlengths <- function(rr, ref) {
-    known <- seqlengths(rr)
     lens <- width(ref)
     names(lens) <- names(ref)
+    extra <- setdiff(names(lens), seqlevels(rr))
+    if (length(extra))
+        seqlevels(rr) <- c(seqlevels(rr), extra)
+    known <- seqlengths(rr)
     shared <- intersect(names(known), names(lens))
     clash <- shared[!is.na(known[shared]) & known[shared] != lens[shared]]
     if (length(clash))

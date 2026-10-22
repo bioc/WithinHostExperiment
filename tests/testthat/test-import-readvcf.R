@@ -108,6 +108,36 @@ test_that("a call sequence the genome does not name is left without a length", {
     expect_error(calcDiversity(whe, indices = "pi"), "not recorded for segB")
 })
 
+test_that("every recorded sequence is kept, with a call or without (was: only those with calls)", {
+    ## two segments, calls on the first only
+    f <- vcf_file(c("##fileformat=VCFv4.2",
+        "##contig=<ID=segA,length=1000>",
+        "##contig=<ID=segB,length=9000>",
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+        "##INFO=<ID=AF,Number=A,Type=Float,Description=\"AF\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+        "segA\t100\t.\tA\tG\t100\tPASS\tDP=1000;AF=0.1"))
+    cd <- S4Vectors::DataFrame(sample_id = "d")
+    whe <- readWithinHost(f, colData = cd, caller = "lofreq")
+    expect_identical(GenomeInfoDb::seqlengths(whe),
+                     c(segA = 1000L, segB = 9000L))
+    ## so pi divides by the whole genome, as the VRanges route does
+    expect_equal(calcDiversity(whe, indices = "pi")$pi,
+                 piISNV(0.1, genomeLength = 10000, meanDepth = 1000))
+    ## a genome sequence without a call is recorded too
+    f1 <- vcf_file(c("##fileformat=VCFv4.2",
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+        "##INFO=<ID=AF,Number=A,Type=Float,Description=\"AF\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+        "segA\t100\t.\tA\tG\t100\tPASS\tDP=1000;AF=0.1"))
+    genome <- Biostrings::DNAStringSet(c(segA = strrep("A", 1000),
+                                         segB = strrep("C", 9000)))
+    whe_g <- readWithinHost(f1, colData = cd, caller = "lofreq",
+                            genome = genome)
+    expect_identical(GenomeInfoDb::seqlengths(whe_g),
+                     c(segA = 1000L, segB = 9000L))
+})
+
 test_that("a file with more than one sample is refused, the object is not", {
     f <- vcf_file(c("##fileformat=VCFv4.2",
         "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",

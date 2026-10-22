@@ -66,7 +66,7 @@ cycle.
   stops the import, since `readVcf()` would give every allele the first
   allele's value. `genome` takes a `DNAStringSet`, not a file path; its
   lengths, or those of `##contig` header lines, are recorded in
-  `seqlengths()`. A `genome` that names none of the sequences the calls
+  `seqlengths()` for every sequence named, with a call or without. A `genome` that names none of the sequences the calls
   lie on, or is shorter than a called position, is an error, since every
   per-site statistic would divide by its length. A file holding more than one sample is refused;
   `as(vcf, "WithinHostExperiment")` converts a `VCF` object with all of

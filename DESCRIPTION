@@ -41,7 +41,7 @@ Suggests:
     txdbmaker,
     MSA2dist
 biocViews: Genetics, VariantAnnotation, Sequencing, GenomicVariation,
-    QualityControl, VariantDetection, DataImport, LongRead
+    QualityControl, VariantDetection, DataImport
 URL: https://github.com/CuiweiG/WithinHostExperiment
 BugReports: https://github.com/CuiweiG/WithinHostExperiment/issues
 Encoding: UTF-8

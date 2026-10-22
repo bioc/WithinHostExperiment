@@ -46,7 +46,6 @@ URL: https://github.com/CuiweiG/WithinHostExperiment
 BugReports: https://github.com/CuiweiG/WithinHostExperiment/issues
 Encoding: UTF-8
 LazyData: false
-RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Collate:
@@ -60,6 +59,7 @@ Collate:
     'bridge.R'
     'bottleneck-exact.R'
     'bottleneck-quick.R'
+    'consensus-sequences.R'
     'consensus.R'
     'contamination.R'
     'data.R'
@@ -78,3 +78,4 @@ Collate:
     'validation.R'
     'visualization.R'
     'zzz.R'
+Config/roxygen2/version: 8.1.1

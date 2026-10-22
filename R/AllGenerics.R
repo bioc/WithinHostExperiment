@@ -146,3 +146,8 @@ setGeneric("annotateCodonChange", function(x, cds, ref, ...)
 #' @rdname pNpSWithinHost
 setGeneric("pNpSWithinHost", function(x, cds, ref, ...)
     standardGeneric("pNpSWithinHost"))
+
+#' @export
+#' @rdname consensusSequences
+setGeneric("consensusSequences", function(x, ref, ...)
+    standardGeneric("consensusSequences"))

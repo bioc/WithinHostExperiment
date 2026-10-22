@@ -117,7 +117,11 @@
   them itself and applied a Jukes-Cantor correction; a multiple-hit
   correction belongs to divergence between sequences, not to
   polymorphism within a host, and is no longer applied.
-  `estimateSelectionCoefficient()`
+  `consensusSequences()` writes each sample's substitutions at or
+  above a frequency into the reference and returns the sequences as a
+  `DNAStringSet`, so dN/dS between hosts can be estimated with the
+  models of `MSA2dist::dnastring2kaks()` rather than reimplemented
+  here. `estimateSelectionCoefficient()`
   for time-series selection coefficient inference.
 * Multi-caller consensus: `consensusISNV()` for deriving consensus
   variant calls across callers, `calcCallerConcordance()` for

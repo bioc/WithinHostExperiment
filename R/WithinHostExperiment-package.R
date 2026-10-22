@@ -61,6 +61,9 @@
 #'   }
 #'   \item{Selection analysis}{
 #'     \code{\link{pNpSWithinHost}} (within-host pN/pS),
+#'     \code{\link{consensusSequences}} (per-sample consensus
+#'     sequences as a \code{DNAStringSet}, for dN/dS between hosts with
+#'     \pkg{MSA2dist}),
 #'     \code{\link{estimateSelectionCoefficient}}
 #'   }
 #'   \item{Multi-caller consensus}{

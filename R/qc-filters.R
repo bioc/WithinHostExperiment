@@ -296,8 +296,10 @@ flagPrimerSites <- function(whe, primers, action = c("flag", "remove")) {
         stop("'primers' must be a GRanges object.")
 
     ## A naming mismatch between primers and sites would flag nothing
-    ## and look like a clean result
-    .checkSeqlevels(rowRanges(whe), primers, "primers", effect = "flagged")
+    ## and look like a clean result; an empty primer set is not one
+    if (length(primers))
+        .checkSeqlevels(rowRanges(whe), primers, "primers",
+                        effect = "flagged")
 
     ## Find variant sites overlapping primers
     hits <- findOverlaps(rowRanges(whe), primers)

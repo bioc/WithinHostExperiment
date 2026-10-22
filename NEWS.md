@@ -28,7 +28,9 @@ cycle.
   `REFCODON`, `VARCODON`, `REFAA` and `VARAA` replace `GFF_FEATURE`,
   `REF_CODON`, `ALT_CODON`, `REF_AA`, `ALT_AA` and `AA_CLASS`. A site in
   several overlapping coding sequences is resolved by `collapse`, the
-  longest transcript by default. Three classifications change with the
+  longest transcript by default; a nucleotide that one transcript reads
+  twice, at a -1 ribosomal frameshift, keeps its first reading, and a
+  message says so. Three classifications change with the
   delegation: losing a stop codon is nonsynonymous rather than nonsense,
   an alternative start codon (`CTG` or `TTG`) at the first base of a
   coding sequence reads as `M`, and a codon holding an ambiguous base is

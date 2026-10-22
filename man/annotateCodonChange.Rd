@@ -162,6 +162,15 @@ more than one transcript and at how many of them the consequence
 differed between transcripts. With \code{collapse = "all"} every row
 is kept: each column becomes a \code{CharacterList} or
 \code{IntegerList} with one element per transcript.
+
+A nucleotide that one transcript reads twice, the nucleotide shared by
+the two parts of a CDS split across a -1 ribosomal frameshift (SARS-CoV-2
+ORF1ab at 13468), gives that transcript two rows, one for each reading.
+With \code{collapse = "longest"} the first reading, at the lower CDS
+position, is kept, and a message says how many sites this affected and
+at how many the two readings differ in consequence;
+\code{collapse = "all"} keeps both. \code{\link{pNpSWithinHost}} counts
+such a site by its first reading.
 }
 \examples{
 ## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA

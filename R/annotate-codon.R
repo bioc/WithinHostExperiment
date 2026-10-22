@@ -181,6 +181,15 @@ NULL
 #' is kept: each column becomes a \code{CharacterList} or
 #' \code{IntegerList} with one element per transcript.
 #'
+#' A nucleotide that one transcript reads twice, the nucleotide shared by
+#' the two parts of a CDS split across a -1 ribosomal frameshift (SARS-CoV-2
+#' ORF1ab at 13468), gives that transcript two rows, one for each reading.
+#' With \code{collapse = "longest"} the first reading, at the lower CDS
+#' position, is kept, and a message says how many sites this affected and
+#' at how many the two readings differ in consequence;
+#' \code{collapse = "all"} keeps both. \code{\link{pNpSWithinHost}} counts
+#' such a site by its first reading.
+#'
 #' @param x A \code{\link{WithinHostExperiment}} with \code{ref} and
 #'   \code{alt} columns in \code{mcols(rowRanges(x))}.
 #' @param cds The coding sequences: a \code{TxDb}; a \code{GRanges} of
@@ -531,17 +540,24 @@ setMethod("annotateCodonChange",
                     REFAA = chr(pc$REFAA),
                     VARAA = chr(pc$VARAA))
                 tx_len <- sum(width(cds_by_tx))[txid]
-                o <- order(site, -tx_len, as.integer(txid))
+                ## the first row of a site is the one "longest" keeps: the
+                ## longest transcript and, where that transcript reads the
+                ## nucleotide twice, its first reading
+                o <- order(site, -tx_len, as.integer(txid), cols$CDSLOC)
                 site <- site[o]
                 cols <- lapply(cols, `[`, o)
             }
         }
 
         if (collapse == "longest") {
-            multi <- tabulate(site, nbins = n) > 1L
+            ## one row per site and transcript: its first reading
+            tx_key <- paste(site, cols$TXNAME, sep = "\r")
+            first_tx <- !duplicated(tx_key)
+            multi <- tabulate(site[first_tx], nbins = n) > 1L
             if (any(multi)) {
-                by_site <- split(cols$CONSEQUENCE,
-                                 factor(site, levels = seq_len(n)))[multi]
+                by_site <- split(cols$CONSEQUENCE[first_tx],
+                                 factor(site[first_tx],
+                                        levels = seq_len(n)))[multi]
                 differ <- vapply(by_site, function(z) length(unique(z)) > 1L,
                                  logical(1))
                 message(sum(multi), " site(s) fall in more than one ",
@@ -551,6 +567,22 @@ setMethod("annotateCodonChange",
                         "transcript.")
             }
             keep <- !duplicated(site)
+            ## a nucleotide the kept transcript reads twice
+            kept_rows <- tx_key %in% tx_key[keep]
+            readings <- split(cols$CONSEQUENCE[kept_rows],
+                              factor(site[kept_rows], levels = seq_len(n)))
+            twice <- lengths(readings) > 1L
+            if (any(twice)) {
+                differ <- vapply(readings[twice],
+                                 function(z) length(unique(z)) > 1L,
+                                 logical(1))
+                message(sum(twice), " site(s) lie on a nucleotide that the ",
+                        "kept transcript reads twice, as at a -1 ribosomal ",
+                        "frameshift; the first reading was kept. The ",
+                        "consequence differs between the two readings at ",
+                        sum(differ), " of them. Use collapse = \"all\" to ",
+                        "keep both.")
+            }
             out <- lapply(cols, function(v) {
                 filled <- rep(v[0L][NA_integer_], n)
                 filled[site[keep]] <- v[keep]

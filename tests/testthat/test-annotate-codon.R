@@ -180,6 +180,30 @@ test_that("annotateCodonChange joins the parts of a frameshifted CDS", {
     expect_identical(mc$REFCODON, substr(joined, 31, 33))
 })
 
+test_that("a nucleotide read twice by one transcript keeps its first reading (was: row order, reported as two transcripts)", {
+    skip_if_not_installed("txdbmaker")
+    ## parts 1-30 and 30-59 share nucleotide 30, which tx1 reads as the
+    ## third base of codon 10 and the first base of codon 11
+    ref <- Biostrings::DNAStringSet(c(seg1 = codon_seq20))
+    cds <- cds_gr(c(1, 30), c(30, 59), ID = "tx1", gene = "g1",
+                  phase = c(0L, 0L))
+    whe <- codon_whe(30, substr(codon_seq20, 30, 30), "C")
+    msgs <- character()
+    out <- withCallingHandlers(annotateCodonChange(whe, cds, ref),
+        message = function(m) {
+            msgs <<- c(msgs, conditionMessage(m))
+            invokeRestart("muffleMessage")
+        })
+    expect_false(any(grepl("more than one transcript", msgs)))
+    expect_true(any(grepl("1 site\\(s\\) lie on a nucleotide that the kept transcript reads twice",
+                          msgs)))
+    all <- codon_mc(annotateCodonChange(whe, cds, ref, collapse = "all"))
+    expect_identical(as.list(all$CDSLOC), list(c(30L, 31L)))
+    mc <- codon_mc(out)
+    expect_identical(mc$CDSLOC, 30L)
+    expect_identical(mc$CONSEQUENCE, as.list(all$CONSEQUENCE)[[1L]][1L])
+})
+
 test_that("annotateCodonChange keeps the longest transcript by default", {
     skip_if_not_installed("txdbmaker")
     ref <- Biostrings::DNAStringSet(c(seg1 = codon_seq20))

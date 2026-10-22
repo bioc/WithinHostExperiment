@@ -72,3 +72,42 @@ test_that("coerce multi-sample WHE to VRanges preserves sample names", {
     expect_true(all(c("D", "R") %in% sampleNames(vr)))
     expect_equal(length(vr), 25L)
 })
+
+test_that("VRanges coercion keeps every recorded sequence (was: lengths dropped)", {
+    gr <- GRanges(c("seg1", "seg1"), IRanges::IRanges(c(10, 20), width = 1),
+                  ref = c("A", "C"), alt = c("G", "T"))
+    GenomeInfoDb::seqlevels(gr) <- c("seg1", "seg2")
+    GenomeInfoDb::seqlengths(gr) <- c(seg1 = 600L, seg2 = 400L)
+    freq <- matrix(c(0.2, 0.3, 0.1, NA), ncol = 2,
+                   dimnames = list(NULL, c("a", "b")))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq,
+                      totalDepth = matrix(1000L, 2, 2, dimnames = dimnames(freq)),
+                      altCount = matrix(c(200L, 300L, 100L, NA), 2, 2,
+                                        dimnames = dimnames(freq))),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = c("a", "b"), row.names = c("a", "b")))
+    vr <- as(whe, "VRanges")
+    expect_identical(GenomeInfoDb::seqlengths(vr), c(seg1 = 600L, seg2 = 400L))
+    back <- as(vr, "WithinHostExperiment")
+    expect_identical(GenomeInfoDb::seqlengths(back),
+                     c(seg1 = 600L, seg2 = 400L))
+    ## so the genome length, and pi, survive the round trip
+    expect_equal(calcDiversity(back, indices = "pi")$pi,
+                 calcDiversity(whe, indices = "pi")$pi)
+})
+
+test_that("VRanges coercion accepts a sequence name holding ':' (was: split on it)", {
+    vr <- VariantAnnotation::VRanges(
+        seqnames = c("chr:A", "chr:A"),
+        ranges = IRanges::IRanges(c(10, 20), width = 1),
+        ref = c("A", "C"), alt = c("G", "T"),
+        totalDepth = c(1000L, 1000L), altDepth = c(100L, 200L),
+        refDepth = c(900L, 800L), sampleNames = c("s1", "s1"))
+    whe <- as(vr, "WithinHostExperiment")
+    rr <- SummarizedExperiment::rowRanges(whe)
+    expect_identical(as.character(GenomeInfoDb::seqnames(rr)),
+                     c("chr:A", "chr:A"))
+    expect_identical(BiocGenerics::start(rr), c(10L, 20L))
+    expect_identical(mcols(rr)$alt, c("G", "T"))
+})

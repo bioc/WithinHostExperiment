@@ -534,8 +534,12 @@ setMethod("combineCols", "WithinHostExperiment",
 #' \code{as(vcf, "WithinHostExperiment")} from a VCF read with
 #' \code{VariantAnnotation::readVcf()}, choosing the field layout from
 #' the header as \code{\link{readWithinHost}(caller = "auto")} does and
-#' taking every sample the file holds. Both keep the sequence lengths
-#' the input records.
+#' taking every sample the file holds. Coercion to and from a
+#' \code{VRanges} keeps the whole \code{seqinfo}: every recorded sequence
+#' and its length, including sequences without a call, since the genome
+#' length that \code{\link{calcDiversity}} divides by sums over all of
+#' them. The VCF coercion keeps the lengths of the file's \code{##contig}
+#' lines.
 #'
 #' @name coerce-WHE
 #' @rdname coerce-WHE
@@ -659,8 +663,9 @@ setAs("WithinHostExperiment", "VRanges", function(from) {
 
     keep <- !is.na(all_freq)
 
-    VRanges(
-        seqnames    = all_seqnames[keep],
+    vr <- VRanges(
+        seqnames    = factor(all_seqnames[keep],
+                             levels = GenomeInfoDb::seqlevels(rr)),
         ranges      = IRanges(all_start[keep], width = 1L),
         ref         = all_ref[keep],
         alt         = all_alt[keep],
@@ -669,6 +674,10 @@ setAs("WithinHostExperiment", "VRanges", function(from) {
         refDepth    = all_refDepth[keep],
         sampleNames = all_sampleNames[keep]
     )
+    ## keep every recorded sequence and its length, including those
+    ## without a call, since the genome length sums over all of them
+    GenomeInfoDb::seqinfo(vr) <- GenomeInfoDb::seqinfo(rr)
+    vr
 })
 
 
@@ -693,25 +702,18 @@ setAs("VRanges", "WithinHostExperiment", function(from) {
     unique_sites <- unique(site_key)
     n_sites <- length(unique_sites)
 
-    ## Build GRanges for unique sites
-    site_parts <- strsplit(unique_sites, ":")
+    ## One range per site, taken from its first record rather than parsed
+    ## back out of the key, so a sequence name may contain ':'. The whole
+    ## seqinfo is kept: every recorded sequence and its length.
+    first <- match(unique_sites, site_key)
     gr <- GRanges(
-        seqnames = vapply(site_parts, `[`, character(1), 1L),
-        ranges = IRanges(
-            as.integer(vapply(site_parts, `[`, character(1), 2L)),
-            width = 1L)
+        seqnames = factor(chrom_vec[first],
+                          levels = GenomeInfoDb::seqlevels(from)),
+        ranges = IRanges(start_vec[first], width = 1L),
+        seqinfo = GenomeInfoDb::seqinfo(from)
     )
-    mcols(gr)$ref <- vapply(site_parts, `[`, character(1), 3L)
-    mcols(gr)$alt <- vapply(site_parts, `[`, character(1), 4L)
-    ## keep the sequence lengths the VRanges records
-    lens <- GenomeInfoDb::seqlengths(from)
-    known <- lens[intersect(names(lens), GenomeInfoDb::seqlevels(gr))]
-    known <- known[!is.na(known)]
-    if (length(known)) {
-        gr_lens <- GenomeInfoDb::seqlengths(gr)
-        gr_lens[names(known)] <- known
-        GenomeInfoDb::seqlengths(gr) <- gr_lens
-    }
+    mcols(gr)$ref <- ref_vec[first]
+    mcols(gr)$alt <- alt_vec[first]
 
     ## Initialize matrices
     alt_dp_mat <- matrix(NA_integer_, nrow = n_sites,

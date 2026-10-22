@@ -22,8 +22,12 @@ observed frequency; \code{as(x, "VRanges")} gives the same rows as a
 \code{as(vcf, "WithinHostExperiment")} from a VCF read with
 \code{VariantAnnotation::readVcf()}, choosing the field layout from
 the header as \code{\link{readWithinHost}(caller = "auto")} does and
-taking every sample the file holds. Both keep the sequence lengths
-the input records.
+taking every sample the file holds. Coercion to and from a
+\code{VRanges} keeps the whole \code{seqinfo}: every recorded sequence
+and its length, including sequences without a call, since the genome
+length that \code{\link{calcDiversity}} divides by sums over all of
+them. The VCF coercion keeps the lengths of the file's \code{##contig}
+lines.
 }
 \examples{
 data(example_whe)

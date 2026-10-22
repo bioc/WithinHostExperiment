@@ -63,8 +63,9 @@ cycle.
   lie on, or is shorter than a called position, is an error, since every
   per-site statistic would divide by its length. A file holding more than one sample is refused;
   `as(vcf, "WithinHostExperiment")` converts a `VCF` object with all of
-  its samples, and `as(vr, "WithinHostExperiment")` keeps a `VRanges`'
-  sequence lengths.
+  its samples. Coercion to and from `VRanges` keeps every recorded
+  sequence and its length, so the genome length survives a round trip,
+  and a sequence name may contain ':', which it used to be split on.
 * `calcDiversity()` and `compareDiversity()` lose the `genomeLength`
   argument. The length that `pi` and `watterson` divide by is read from
   `seqlengths(rowRanges(x))`, summed over every sequence recorded for

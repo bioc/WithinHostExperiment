@@ -395,16 +395,19 @@ reference, alternative and depth fields are named as that ecosystem expects.
 
 ```{r object-coerce}
 head(as(example_whe, "data.frame"), 4)
-as(example_whe, "VRanges")
+vr <- as(example_whe, "VRanges")
+vr
+GenomeInfoDb::seqlengths(vr)
 ```
 
 The data frame carries the coordinates, the alleles, the sample identifier and
 one column per assay, so the `NA` cells of the matrix form simply do not appear
 as rows. The `VRanges` summary reports the number of ranges, which again is the
 number of calls rather than the number of sites, and names its fields
-`refDepth`, `altDepth` and `totalDepth`. Its final line reports no `seqlengths`,
-so the recorded genome length does not survive this conversion; compute per-site
-quantities before converting, or record the length again on the result.
+`refDepth`, `altDepth` and `totalDepth`. The last line shows that the conversion
+carries the recorded length of the segment, 1,000 bases. It does so in both
+directions and for every recorded sequence, including one without a call, so a
+genome length recorded on the object survives a round trip through `VRanges`.
 
 # Importing calls
 

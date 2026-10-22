@@ -4,6 +4,8 @@ template:
 
 reference:
   - title: "Package"
+    desc: >
+      An overview of the package, its classes and its workflow.
     contents:
       - WithinHostExperiment-package
 
@@ -37,8 +39,9 @@ reference:
 
   - title: "Quality control"
     desc: >
-      Flag, without deleting, calls that fail depth, frequency, strand,
-      primer, replicate or temporal criteria.
+      Choose filters and flag, without deleting, calls that fail depth,
+      frequency, strand, primer, replicate or temporal criteria; report
+      likely cross-contamination and summarise what QC removed.
     contents:
       - ISNVFilter
       - adaptiveFilter

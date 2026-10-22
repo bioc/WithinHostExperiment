@@ -43,13 +43,19 @@ test_that("wattersonISNV returns 0 for 0 sites", {
     expect_equal(wattersonISNV(0, 1000, 500), 0)
 })
 
+## the reference the synthetic calls were made against, 1000 bp
+test_ref_dna <- function() {
+    Biostrings::readDNAStringSet(system.file("extdata", "test_ref.fa",
+        package = "WithinHostExperiment"))
+}
+
 test_that("calcDiversity works on WHE", {
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")
     whe <- readWithinHost(vcf,
         colData = S4Vectors::DataFrame(sample_id = "donor"),
-        caller = "ivar")
-    div <- calcDiversity(whe, genomeLength = 1000L)
+        caller = "ivar", genome = test_ref_dna())
+    div <- calcDiversity(whe)
     expect_s4_class(div, "DataFrame")
     expect_true("shannon" %in% colnames(div))
     expect_true("pi" %in% colnames(div))
@@ -58,13 +64,25 @@ test_that("calcDiversity works on WHE", {
     expect_true(div$richness > 0)
 })
 
-test_that("calcDiversity requires genomeLength for pi", {
+test_that("calcDiversity stops when the genome length is not recorded", {
+    ## (was: a genomeLength argument to type)
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")
     whe <- readWithinHost(vcf,
         colData = S4Vectors::DataFrame(sample_id = "d"),
         caller = "ivar")
-    expect_error(calcDiversity(whe, indices = "pi"), "genomeLength")
+    expect_true(is.na(GenomeInfoDb::seqlengths(whe)[["test_segment"]]))
+    expect_error(calcDiversity(whe, indices = "pi"),
+                 "not recorded for test_segment")
+    expect_error(calcDiversity(whe, indices = c("richness", "watterson")),
+                 "seqlengths\\(x\\) <- c\\(test_segment = <length>\\)")
+    ## indices that are not per site do not need it
+    expect_no_error(calcDiversity(whe, indices = c("richness", "shannon")))
+    expect_error(calcDiversity(whe, genomeLength = 1000L), "Unused argument")
+    ## recording it on the object is enough
+    GenomeInfoDb::seqlengths(whe) <- c(test_segment = 1000L)
+    expect_no_error(div <- calcDiversity(whe, indices = "pi"))
+    expect_true(div$pi > 0)
 })
 
 test_that("calcDiversity warns when totalDepth missing for watterson", {
@@ -74,9 +92,9 @@ test_that("calcDiversity warns when totalDepth missing for watterson", {
         assays    = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1)),
         rowRanges = gr,
         colData   = S4Vectors::DataFrame(sample_id = "S1"))
+    GenomeInfoDb::seqlengths(whe) <- c(s = 1000L)
     expect_warning(
-        calcDiversity(whe, indices = "watterson",
-                      genomeLength = 1000L),
+        calcDiversity(whe, indices = "watterson"),
         "totalDepth"
     )
 })
@@ -176,4 +194,70 @@ test_that("simpsonISNV sums per-site diversity and is never negative", {
                  tolerance = 1e-12)
     expect_true(simpsonISNV(c(0.1, 0.2)) > 0)
     expect_equal(simpsonISNV(c(0.5, 0.5)), 1, tolerance = 1e-12)
+})
+
+# --- provenance columns and the genome length ---
+
+test_that("n_sites_assessed and detection_limit tell a zero apart", {
+    gr <- GenomicRanges::GRanges("s", IRanges::IRanges(c(10, 20, 30),
+                                                      width = 1))
+    GenomeInfoDb::seqlengths(gr) <- c(s = 1000L)
+    freq <- cbind(a = c(0.2, 0.3, NA), b = c(NA, NA, NA), c = c(0.01, 0.02, NA))
+    depth <- matrix(1000L, nrow = 3, ncol = 3, dimnames = dimnames(freq))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+                                       row.names = colnames(freq)))
+    ## before any QC: sites assessed are the non-missing calls
+    div <- calcDiversity(whe, indices = c("richness", "pi"))
+    expect_identical(div$n_sites_assessed, c(2L, 0L, 2L))
+    expect_true(all(is.na(div$detection_limit)))
+    expect_identical(div$richness, c(2L, 0L, 2L))
+
+    whe <- flagISNV(whe, ISNVFilter(minDepth = 100L, minFreq = 0.03))
+    div <- calcDiversity(whe, indices = c("richness", "pi"))
+    ## sample c had two calls, both below the limit: assessed 2, kept 0,
+    ## pi 0 for that reason; sample b had no call at all
+    expect_identical(div$n_sites_assessed, c(2L, 0L, 2L))
+    expect_identical(div$richness, c(2L, 0L, 0L))
+    expect_equal(div$detection_limit, rep(0.03, 3))
+    expect_equal(div$pi[2:3], c(0, 0))
+    ## the strictest filter applied sets the limit
+    whe2 <- flagISNV(whe, ISNVFilter(minDepth = 100L, minFreq = 0.10))
+    expect_equal(calcDiversity(whe2, indices = "richness")$detection_limit,
+                 rep(0.10, 3))
+    ## without QC the limit is unknown
+    no_qc <- calcDiversity(whe2, indices = "richness", usePassedOnly = FALSE)
+    expect_true(all(is.na(no_qc$detection_limit)))
+})
+
+test_that("the genome length is the summed length of the sequences in use", {
+    gr <- GenomicRanges::GRanges(c("seg1", "seg2"),
+                                 IRanges::IRanges(c(10, 20), width = 1))
+    GenomeInfoDb::seqlengths(gr) <- c(seg1 = 600L, seg2 = 400L)
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.2, 0.3), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "S1"))
+    div <- calcDiversity(whe, indices = "pi")
+    expect_equal(div$pi, piISNV(c(0.2, 0.3), genomeLength = 1000))
+    ## one unknown length is enough to stop
+    GenomeInfoDb::seqlengths(whe) <- c(seg1 = 600L, seg2 = NA_integer_)
+    expect_error(calcDiversity(whe, indices = "pi"), "not recorded for seg2")
+})
+
+test_that("compareDiversity takes the genome length from the object", {
+    data(example_whe)
+    ## donor and recipient: two groups of one sample each
+    whe <- example_whe[, 1:2]
+    GenomeInfoDb::seqlengths(whe) <- c(test_segment = 1000L)
+    res <- compareDiversity(whe, groupBy = "role", index = "pi")
+    expect_s4_class(res, "DataFrame")
+    expect_true("note" %in% colnames(res))
+    GenomeInfoDb::seqlengths(whe) <- c(test_segment = NA_integer_)
+    expect_error(compareDiversity(whe, groupBy = "role", index = "pi"),
+                 "not recorded")
+    expect_error(compareDiversity(whe, groupBy = "role", index = "pi",
+                                  genomeLength = 1000L), "unused argument")
 })

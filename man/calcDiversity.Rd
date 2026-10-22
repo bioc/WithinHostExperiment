@@ -10,7 +10,6 @@ calcDiversity(x, ...)
 \S4method{calcDiversity}{WithinHostExperiment}(
   x,
   indices = c("shannon", "pi", "watterson", "richness", "simpson", "chao1"),
-  genomeLength = NULL,
   usePassedOnly = TRUE,
   ...
 )
@@ -18,19 +17,12 @@ calcDiversity(x, ...)
 \arguments{
 \item{x}{A \code{\link{WithinHostExperiment}}.}
 
-\item{...}{Additional arguments (currently unused).}
+\item{...}{Not used; supplying anything is an error.}
 
 \item{indices}{Character vector. Which indices to compute:
 \code{"shannon"}, \code{"pi"}, \code{"watterson"},
 \code{"richness"}, \code{"simpson"}, \code{"chao1"}
 (default: all six).}
-
-\item{genomeLength}{Integer (optional). Required for \code{"pi"}
-and \code{"watterson"}. For \code{"watterson"}, the sample's
-median read depth is passed as the sample size \eqn{n}, which
-for the reasons given in \code{\link{tajimaD}} makes
-\eqn{\theta_W} small; \code{\link{calcNeutralityTests}} caps
-\eqn{n} instead, so the two need not agree.}
 
 \item{usePassedOnly}{Logical. If TRUE (default), only use variants
 where \code{qcPass == TRUE}.}
@@ -39,7 +31,8 @@ where \code{qcPass == TRUE}.}
 A \code{DataFrame} of diversity metrics.
 
 A \code{DataFrame} with one row per sample and columns
-  for each requested index.
+  \code{sample_id}, \code{n_sites_assessed}, \code{detection_limit}
+  and one column per requested index.
 }
 \description{
 Generic for computing diversity metrics from within-host
@@ -51,13 +44,45 @@ Calculates diversity metrics per sample from a
 population genetics indices adapted for deep sequencing
 iSNV data, following Lauring (2020).
 }
+\details{
+\strong{Genome length.} \code{"pi"} and \code{"watterson"} are per
+site and divide by the genome length, which is read from
+\code{seqlengths(rowRanges(x))} as the summed length of the
+sequences the sites lie on. It is a property of the reference the
+calls were made against, not a number to type: \code{\link{readWithinHost}}
+records it from the VCF header's \code{##contig} lines or from a
+\code{DNAStringSet} passed as \code{genome}, and
+\code{\link{annotateCodonChange}} from its reference. When it is
+not recorded the function stops and says how to record it, for
+example \code{seqlengths(x) <- c(seg = 29903L)}.
+
+For \code{"watterson"}, the sample's median read depth is passed as
+the sample size \eqn{n}, which for the reasons given in
+\code{\link{tajimaD}} makes \eqn{\theta_W} small;
+\code{\link{calcNeutralityTests}} caps \eqn{n} instead, so the two
+need not agree.
+
+\strong{Reading a zero.} A diversity of zero means something
+different when the sample had no call at all, when every call failed
+QC, and when calls were present but below the frequency QC allows.
+Two columns keep these apart: \code{n_sites_assessed}, the number of
+sites at which the sample has a frequency, before QC, and
+\code{detection_limit}, the lowest frequency a call could have kept
+through the filters applied (the strictest \code{minFreq} among
+them), \code{NA} when no filter was applied or
+\code{usePassedOnly = FALSE}. \code{richness} counts the sites that
+entered the indices after QC.
+}
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",
     package = "WithinHostExperiment")
+## the genome length comes from the reference, recorded on import
+ref <- Biostrings::readDNAStringSet(system.file("extdata",
+    "test_ref.fa", package = "WithinHostExperiment"))
 whe <- readWithinHost(vcf,
     colData = S4Vectors::DataFrame(sample_id = "donor"),
-    caller = "ivar")
-calcDiversity(whe, genomeLength = 1000L)
+    caller = "ivar", genome = ref)
+calcDiversity(whe)
 }
 \references{
 Lauring AS (2020). Within-Host Viral Diversity: A Window into

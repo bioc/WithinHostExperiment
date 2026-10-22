@@ -54,7 +54,7 @@ test_that("compareDiversity handles single group gracefully", {
             sample_id = c("A", "B"),
             group     = c("g1", "g1")))
     expect_message(
-        compareDiversity(whe, groupBy = "group", genomeLength = 1000L),
+        compareDiversity(whe, groupBy = "group"),
         "2 groups"
     )
 })
@@ -68,8 +68,7 @@ test_that("compareDiversity works with 2 groups (insufficient n)", {
         colData   = DataFrame(
             sample_id = c("A", "B"),
             group     = c("g1", "g2")))
-    result <- compareDiversity(whe, groupBy = "group",
-                               genomeLength = 1000L)
+    result <- compareDiversity(whe, groupBy = "group")
     expect_true(is(result, "DataFrame"))
     expect_true("note" %in% colnames(result))
 })

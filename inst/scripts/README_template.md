@@ -251,12 +251,15 @@ BiocManager::install("CuiweiG/WithinHostExperiment")
 ```r
 library(WithinHostExperiment)
 
-# 1. Import donor and recipient VCFs
+# 1. Import donor and recipient VCFs, with the reference they were called
+#    against so that the genome length is recorded on the object
 vcf_d <- system.file("extdata", "test_donor.vcf",
     package = "WithinHostExperiment")
 vcf_r <- system.file("extdata", "test_recipient.vcf",
     package = "WithinHostExperiment")
-whe <- readWithinHost(c(vcf_d, vcf_r),
+ref <- Biostrings::readDNAStringSet(system.file("extdata", "test_ref.fa",
+    package = "WithinHostExperiment"))
+whe <- readWithinHost(c(vcf_d, vcf_r), genome = ref,
     colData = S4Vectors::DataFrame(
         sample_id = c("donor", "recipient"),
         role      = c("donor", "recipient"),
@@ -266,8 +269,8 @@ whe <- readWithinHost(c(vcf_d, vcf_r),
 # 2. QC -- flag, don't delete
 whe <- flagISNV(whe, ISNVFilter(minDepth = 200L, minFreq = 0.03))
 
-# 3. Diversity (finite-sample corrected pi)
-div <- calcDiversity(passedISNV(whe), genomeLength = 29903L)
+# 3. Diversity (finite-sample corrected pi, per site of the recorded genome)
+div <- calcDiversity(passedISNV(whe))
 
 # 4. Transmission bottleneck
 nb <- quickBottleneck(whe, pairId = "pair_1")

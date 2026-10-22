@@ -423,8 +423,10 @@ is_snv <- !grepl("^[+-]", alt_f) & nchar(alt_f) == 1L & nchar(ref_f) == 1L
 record("fig4", "", "indel rows dropped before QC", sum(!is_snv))
 record("fig4", "", "substitution rows kept", sum(is_snv))
 whe_f <- whe_f[is_snv, ]
+## iVar tables carry no reference length; per-site indices need it recorded
+GenomeInfoDb::seqlengths(whe_f) <- c(NC_045512.2 = GL)
 whe_f <- flagISNV(whe_f, ISNVFilter(minDepth = 1000L, minFreq = 0.03, maxFreq = 0.97))
-div_f <- as.data.frame(calcDiversity(whe_f, genomeLength = GL, indices = c("pi", "richness")))
+div_f <- as.data.frame(calcDiversity(whe_f, indices = c("pi", "richness")))
 div_f$timepoint <- days
 div_f$pi_e4 <- as.numeric(div_f$pi) * 1e4
 div_f$richness <- as.numeric(div_f$richness)

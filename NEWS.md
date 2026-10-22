@@ -67,7 +67,16 @@
 * Diversity indices: `shannonISNV()`, `piISNV()` (with optional
   finite-sample correction per Nei 1987), `wattersonISNV()`,
   `simpsonISNV()`, `chao1ISNV()`, and `calcDiversity()` for
-  per-sample within-host diversity.
+  per-sample within-host diversity. `calcDiversity()` reads the genome
+  length that `pi` and `watterson` divide by from
+  `seqlengths(rowRanges(x))`, where `readWithinHost()` and
+  `annotateCodonChange()` record it, and stops with instructions when
+  it is not recorded; the `genomeLength` argument is gone from it and
+  from `compareDiversity()`. Its output gains `n_sites_assessed`, the
+  sites at which a sample has any call, and `detection_limit`, the
+  strictest `minFreq` of the filters applied, so a diversity of zero
+  can be told apart from a sample with no calls. `example_whe` records
+  its 1000-base segment length.
 * Neutrality tests: `tajimaD()`, `fusFs()`, and
   `calcNeutralityTests()` for site-frequency-spectrum-based
   neutrality testing with deep-sequencing-aware sample size

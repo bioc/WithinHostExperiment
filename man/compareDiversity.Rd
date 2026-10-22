@@ -4,17 +4,17 @@
 \alias{compareDiversity}
 \title{Compare diversity between sample groups}
 \usage{
-compareDiversity(whe, groupBy, index = "shannon", genomeLength = NULL)
+compareDiversity(whe, groupBy, index = "shannon")
 }
 \arguments{
 \item{whe}{A \code{\link{WithinHostExperiment}}.}
 
 \item{groupBy}{Character. Column name in \code{colData} to group by.}
 
-\item{index}{Character. Which index to compare (default: "shannon").}
-
-\item{genomeLength}{Integer (optional). Required if index is "pi"
-or "watterson".}
+\item{index}{Character. Which index to compare (default: "shannon").
+\code{"pi"} and \code{"watterson"} need the genome length recorded
+in \code{seqlengths(rowRanges(whe))}; see
+\code{\link{calcDiversity}}.}
 }
 \value{
 A \code{DataFrame} with test results.

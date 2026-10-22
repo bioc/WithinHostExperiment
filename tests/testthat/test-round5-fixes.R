@@ -8,8 +8,7 @@ test_that("QC and diversity methods reject unused arguments", {
         caller = "ivar")
     expect_error(flagISNV(whe, ISNVFilter(), minDepht = 100L),
                  "Unused argument")
-    expect_error(calcDiversity(whe, genomeLength = 1000L,
-                               usePassedonly = FALSE),
+    expect_error(calcDiversity(whe, usePassedonly = FALSE),
                  "Unused argument")
     expect_error(calcNeutralityTests(whe, genomeLength = 1000L,
                                      usePassedonly = FALSE),

@@ -90,12 +90,14 @@ reasons:
 ```{r quickstart, message=FALSE}
 library(WithinHostExperiment)
 
-# Import iSNV data from VCF
+# Import iSNV data from VCF, with the reference the calls were made against
 vcf <- system.file("extdata", "test_donor.vcf",
     package = "WithinHostExperiment")
+ref <- Biostrings::readDNAStringSet(system.file("extdata", "test_ref.fa",
+    package = "WithinHostExperiment"))
 whe <- readWithinHost(vcf,
     colData = S4Vectors::DataFrame(sample_id = "donor"),
-    caller = "ivar")
+    caller = "ivar", genome = ref)
 whe
 ```
 
@@ -123,7 +125,12 @@ cat("Input:", nrow(whe), "sites ->",
 ## From VCF files
 
 Each VCF file corresponds to one sample. Sample metadata is provided
-via `colData`:
+via `colData`. The reference sequence the calls were made against is
+passed as `genome`, a `DNAStringSet` read with
+`Biostrings::readDNAStringSet()`: its length is recorded on the object
+in `seqlengths()`, where every per-site quantity later reads it, so the
+genome length is never typed by hand. A VCF whose header carries
+`##contig` lines records the length by itself.
 
 ```{r import-vcf}
 vcf1 <- system.file("extdata", "test_donor.vcf",
@@ -139,7 +146,8 @@ whe <- readWithinHost(
         role      = c("donor", "recipient"),
         pair_id   = c("pair_1", "pair_1")
     ),
-    caller = "ivar"
+    caller = "ivar",
+    genome = ref
 )
 whe
 ```
@@ -260,10 +268,46 @@ qcLog(whe_primer)
 
 # Diversity analysis
 
+How much variation a host carries is summarised per sample by
+`calcDiversity()`, from the frequencies of the iSNVs that passed QC.
+It returns six indices, each treating every site as a biallelic locus:
+
+* `richness`, the number of iSNV sites;
+* `shannon`, the Shannon entropy of the allele frequencies summed over
+  sites;
+* `pi`, the nucleotide diversity: the expected number of differences
+  per site between two genomes drawn from the host, with a
+  finite-sample correction for the read depth;
+* `watterson`, Watterson's theta, from the number of segregating sites
+  and the median depth as the sample size;
+* `simpson`, the probability that two alleles drawn at a site differ,
+  summed over sites;
+* `chao1`, a richness estimate that adds the sites likely missed, from
+  the numbers of sites whose alternative allele was seen in exactly one
+  read and in exactly two.
+
+`pi` and `watterson` are per site, so they divide by the genome length,
+which the object carries in `seqlengths()` from the reference given on
+import; a call set without a recorded length stops here with
+instructions.
+
 ```{r diversity}
-div <- calcDiversity(whe_qc, genomeLength = 1000L)
+div <- calcDiversity(whe_qc)
 div
 ```
+
+Each row is one sample. The first two columns say what the indices rest
+on: `n_sites_assessed` is the number of sites at which the sample has a
+call at all, before QC, and `detection_limit` the lowest frequency the
+filters applied would let through. A `pi` of zero with a positive
+`n_sites_assessed` therefore means every call failed QC, and a zero
+with `n_sites_assessed` of zero that no call was made. The example
+files describe a synthetic 1,000-base segment, so these values show the
+form of the output and nothing about a real infection. In real
+SARS-CoV-2 data the package's own README reports median `pi` in the
+region of 0.04 to 0.10 x 10^-4^ per site; an index far outside the
+range expected for the pathogen is more often a QC or depth problem
+than a discovery.
 
 # Transmission analysis
 
@@ -348,7 +392,7 @@ plotQCDashboard(whe_qc)
 transmission pair usually needs:
 
 ```{r reporting-summary}
-div <- calcDiversity(whe_qc, genomeLength = 1000L)
+div <- calcDiversity(whe_qc)
 cat("Shannon entropy:", round(div$shannon[1], 2), "\n")
 cat("Nucleotide diversity (pi):", format(div$pi[1], digits = 3), "\n")
 cat("Richness:", div$richness[1], "iSNV sites\n")
@@ -390,6 +434,15 @@ whe_sars2 <- readWithinHostTable(
 whe_sars2
 ```
 
+An iVar table carries no reference length, so it is recorded here from
+the GenBank record the calls were made against (MN908947.3, 29,903
+bases), using the `seqlengths()` replacement that every Bioconductor
+ranges object understands:
+
+```{r case-study-seqlengths}
+GenomeInfoDb::seqlengths(whe_sars2) <- c(MN908947.3 = 29903L)
+```
+
 ## QC and diversity
 
 ```{r case-study-qc}
@@ -397,7 +450,7 @@ whe_sars2 <- flagISNV(whe_sars2,
     ISNVFilter(minDepth = 100L, minFreq = 0.03))
 qcSummary(whe_sars2)
 
-div_sars2 <- calcDiversity(whe_sars2, genomeLength = 29903L)
+div_sars2 <- calcDiversity(whe_sars2)
 div_sars2
 ```
 
@@ -417,6 +470,9 @@ diversity estimates against the plausibility ranges of
 `validateDiversity()`. The files are illustrative fixtures, not
 measurements, and the ranges are the package's own heuristics, so these
 sections demonstrate the interface rather than validate the estimates.
+Each file is a table without a reference, so the length of the region
+it covers is recorded on the object before the per-site indices are
+computed.
 
 ## Influenza A (H3N2 HA segment)
 
@@ -425,9 +481,9 @@ flu_file <- system.file("extdata", "test_influenza_donor.tsv",
     package = "WithinHostExperiment")
 whe_flu <- readWithinHostTable(flu_file, format = "ivar",
     colData = S4Vectors::DataFrame(sample_id = "flu_donor"))
+GenomeInfoDb::seqlengths(whe_flu) <- c(HA = 1701L)
 whe_flu <- flagISNV(whe_flu, adaptiveFilter("illumina"))
-div_flu <- calcDiversity(whe_flu, genomeLength = 1701L,
-    indices = c("pi", "shannon"))
+div_flu <- calcDiversity(whe_flu, indices = c("pi", "shannon"))
 cat("Influenza pi:", format(div_flu$pi[1], digits = 3), "\n")
 cat("Influenza Shannon:", round(div_flu$shannon[1], 2), "\n")
 validateDiversity(div_flu, pathogen = "influenza")
@@ -440,9 +496,9 @@ hiv_file <- system.file("extdata", "test_hiv_sample.tsv",
     package = "WithinHostExperiment")
 whe_hiv <- readWithinHostTable(hiv_file, format = "ivar",
     colData = S4Vectors::DataFrame(sample_id = "hiv_sample"))
+GenomeInfoDb::seqlengths(whe_hiv) <- c(pol = 1000L)
 whe_hiv <- flagISNV(whe_hiv, adaptiveFilter("illumina"))
-div_hiv <- calcDiversity(whe_hiv, genomeLength = 1000L,
-    indices = c("pi", "shannon"))
+div_hiv <- calcDiversity(whe_hiv, indices = c("pi", "shannon"))
 cat("HIV pi:", format(div_hiv$pi[1], digits = 3), "\n")
 cat("HIV Shannon:", round(div_hiv$shannon[1], 2), "\n")
 validateDiversity(div_hiv, pathogen = "hiv")
@@ -455,9 +511,9 @@ tb_file <- system.file("extdata", "test_tb_sample.tsv",
     package = "WithinHostExperiment")
 whe_tb <- readWithinHostTable(tb_file, format = "ivar",
     colData = S4Vectors::DataFrame(sample_id = "tb_sample"))
+GenomeInfoDb::seqlengths(whe_tb) <- c(Rv0001 = 4411532L)
 whe_tb <- flagISNV(whe_tb, adaptiveFilter("illumina"))
-div_tb <- calcDiversity(whe_tb, genomeLength = 4411532L,
-    indices = c("pi", "shannon"))
+div_tb <- calcDiversity(whe_tb, indices = c("pi", "shannon"))
 cat("TB pi:", format(div_tb$pi[1], digits = 3), "\n")
 cat("TB Shannon:", round(div_tb$shannon[1], 2), "\n")
 validateDiversity(div_tb, pathogen = "tb")

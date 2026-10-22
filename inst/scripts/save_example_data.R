@@ -19,7 +19,8 @@ example_whe <- readWithinHost(
         pair_id   = c("pair_1", "pair_1", NA_character_),
         ct_value  = c(18.5, 22.1, 15.3)
     ),
-    caller = "ivar"
+    caller = "ivar",
+    genome = Biostrings::readDNAStringSet("inst/extdata/test_ref.fa")
 )
 
 if (!dir.exists("data")) dir.create("data")

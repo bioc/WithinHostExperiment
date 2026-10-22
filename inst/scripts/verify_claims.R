@@ -9,7 +9,8 @@ vcf_fb <- system.file("extdata", "test_donor_freebayes.vcf", package="WithinHost
 tsv    <- system.file("extdata", "test_donor_ivar.tsv", package="WithinHostExperiment")
 csv    <- system.file("extdata", "test_generic.csv", package="WithinHostExperiment")
 
-w1 <- readWithinHost(vcf_iv, colData=S4Vectors::DataFrame(sample_id="d"), caller="ivar")
+ref <- Biostrings::readDNAStringSet(system.file("extdata", "test_ref.fa", package="WithinHostExperiment"))
+w1 <- readWithinHost(vcf_iv, colData=S4Vectors::DataFrame(sample_id="d"), caller="ivar", genome=ref)
 w2 <- readWithinHost(vcf_lf, colData=S4Vectors::DataFrame(sample_id="d"), caller="lofreq")
 w3 <- readWithinHost(vcf_fb, colData=S4Vectors::DataFrame(sample_id="d"), caller="freebayes")
 w4 <- readWithinHostTable(tsv, format="ivar")
@@ -47,7 +48,7 @@ wp <- flagPrimerSites(w1, primers)
 cat("  Primer filter logged:", "primer_filter" %in% qcLog(wp)$step, "\n")
 
 cat("\n=== 5. Diversity indices ===\n")
-div <- calcDiversity(whe, genomeLength=1000L)
+div <- calcDiversity(whe)
 cat("  Shannon:", round(div$shannon, 4), "\n")
 cat("  Pi:", format(div$pi, digits=6), "\n")
 cat("  Watterson:", format(div$watterson, digits=6), "\n")

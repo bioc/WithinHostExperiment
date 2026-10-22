@@ -58,8 +58,8 @@ test_that("validateDiversity passes for influenza-range diversity", {
                        package = "WithinHostExperiment")
     whe <- readWithinHostTable(flu, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "flu_donor"))
-    div <- calcDiversity(whe, genomeLength = 1701L,
-                         indices = c("pi", "shannon"))
+    GenomeInfoDb::seqlengths(whe) <- c(HA = 1701L)
+    div <- calcDiversity(whe, indices = c("pi", "shannon"))
     res <- validateDiversity(div, pathogen = "influenza")
     expect_true(all(res$in_range))
 })
@@ -69,8 +69,8 @@ test_that("validateDiversity passes for HIV-range diversity", {
                        package = "WithinHostExperiment")
     whe <- readWithinHostTable(hiv, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "hiv_sample"))
-    div <- calcDiversity(whe, genomeLength = 1000L,
-                         indices = c("pi", "shannon"))
+    GenomeInfoDb::seqlengths(whe) <- c(pol = 1000L)
+    div <- calcDiversity(whe, indices = c("pi", "shannon"))
     res <- validateDiversity(div, pathogen = "hiv")
     expect_true(all(res$in_range))
 })
@@ -80,8 +80,8 @@ test_that("validateDiversity passes for TB-range diversity", {
                       package = "WithinHostExperiment")
     whe <- readWithinHostTable(tb, format = "ivar",
         colData = S4Vectors::DataFrame(sample_id = "tb_sample"))
-    div <- calcDiversity(whe, genomeLength = 4411532L,
-                         indices = c("pi", "shannon"))
+    GenomeInfoDb::seqlengths(whe) <- c(Rv0001 = 4411532L)
+    div <- calcDiversity(whe, indices = c("pi", "shannon"))
     res <- validateDiversity(div, pathogen = "tb")
     expect_true(all(res$in_range))
 })

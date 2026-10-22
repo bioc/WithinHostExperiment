@@ -10,7 +10,8 @@
 #'
 #' @format A \code{\link{WithinHostExperiment}} with 28 variant sites
 #'   and 3 samples. Assays: altFreq, totalDepth, refCount, altCount,
-#'   qcPass.
+#'   qcPass. The length of the segment, 1000 bases, is recorded in
+#'   \code{seqlengths()} from \code{test_ref.fa}.
 #'
 #' @source Synthetic. Built by \code{inst/scripts/save_example_data.R} from
 #'   \code{test_donor.vcf}, \code{test_recipient.vcf} and

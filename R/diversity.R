@@ -2,10 +2,44 @@
 # Within-host diversity indices
 
 #' @include methods.R
-#' @importFrom SummarizedExperiment assay assayNames colData
+#' @importFrom SummarizedExperiment assay assayNames colData rowRanges
 #' @importFrom S4Vectors DataFrame
+#' @importFrom GenomeInfoDb seqlengths seqlevels seqlevelsInUse
 #' @importFrom stats median wilcox.test kruskal.test
 NULL
+
+## The genome length a per-site index divides by: the summed lengths of
+## the sequences the sites lie on, read from seqlengths(rowRanges(x)).
+## A length that is not recorded is an error that says how to record it.
+.genomeLengthOf <- function(x, indices) {
+    rr <- rowRanges(x)
+    lv <- seqlevelsInUse(rr)
+    if (length(lv) == 0L) lv <- seqlevels(rr)
+    lens <- seqlengths(rr)[lv]
+    missing_len <- lv[is.na(lens)]
+    if (length(lv) == 0L || length(missing_len)) {
+        stop("The index ", paste(sQuote(indices, FALSE), collapse = ", "),
+             " divides by the genome length, which is not recorded",
+             if (length(missing_len)) paste0(" for ",
+                 paste(missing_len, collapse = ", ")),
+             " in seqlengths(rowRanges(x)). Record it from the reference ",
+             "the calls were made against: read the files with ",
+             "readWithinHost(genome = <DNAStringSet>), or set ",
+             "seqlengths(x) <- c(", if (length(lv)) lv[1L] else "<seqname>",
+             " = <length>).", call. = FALSE)
+    }
+    sum(as.numeric(lens))
+}
+
+## The lowest frequency a call could have kept through QC: the strictest
+## minFreq of the filters applied, or NA when none was, or when QC is
+## not being applied.
+.detectionLimitOf <- function(x, usePassedOnly) {
+    filters <- qcFilters(x)
+    if (!usePassedOnly || length(filters) == 0L) return(NA_real_)
+    max(vapply(filters, function(f) as.numeric(slot(f, "minFreq")),
+               numeric(1)))
+}
 
 # ============================================================
 # Standalone math functions (exported, work on plain vectors)
@@ -241,18 +275,42 @@ chao1ISNV <- function(counts, detected) {
 #'   \code{"shannon"}, \code{"pi"}, \code{"watterson"},
 #'   \code{"richness"}, \code{"simpson"}, \code{"chao1"}
 #'   (default: all six).
-#' @param genomeLength Integer (optional). Required for \code{"pi"}
-#'   and \code{"watterson"}. For \code{"watterson"}, the sample's
-#'   median read depth is passed as the sample size \eqn{n}, which
-#'   for the reasons given in \code{\link{tajimaD}} makes
-#'   \eqn{\theta_W} small; \code{\link{calcNeutralityTests}} caps
-#'   \eqn{n} instead, so the two need not agree.
 #' @param usePassedOnly Logical. If TRUE (default), only use variants
 #'   where \code{qcPass == TRUE}.
-#' @param ... Additional arguments (currently unused).
+#' @param ... Not used; supplying anything is an error.
+#'
+#' @details
+#' \strong{Genome length.} \code{"pi"} and \code{"watterson"} are per
+#' site and divide by the genome length, which is read from
+#' \code{seqlengths(rowRanges(x))} as the summed length of the
+#' sequences the sites lie on. It is a property of the reference the
+#' calls were made against, not a number to type: \code{\link{readWithinHost}}
+#' records it from the VCF header's \code{##contig} lines or from a
+#' \code{DNAStringSet} passed as \code{genome}, and
+#' \code{\link{annotateCodonChange}} from its reference. When it is
+#' not recorded the function stops and says how to record it, for
+#' example \code{seqlengths(x) <- c(seg = 29903L)}.
+#'
+#' For \code{"watterson"}, the sample's median read depth is passed as
+#' the sample size \eqn{n}, which for the reasons given in
+#' \code{\link{tajimaD}} makes \eqn{\theta_W} small;
+#' \code{\link{calcNeutralityTests}} caps \eqn{n} instead, so the two
+#' need not agree.
+#'
+#' \strong{Reading a zero.} A diversity of zero means something
+#' different when the sample had no call at all, when every call failed
+#' QC, and when calls were present but below the frequency QC allows.
+#' Two columns keep these apart: \code{n_sites_assessed}, the number of
+#' sites at which the sample has a frequency, before QC, and
+#' \code{detection_limit}, the lowest frequency a call could have kept
+#' through the filters applied (the strictest \code{minFreq} among
+#' them), \code{NA} when no filter was applied or
+#' \code{usePassedOnly = FALSE}. \code{richness} counts the sites that
+#' entered the indices after QC.
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
-#'   for each requested index.
+#'   \code{sample_id}, \code{n_sites_assessed}, \code{detection_limit}
+#'   and one column per requested index.
 #'
 #' @export
 #' @rdname calcDiversity
@@ -260,29 +318,30 @@ chao1ISNV <- function(counts, detected) {
 #' @examples
 #' vcf <- system.file("extdata", "test_donor.vcf",
 #'     package = "WithinHostExperiment")
+#' ## the genome length comes from the reference, recorded on import
+#' ref <- Biostrings::readDNAStringSet(system.file("extdata",
+#'     "test_ref.fa", package = "WithinHostExperiment"))
 #' whe <- readWithinHost(vcf,
 #'     colData = S4Vectors::DataFrame(sample_id = "donor"),
-#'     caller = "ivar")
-#' calcDiversity(whe, genomeLength = 1000L)
+#'     caller = "ivar", genome = ref)
+#' calcDiversity(whe)
 setMethod("calcDiversity", "WithinHostExperiment",
     function(x,
              indices = c("shannon", "pi",
                          "watterson", "richness",
                          "simpson", "chao1"),
-             genomeLength = NULL,
              usePassedOnly = TRUE, ...) {
     whe <- x
     .stop_on_unused_dots("calcDiversity", ...)
     indices <- match.arg(indices, several.ok = TRUE)
+    if (!is.logical(usePassedOnly) || length(usePassedOnly) != 1L ||
+        is.na(usePassedOnly))
+        stop("'usePassedOnly' must be TRUE or FALSE.")
 
-    needs_L <- any(c("pi", "watterson") %in% indices)
-    if (needs_L && is.null(genomeLength)) {
-        stop("'genomeLength' is required when computing '",
-             paste(intersect(indices, c("pi", "watterson")),
-                   collapse = "', '"),
-             "' indices. Provide it as: ",
-             "calcDiversity(whe, genomeLength = <genome_length>)")
-    }
+    per_site <- intersect(c("pi", "watterson"), indices)
+    genomeLength <- if (length(per_site)) .genomeLengthOf(whe, per_site)
+                    else NULL
+    detection_limit <- .detectionLimitOf(whe, usePassedOnly)
 
     freq_mat  <- assay(whe, "altFreq")
     qc_mat    <- if ("qcPass" %in% assayNames(whe)) {
@@ -322,13 +381,16 @@ setMethod("calcDiversity", "WithinHostExperiment",
 
     results <- lapply(seq_len(n_samples), function(j) {
         freq_j <- freq_mat[, j]
+        n_assessed <- sum(!is.na(freq_j))
         ## Apply QC mask
         if (usePassedOnly && !is.null(qc_mat)) {
             freq_j[!qc_mat[, j]] <- NA
         }
         valid <- freq_j[!is.na(freq_j)]
 
-        vals <- list(sample_id = sample_ids[j])
+        vals <- list(sample_id = sample_ids[j],
+                     n_sites_assessed = n_assessed,
+                     detection_limit = detection_limit)
         ## Median depth for this sample (used by pi and watterson)
         md <- if (!is.null(depth_mat)) {
             median(depth_mat[, j], na.rm = TRUE)
@@ -372,8 +434,9 @@ setMethod("calcDiversity", "WithinHostExperiment",
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #' @param groupBy Character. Column name in \code{colData} to group by.
 #' @param index Character. Which index to compare (default: "shannon").
-#' @param genomeLength Integer (optional). Required if index is "pi"
-#'   or "watterson".
+#'   \code{"pi"} and \code{"watterson"} need the genome length recorded
+#'   in \code{seqlengths(rowRanges(whe))}; see
+#'   \code{\link{calcDiversity}}.
 #'
 #' @return A \code{DataFrame} with test results.
 #'
@@ -386,8 +449,7 @@ setMethod("calcDiversity", "WithinHostExperiment",
 #'     caller = "ivar")
 #' ## Single-group, returns diversity table:
 #' compareDiversity(whe, groupBy = "sample_id", index = "shannon")
-compareDiversity <- function(whe, groupBy, index = "shannon",
-                             genomeLength = NULL) {
+compareDiversity <- function(whe, groupBy, index = "shannon") {
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
     cd <- colData(whe)
@@ -396,7 +458,7 @@ compareDiversity <- function(whe, groupBy, index = "shannon",
              "Available columns: ",
              paste(colnames(cd), collapse = ", "))
 
-    div <- calcDiversity(whe, indices = index, genomeLength = genomeLength)
+    div <- calcDiversity(whe, indices = index)
     groups <- as.character(cd[[groupBy]])
     values <- div[[index]]
     unique_groups <- unique(groups[!is.na(groups)])

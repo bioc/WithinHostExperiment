@@ -89,6 +89,17 @@ test_that("tajimaD validates inputs", {
         genomeLength = 0), "positive")
 })
 
+test_that("tajimaD returns NA with a warning when n rounds below four (was: Inf or NaN)", {
+    ## with two or three sequences c1 = c2 = 0, so the variance of D is zero
+    for (n in c(2, 3, 3.4)) {
+        expect_warning(d <- tajimaD(S = 5, n = n, pi_hat = 0.001,
+                                    genomeLength = 1000), "at least four")
+        expect_true(is.na(d))
+    }
+    expect_true(is.finite(tajimaD(S = 5, n = 4, pi_hat = 0.001,
+                                  genomeLength = 1000)))
+})
+
 test_that("fusFs returns NA with a warning when S + 1 exceeds n", {
     expect_warning(res <- fusFs(S = 100, n = 100, theta_pi = 5),
                    "undefined")

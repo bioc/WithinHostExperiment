@@ -26,7 +26,7 @@ in bp.}
 }
 \value{
 Numeric scalar. Tajima's D, or \code{NA} with a warning when
-  \code{S} is below three.
+  \code{S} is below three or \code{n} rounds to fewer than four.
 }
 \description{
 Computes Tajima's D (Tajima 1989) from summary statistics of
@@ -48,7 +48,9 @@ spectrum, and at \code{S = 0} the statistic is 0/0. The function
 therefore returns \code{NA}, with a warning, whenever \code{S < 3}.
 Report \code{S} alongside every D, as
 \code{\link{calcNeutralityTests}} does in its \code{n_sites}
-column.
+column. With two or three sequences the variance of D is zero
+(\eqn{c_1 = c_2 = 0}), so \code{n} must round to at least four;
+below that D is likewise \code{NA}.
 
 \strong{Deep sequencing caveat:} The classical Tajima (1989)
 formula was designed for independent haplotype samples (e.g.,

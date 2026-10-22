@@ -97,7 +97,9 @@ cycle.
   folding and their polarisation and neither is bias-corrected; it used
   to compare any two spectra with the same number of bins.
 * `tajimaD()` returns `NA`, with a warning, below three segregating
-  sites, where it returned 0 at none and a number at one or two.
+  sites, where it returned 0 at none and a number at one or two, and
+  when the sample size rounds below four, where the variance of D is
+  zero and it returned `Inf` or `NaN`.
   `calcNeutralityTests()` reports `n_sites`, the number of sites each
   statistic rests on, and warns once with the number of samples below
   that rule.

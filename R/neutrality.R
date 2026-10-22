@@ -60,7 +60,7 @@ setGeneric("calcNeutralityTests", function(x, ...)
 #'   in bp.
 #'
 #' @return Numeric scalar. Tajima's D, or \code{NA} with a warning when
-#'   \code{S} is below three.
+#'   \code{S} is below three or \code{n} rounds to fewer than four.
 #'
 #' @details
 #' \strong{Fewer than three segregating sites:} with one segregating
@@ -70,7 +70,9 @@ setGeneric("calcNeutralityTests", function(x, ...)
 #' therefore returns \code{NA}, with a warning, whenever \code{S < 3}.
 #' Report \code{S} alongside every D, as
 #' \code{\link{calcNeutralityTests}} does in its \code{n_sites}
-#' column.
+#' column. With two or three sequences the variance of D is zero
+#' (\eqn{c_1 = c_2 = 0}), so \code{n} must round to at least four;
+#' below that D is likewise \code{NA}.
 #'
 #' \strong{Deep sequencing caveat:} The classical Tajima (1989)
 #' formula was designed for independent haplotype samples (e.g.,
@@ -129,6 +131,12 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
     }
 
     n <- as.integer(round(n))
+    if (n < 4L) {
+        warning("Tajima's D needs a sample size of at least four; with ",
+                "n = ", n, " its variance is zero and it is returned as NA.",
+                call. = FALSE)
+        return(NA_real_)
+    }
     a1 <- sum(1 / seq_len(n - 1L))
     a2 <- sum(1 / (seq_len(n - 1L))^2)
 

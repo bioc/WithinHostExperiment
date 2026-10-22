@@ -75,7 +75,7 @@ test_that("calcDiversity stops when the genome length is not recorded", {
     expect_error(calcDiversity(whe, indices = "pi"),
                  "not recorded for test_segment")
     expect_error(calcDiversity(whe, indices = c("richness", "watterson")),
-                 "seqlengths\\(x\\) <- c\\(test_segment = <length>\\)")
+                 'seqlengths(x)[c("test_segment")] <- <length>', fixed = TRUE)
     ## indices that are not per site do not need it
     expect_no_error(calcDiversity(whe, indices = c("richness", "shannon")))
     expect_error(calcDiversity(whe, genomeLength = 1000L), "Unused argument")
@@ -248,9 +248,15 @@ test_that("the genome length sums every recorded sequence (was: only those with 
     expect_identical(GenomeInfoDb::seqlevelsInUse(only1), "seg1")
     expect_equal(calcDiversity(only1, indices = "pi")$pi,
                  piISNV(0.2, genomeLength = 1000))
-    ## one unknown length is enough to stop
+    ## one unknown length is enough to stop, and the advice names it and
+    ## works as written (was: it named the first sequence)
     GenomeInfoDb::seqlengths(whe) <- c(seg1 = 600L, seg2 = NA_integer_)
     expect_error(calcDiversity(whe, indices = "pi"), "not recorded for seg2")
+    expect_error(calcDiversity(whe, indices = "pi"),
+                 'seqlengths(x)[c("seg2")] <- <length>', fixed = TRUE)
+    GenomeInfoDb::seqlengths(whe)[c("seg2")] <- 400L
+    expect_equal(calcDiversity(whe, indices = "pi")$pi,
+                 piISNV(c(0.2, 0.3), genomeLength = 1000))
 })
 
 test_that("compareDiversity takes the genome length from the object", {

@@ -19,15 +19,22 @@ NULL
     lens <- seqlengths(rr)[lv]
     missing_len <- lv[is.na(lens)]
     if (length(lv) == 0L || length(missing_len)) {
+        named <- if (length(missing_len)) missing_len else "<seqname>"
         stop("The index ", paste(sQuote(indices, FALSE), collapse = ", "),
              " divides by the genome length, which is not recorded",
              if (length(missing_len)) paste0(" for ",
                  paste(missing_len, collapse = ", ")),
              " in seqlengths(rowRanges(x)). Record it from the reference ",
              "the calls were made against: read the files with ",
-             "readWithinHost(genome = <DNAStringSet>), or set ",
-             "seqlengths(x) <- c(", if (length(lv)) lv[1L] else "<seqname>",
-             " = <length>).", call. = FALSE)
+             "readWithinHost(genome = <DNAStringSet>), or set it with ",
+             "seqlengths(x)[c(", paste0('"', named, '"', collapse = ", "),
+             ")] <- <length>.",
+             if (length(missing_len))
+                 paste0(" A sequence that is not part of this genome can ",
+                        "be dropped with x <- GenomeInfoDb::keepSeqlevels(",
+                        "x, GenomeInfoDb::seqlevelsInUse(x), pruning.mode = ",
+                        "\"coarse\") if it carries no call."),
+             call. = FALSE)
     }
     sum(as.numeric(lens))
 }

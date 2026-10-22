@@ -103,7 +103,9 @@ test_that("plotFrequencySpectrum usePassedOnly filters data", {
     skip_if_not_installed("ggplot2")
     whe <- .make_single_whe()
     whe <- flagISNV(whe, ISNVFilter(minFreq = 0.50))
-    p <- plotFrequencySpectrum(whe, usePassedOnly = TRUE)
+    ## every call is below 50%, so nothing passes and nothing is drawn
+    expect_message(p <- plotFrequencySpectrum(whe, usePassedOnly = TRUE),
+                   "No data to plot after QC filtering")
     expect_s3_class(p, "ggplot")
 })
 
@@ -112,7 +114,7 @@ test_that("plotFrequencySpectrum handles many samples (>7)", {
     # Create a WHE with 8 samples to trigger the >7 code path
     gr <- GenomicRanges::GRanges("seg",
         IRanges::IRanges(1:5, width = 1))
-    freq <- matrix(runif(40, 0.01, 0.5), nrow = 5, ncol = 8)
+    freq <- matrix(seq(0.01, 0.5, length.out = 40), nrow = 5, ncol = 8)
     colnames(freq) <- paste0("S", 1:8)
     whe <- WithinHostExperiment(
         assays = list(altFreq = freq),
@@ -203,7 +205,8 @@ test_that("plotQCDashboard without totalDepth assay still works", {
     gr <- GenomicRanges::GRanges("seg",
         IRanges::IRanges(1:5, width = 1))
     whe <- WithinHostExperiment(
-        assays = list(altFreq = matrix(runif(5), ncol = 1)),
+        assays = list(altFreq = matrix(c(0.05, 0.12, 0.20, 0.31, 0.44),
+                                       ncol = 1)),
         rowRanges = gr,
         colData = S4Vectors::DataFrame(sample_id = "S1"))
     whe <- flagISNV(whe, ISNVFilter())

@@ -38,8 +38,9 @@ test_that("exactBottleneck presence_absence returns valid result", {
 # ------------------------------------------------------------------
 test_that("exactBottleneck wright_fisher returns valid result", {
     whe <- .make_pair_whe()
-    res <- exactBottleneck(whe, pairId = "p1", maxNb = 30L,
-                           method = "wright_fisher")
+    expect_message(res <- exactBottleneck(whe, pairId = "p1", maxNb = 30L,
+                                          method = "wright_fisher"),
+                   "heuristic")
     expect_true(is.list(res))
     expect_equal(res$method, "wright_fisher")
     expect_true(is.finite(res$Nb))

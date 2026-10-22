@@ -123,7 +123,9 @@ cycle.
   zero and it returned `Inf` or `NaN`.
   `calcNeutralityTests()` reports `n_sites`, the number of sites each
   statistic rests on, and warns once with the number of samples below
-  that rule.
+  that rule. A sample with no calls gives zero diversity and zero
+  segregating sites rather than an uninformative error, in
+  `calcNeutralityTests()` and in `calcDiversity()`.
 * `calcSharedVariants()` gains `minDepth`, by default the strictest
   `minDepth` applied with `flagISNV()` (100 when none was), and splits the
   donor-only count into `n_donor_only_adequate_depth`,

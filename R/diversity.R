@@ -417,6 +417,9 @@ setMethod("calcDiversity", "WithinHostExperiment",
         } else {
             NULL
         }
+        ## a sample with no depth anywhere, such as one with no calls, is
+        ## treated as if there were no depth assay
+        if (!is.null(md) && is.na(md)) md <- NULL
 
         if ("richness" %in% indices) vals$richness <- length(valid)
         if ("shannon" %in% indices) vals$shannon <- shannonISNV(valid)

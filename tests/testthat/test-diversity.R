@@ -282,3 +282,24 @@ test_that("compareDiversity takes the genome length from the object", {
     expect_error(compareDiversity(whe, groupBy = "role", index = "pi",
                                   genomeLength = 1000L), "unused argument")
 })
+
+test_that("a sample with no calls gives zeros, not an error (was: missing value where TRUE/FALSE needed)", {
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(c(10, 20), width = 1))
+    GenomeInfoDb::seqlengths(gr) <- c(seg = 1000L)
+    freq <- cbind(a = c(0.2, 0.3), b = c(NA, NA))
+    depth <- cbind(a = c(1000L, 1000L), b = c(NA_integer_, NA_integer_))
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("a", "b"),
+                                       row.names = c("a", "b")))
+    div <- calcDiversity(whe, indices = c("richness", "pi", "watterson"))
+    expect_identical(div$n_sites_assessed, c(2L, 0L))
+    expect_identical(div$richness, c(2L, 0L))
+    expect_equal(div$pi[2], 0)
+    expect_equal(div$watterson[2], 0)
+    expect_warning(nt <- calcNeutralityTests(whe), "fewer than three")
+    expect_identical(nt$n_sites, c(2L, 0L))
+    expect_true(all(is.na(nt$tajimaD)))
+    expect_equal(nt$fusFs[2], 0)
+})

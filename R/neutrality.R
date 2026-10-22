@@ -374,6 +374,9 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
         } else {
             100
         }
+        ## a sample with no depth anywhere, such as one with no calls, is
+        ## treated as if there were no depth assay
+        if (is.na(md)) md <- 100
         ## Cap at 100: deep sequencing reads are not independent
         ## lineages; using raw depth (e.g., 2000x) inflates a1
         ## and biases D toward positive values.

@@ -30,6 +30,7 @@ Imports:
     stats,
     utils
 Suggests:
+    BiocStyle,
     ggplot2 (>= 3.4.0),
     patchwork,
     testthat (>= 3.1.5),

@@ -3,14 +3,15 @@ title: "Introduction to WithinHostExperiment"
 author: "Cuiwei Gao"
 date: "`r Sys.Date()`"
 output:
-  rmarkdown::html_vignette:
+  BiocStyle::html_document:
     toc: true
-    toc_depth: 3
+    toc_float: true
     number_sections: true
 vignette: >
   %\VignetteIndexEntry{Introduction to WithinHostExperiment}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignettePackage{WithinHostExperiment}
 ---
 
 ```{r setup, include=FALSE}
@@ -20,124 +21,404 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Installation
-
-```{r install, eval=FALSE}
-# From Bioconductor (after acceptance):
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("WithinHostExperiment")
-
-# Development version from GitHub:
-BiocManager::install("CuiweiG/WithinHostExperiment")
-```
-
 # Introduction
 
-`WithinHostExperiment` is a Bioconductor infrastructure package for
-analysing intra-host single nucleotide variants (iSNV) from pathogen
-deep sequencing data.
+This vignette is written as teaching material. It assumes that you can read R code
+and that you have met a table of variant calls before, but it assumes nothing about
+population genetics or about Bioconductor containers. Every term is defined where it
+first appears, and the Glossary near the end collects the definitions in one place.
 
-## The problem
+## What an iSNV is
 
-Researchers performing within-host pathogen diversity analysis face a
-fragmented tooling landscape. Variant callers such as iVar, LoFreq,
-and Freebayes produce outputs in different formats. Quality control
-relies on ad hoc scripts. There is no standard Bioconductor container
-that organises within-host variant data with replicate information,
-donor-recipient pairing, and QC provenance.
+When a pathogen replicates inside one host, its genome is copied imperfectly. After a
+few days the host carries not one genome but a population of closely related genomes.
+If a sample from that host is sequenced deeply, most positions give reads that all
+agree, while at a few positions some reads carry one base and some carry another. Such
+a position is an **intra-host single nucleotide variant**, abbreviated **iSNV**: a
+single-base difference that segregates *within* one host rather than between hosts.
 
-## What this package provides
+Two numbers describe an iSNV. The **allele frequency** is the proportion of reads
+carrying the non-reference base, so a frequency of 0.08 means that 8% of the reads at
+that position disagree with the reference. The **read depth** is how many reads covered
+the position at all. The two are inseparable: 8% of 2,000 reads is 160 independent
+observations, while 8% of 25 reads is two reads and could easily be sequencing error.
+Within-host variation lives at low frequencies, which is exactly where sequencing and
+amplification artefacts also live, so an analysis that does not carry depth alongside
+frequency cannot tell the two apart (McCrone and Lauring 2016).
 
-`WithinHostExperiment` fills the infrastructure gap between upstream
-variant callers and downstream analysis tools:
+## What this package is for
 
-- A `RangedSummarizedExperiment`-based container
-- Replicate-aware, uncertainty-preserving QC (flag, don't delete)
-- Within-host diversity quantification
-- Standardised export compatible with downstream bottleneck estimation tools
+Researchers studying within-host pathogen evolution work with tools that do not fit
+together. Variant callers such as iVar, LoFreq and Freebayes write their output in
+different formats. Quality control is usually done by ad hoc scripts, which delete the
+calls that fail a threshold and so prevent any re-analysis under another threshold.
+Donor and recipient samples, technical replicates and sampling days are tracked in
+spreadsheets beside the data rather than in the data.
+
+`WithinHostExperiment` closes that gap. It provides:
+
+- a container built on `r BiocStyle::Biocpkg("SummarizedExperiment")`, which keeps the
+  call matrix, the genomic coordinates, the sample metadata and the quality-control
+  history in one object;
+- replicate-aware quality control that flags rather than deletes, so that every call
+  survives for re-analysis;
+- within-host diversity, site frequency spectra, neutrality statistics and a
+  within-host selection ratio;
+- standardised export for downstream transmission bottleneck estimation.
+
+## What this package does not do
+
+The package works one site at a time. It does not reconstruct haplotypes, does not
+separate a co-infection from genuine within-host diversity, and does not fit
+drift-aware selection models. The section on scope and limitations sets out each of
+these, with pointers to tools that do them.
 
 ## Relationship to existing tools
 
 | Tool | Role | Relationship |
 |------|------|-------------|
-| iVar, LoFreq, Freebayes | Variant calling | Upstream -- we read output |
-| deepSNV | Low-frequency variant detection | Upstream -- complementary |
-| ViralBottleneck | Bottleneck estimation | Downstream -- simplified frame |
-| QSutils | Quasispecies diversity | Parallel -- different granularity |
+| iVar, LoFreq, Freebayes | Variant calling | Upstream: we read their output |
+| `r BiocStyle::Biocpkg("deepSNV")` | Low-frequency variant detection | Upstream, complementary |
+| ViralBottleneck | Bottleneck estimation | Downstream: we export to it |
+| `r BiocStyle::Biocpkg("QSutils")` | Quasispecies diversity | Parallel, haplotype granularity |
 
-## Why Bioconductor?
+## Why Bioconductor
 
-This package belongs in Bioconductor rather than CRAN for several
-reasons:
+The package belongs in Bioconductor rather than on CRAN for four reasons. It operates
+on high-throughput sequencing data, which is Bioconductor's own domain. It extends
+`RangedSummarizedExperiment` and interoperates with `GRanges`, `VRanges` and the
+`r BiocStyle::Biocpkg("VariantAnnotation")` ecosystem rather than inventing containers.
+It is complementary to existing packages, sitting between upstream callers and
+downstream bottleneck estimators. And its flag-rather-than-delete philosophy, with a
+full audit log on the object, matches Bioconductor's emphasis on reproducible
+workflows.
 
-1. **High-throughput genomic data.** Within-host pathogen diversity
-   analysis operates on deep sequencing data (BAM/VCF) -- the core
-   domain of Bioconductor.
-2. **Shared data structures.** `WithinHostExperiment` extends
-   `RangedSummarizedExperiment` and interoperates with `VRanges`,
-   `GRanges`, and the `VariantAnnotation` ecosystem.
-3. **Complementary to existing packages.** It provides an
-   interoperability layer between upstream variant callers and
-   downstream bottleneck estimation workflows through a standardised
-   QC container.
-4. **Reproducibility.** The flag-don't-delete QC philosophy and
-   full audit logging align with Bioconductor's emphasis on
-   reproducible workflows.
+## A warning about the example numbers
 
-# Quick start
+Every data file used below is synthetic, with one exception: the worked example on real
+data uses two small per-sample tables from Bendall et al. (2023), which are real but
+tiny. The synthetic files were written to exercise the code paths, not to resemble an
+infection. Their frequencies, diversity indices, bottleneck estimates and selection
+ratios therefore show the *form* of each output and carry no biological meaning
+whatever. We say so again at each result, because a number printed by a vignette is
+easily mistaken for a finding.
 
-```{r quickstart, message=FALSE}
+# Installation
+
+The package is distributed through Bioconductor, which keeps every package in a release
+aligned to one version of R, so that a workflow built today can be rebuilt later. The
+installer is `BiocManager`, a small CRAN package that resolves the right Bioconductor
+release for the R you are running; installing a Bioconductor package with
+`install.packages()` instead will usually fail or fetch a mismatched version.
+
+The chunk below installs `BiocManager` if it is missing, then installs this package and
+its dependencies. It is not evaluated when the vignette is built, since the package is
+already installed at that point.
+
+```{r install, eval=FALSE, purl=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("WithinHostExperiment")
+```
+
+`BiocManager::install()` prints the packages it will fetch and then the usual download
+and compilation messages. If it reports that your Bioconductor version is out of date,
+run `BiocManager::install(version = ...)` for the release that matches your R, or
+update R first. The README describes how to obtain the development version, which is
+useful only if you need a change that has not yet reached a release.
+
+Once installed, the package is attached like any other. Attaching it also makes the S4
+generics and the `show` methods used throughout this vignette available.
+
+```{r library, message=FALSE}
 library(WithinHostExperiment)
-
-# Import iSNV data from VCF, with the reference the calls were made against
-vcf <- system.file("extdata", "test_donor.vcf",
-    package = "WithinHostExperiment")
-ref <- Biostrings::readDNAStringSet(system.file("extdata", "test_ref.fa",
-    package = "WithinHostExperiment"))
-whe <- readWithinHost(vcf,
-    colData = S4Vectors::DataFrame(sample_id = "donor"),
-    caller = "ivar", genome = ref)
-whe
 ```
 
-## Pipe-friendly workflow
+A silent return means success. The examples below also use `GenomicRanges` for genomic
+intervals, so we attach that too; everything else is called with the `::` operator so
+that you can see which package each function comes from.
 
-All core functions take a `WithinHostExperiment` as their first
-argument, making them compatible with R's native pipe:
-
-```{r pipe-workflow, message=FALSE}
+```{r library-gr, message=FALSE}
 library(GenomicRanges)
-primers <- GRanges("test_segment", IRanges::IRanges(
-    start = c(40, 880), end = c(65, 950)))
-
-result <- whe |>
-    flagISNV(ISNVFilter(minDepth = 200L, minFreq = 0.03)) |>
-    flagPrimerSites(primers) |>
-    passedISNV()
-
-cat("Input:", nrow(whe), "sites ->",
-    "After QC + primer masking:", nrow(result), "sites\n")
 ```
 
-# Importing data
+Again nothing is printed. We are now ready to look at the container itself.
+
+# The WithinHostExperiment object
+
+A `WithinHostExperiment` extends `RangedSummarizedExperiment`, the standard
+Bioconductor container for a rectangle of measurements. Three ideas carry over. The
+**rows** are features, here variant sites, and their coordinates live in `rowRanges()`
+as a `GRanges`. The **columns** are samples, and their metadata lives in `colData()` as
+a table with one row per sample. The **assays** are matrices of the same shape, rows by
+columns, one matrix per measured quantity, reached with `assay(x, "name")`. Because
+every matrix shares one set of rows and one set of columns, subsetting the object
+subsets the coordinates, the sample table and every matrix together, and they cannot
+fall out of step.
+
+The package ships a small synthetic example so that the structure can be inspected
+without importing anything. Printing an object calls its `show` method, which gives a
+summary rather than the contents.
+
+```{r object-show}
+data(example_whe)
+example_whe
+```
+
+The first line gives the shape: 28 variant sites by 3 samples. The second lists the
+five assays. The `show` method then adds two lines of its own. `qcLog` reports how many
+quality-control steps have been recorded in the first slot this class adds, zero so far
+because no filter has been run. `transmission pairs` is not a slot: it is computed from
+the sample table by `transmissionPairs()` each time the object is printed, and reports
+one donor-and-recipient pair here. The second added slot, `qcFilters`, is not printed in
+the summary and has to be asked for, as shown two sections below. Nothing in the
+summary tells you whether the data are any good; that is what the rest of the vignette
+is for.
+
+## The standard assays
+
+Each assay answers one question about every site in every sample, and they are used
+together rather than separately. `altCount` and `refCount` are the numbers of reads
+carrying the alternative and the reference allele; `totalDepth` is the read depth;
+`altFreq` is the allele frequency; and `qcPass` is a logical matrix recording whether
+that call passed quality control. Only `altFreq` is strictly required, and `qcPass` is
+created as all-`TRUE` when it is not supplied.
+
+```{r object-assays}
+SummarizedExperiment::assayNames(example_whe)
+head(SummarizedExperiment::assay(example_whe, "altFreq"), 4)
+```
+
+The names come back in storage order, and the first four rows of `altFreq` show one
+column per sample. The `NA` entries matter: they are not zero frequencies but sites
+where that sample has no call at all, because a variant caller lists only the positions
+it reported. A zero would assert that the sample was examined there and found nothing;
+`NA` asserts nothing. Every function in the package distinguishes the two, and so
+should any code you write against the object.
+
+## The row ranges
+
+`rowRanges()` holds one genomic interval per site, with the reference and alternative
+alleles as metadata columns. Keeping the coordinates in a `GRanges` is what lets the
+annotation functions overlap the sites with genes without any coordinate arithmetic on
+your part.
+
+```{r object-rowranges}
+head(SummarizedExperiment::rowRanges(example_whe), 3)
+GenomeInfoDb::seqlengths(example_whe)
+```
+
+Each row shows the sequence name, the position as a one-base range, the strand, which is
+`*` because a variant site has no strand, and the `ref` and `alt` alleles. The
+`seqlengths()` call then reports the recorded length of each sequence, here 1,000 bases
+for the synthetic segment. That length is a property of the reference the calls were
+made against, and the per-site diversity indices read it from here rather than taking it
+as an argument, so it cannot be mistyped into one function and not another.
+
+## The sample table
+
+`colData()` carries one row per sample. One column is required, `sample_id`, and five
+more are recognised where they are present: `host_id` for the host a sample came from,
+`replicate_group` and `replicate_id` for technical replicates, and `role` (one of
+`donor`, `recipient` or `independent`) with `pair_id` for transmission pairs. Any other
+column you add is carried along untouched.
+
+```{r object-coldata}
+SummarizedExperiment::colData(example_whe)
+```
+
+The three samples here are a donor, a recipient and an unrelated host, with the first
+two sharing `pair_id` of `pair_1`; the extra `ct_value` column is study metadata that
+the package ignores. These columns are how the analysis functions find their groups: the
+transmission functions read `role` and `pair_id`, the replicate filter reads
+`replicate_group`, and the longitudinal functions read `host_id` and `timepoint`. A
+missing column is the usual reason such a function reports that it found no groups.
+
+## The first added slot: qcLog
+
+Quality control that deletes rows destroys the evidence for its own decisions. This
+package flags instead, and records each decision in a slot called `qcLog`: a `DataFrame`
+with six columns, `step` (which filter ran), `parameter` and `value` (the threshold it
+used), `n_flagged` (how many site-by-sample cells that step newly failed), `n_passed`
+(how many still pass afterwards) and `timestamp`. Read in order, the rows are a
+transcript of what was done to the object.
+
+A `RangedSummarizedExperiment` cannot hold this. Its `metadata()` is a plain list: it
+will accept a log under any name, with any columns, or none, and nothing checks it. A
+reader of the object could not then rely on a log being present, on its columns, or on
+its meaning, and two scripts would invent two incompatible conventions. Making it a slot
+with a validity method turns the log into part of the contract of the class. The
+accessor is `qcLog(x)`, and the replacement form `qcLog(x) <- value` lets code outside
+this package append its own steps.
+
+```{r object-qclog}
+qcLog(example_whe)
+```
+
+A `DataFrame` with 0 rows and 6 columns is an untouched object: the six columns exist,
+so the structure is there to be read, but no filter has run. This is the state after
+import, and any analysis that reports diversity from an object in this state is
+reporting unfiltered calls.
+
+The replacement form matters for interoperability, so it is worth seeing. Here we append
+one row recording a manual review step, which no function in this package performs,
+and print the log without its timestamp column so that the output does not change
+between builds.
+
+```{r object-qclog-replace}
+example_qc <- flagISNV(example_whe, ISNVFilter(minDepth = 1000L))
+reviewed <- example_qc
+extra <- S4Vectors::DataFrame(
+    step = "manual_review", parameter = "reviewer",
+    value = "two sites re-checked by eye", n_flagged = 0L,
+    n_passed = sum(SummarizedExperiment::assay(example_qc, "qcPass")),
+    timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S"))
+qcLog(reviewed) <- rbind(qcLog(example_qc), extra)
+qcLog(reviewed)[, c("step", "parameter", "value", "n_flagged", "n_passed")]
+```
+
+The first four rows were written by `flagISNV()`, one per threshold it applied, and the
+fifth is ours. `n_flagged` is the count of cells that each step newly failed, so a step
+that flags nothing still records that it ran, which is the point of an audit log. Note
+that `n_passed` counts cells of the site-by-sample matrix, not sites: with 28 sites and
+3 samples there are 84 cells, including those where a sample has no call. A filter
+cannot fail a call that is absent, so those cells stay passed and the totals are larger
+than any per-sample count of calls.
+
+## The second added slot: qcFilters
+
+The log says which thresholds ran, as text. The `qcFilters` slot keeps the filter
+objects themselves: a plain list of `ISNVFilter` objects, in the order they were
+applied. The difference is that a stored object can be re-applied to another experiment,
+or read programmatically to find out what the strictest depth threshold was, which is
+how `calcDiversity()` reports a detection limit and how `calcSharedVariants()` chooses a
+depth below which an absence means nothing. A list in `metadata()` could not be trusted
+to contain filters at all. The accessor is `qcFilters(x)`, with the replacement form
+`qcFilters(x) <- value`.
+
+```{r object-qcfilters}
+qcFilters(example_whe)
+length(qcFilters(example_qc))
+qcFilters(example_qc)[[1]]
+```
+
+The untouched object returns an empty list, `list()`. After one `flagISNV()` call the
+list has length one, and its single element prints as the filter that was used, with
+every threshold it carried. Had we filtered twice, the list would have two elements in
+the order applied, and the later one would not replace the earlier: both were applied,
+so both are recorded.
+
+## What subsetting and combining do to the two slots
+
+Only two other operations in the package touch these slots, and both are worth knowing
+about before the slots are trusted. Subsetting with `[`, or through `passedISNV()`,
+keeps `qcLog` and `qcFilters` unchanged: the log still describes the object it was
+written on, so after a subset its `n_passed` can exceed the number of cells in hand.
+`combineRows()` and `combineCols()` go the other way and concatenate the logs and the
+filter lists of their arguments, so a combined object carries every step that any part
+of it went through, in order.
+
+```{r object-slots-subset}
+part <- example_qc[1:5, ]
+qcLog(part)$n_passed
+nrow(part) * ncol(part)
+length(qcFilters(combineRows(example_qc[1:5, ], example_qc[6:10, ])))
+```
+
+The log of the five-site subset still reports 75 passing cells, counted over the 84
+cells of the full object, against the 15 cells the subset holds: the log is a history,
+not a summary of the current object. The combined object, built from two subsets of the
+same filtered object, carries two filters, one inherited from each part, which is the
+faithful record even though both are the same filter applied once.
+
+## What the validity method enforces
+
+An S4 validity method runs when an object is constructed and whenever `validObject()`
+is called on it, and refuses a malformed object. For this class it enforces four things:
+that `qcLog` has the six columns named above; that `qcFilters` holds only `ISNVFilter`
+objects; that an `altFreq` assay exists whenever the object has any assay at all; and
+that a `qcPass` assay, if present, is a logical matrix. The replacement forms
+`qcLog(x) <-` and `qcFilters(x) <-` assign the slot without re-checking, so a malformed
+object can exist until something looks at it, which is why the chunk below calls
+`validObject()` on the two it builds. The reason to check these invariants is that every
+downstream function assumes them, and an assumption that fails quietly fails somewhere
+far from its cause. The chunk provokes three of the four failures with `try()`, so that
+the vignette continues after each error.
+
+```{r object-validity}
+gr <- GRanges("seg", IRanges::IRanges(1:3, width = 1))
+try(WithinHostExperiment(
+    assays = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1),
+                  qcPass = matrix(c(1L, 1L, 0L), ncol = 1)),
+    rowRanges = gr,
+    colData = S4Vectors::DataFrame(sample_id = "S1")))
+bad_filters <- example_whe
+qcFilters(bad_filters) <- list("minDepth = 100")
+try(validObject(bad_filters))
+bad_log <- example_whe
+qcLog(bad_log) <- qcLog(example_whe)[, c("step", "parameter")]
+try(validObject(bad_log))
+```
+
+Each message names the invariant that was broken. The first rejects a `qcPass` matrix of
+integers: `1L` and `0L` would be read as `TRUE` and `FALSE` in some places and as counts
+in others, so the class refuses the ambiguity rather than resolving it. The second
+rejects a character string where an `ISNVFilter` belongs, which is what stops a
+hand-written note from being mistaken later for a filter that was applied. The third
+rejects a log whose last four columns have been dropped, naming all four. The fourth
+invariant, the required `altFreq` assay, is caught by the constructor itself with a
+message that lists the assays you did supply.
+
+## Converting to other containers
+
+An object that cannot be handed to another tool is a dead end, so two coercions are
+provided. `as(x, "data.frame")` gives one row per site and sample that has an observed
+frequency, which is the shape that `ggplot2`, `dplyr` and base R modelling expect.
+`as(x, "VRanges")` gives the same rows as a `VRanges`, the variant-centric container of
+`r BiocStyle::Biocpkg("VariantAnnotation")`, whose reference, alternative and depth
+fields are named as that ecosystem expects.
+
+```{r object-coerce}
+head(as(example_whe, "data.frame"), 4)
+as(example_whe, "VRanges")
+```
+
+The data frame carries the coordinates, the alleles, the sample identifier and one
+column per assay, so the `NA` cells of the matrix form simply do not appear as rows. The
+`VRanges` summary reports the number of ranges, which again is the number of calls
+rather than the number of sites, and names its fields `refDepth`, `altDepth` and
+`totalDepth`. Its final line reports no `seqlengths`, so the recorded genome length does
+not survive this conversion; compute per-site quantities before converting, or record
+the length again on the result.
+
+# Importing calls
 
 ## From VCF files
 
-Each VCF file corresponds to one sample. Sample metadata is provided
-via `colData`. The reference sequence the calls were made against is
-passed as `genome`, a `DNAStringSet` read with
-`Biostrings::readDNAStringSet()`: its length is recorded on the object
-in `seqlengths()`, where every per-site quantity later reads it, so the
-genome length is never typed by hand. A VCF whose header carries
-`##contig` lines records the length by itself.
+A variant caller writes one file per sample, and nothing in that file says which host
+the sample came from, whether it is a replicate, or which other sample it should be
+paired with. `readWithinHost()` therefore takes the files and the sample table together,
+so that the object cannot exist without its metadata. One file corresponds to one
+sample; a file holding several samples is read with `VariantAnnotation::readVcf()` and
+converted, as shown next.
+
+Two arguments repay attention. `caller` names the field layout, because callers record
+the same quantities under different names: iVar-style files carry `ALT_FREQ`, `ALT_DP`
+and `REF_DP`, LoFreq carries `AF` and `DP` in the INFO column, Freebayes carries `AO`,
+`RO` and `DP`. The default `"auto"` reads the header's `##source` line and chooses.
+`genome` takes the reference sequence as a `DNAStringSet`, from which the length of each
+sequence is recorded in `seqlengths()`; a header carrying `##contig` lines records it
+without help. This is why `calcDiversity()` never asks you for a genome length, and why
+the functions that do take one, `calcNeutralityTests()` and `buildSFS()`, can be handed
+`sum(seqlengths(x))` rather than a typed number, as every chunk below does.
 
 ```{r import-vcf}
 vcf1 <- system.file("extdata", "test_donor.vcf",
     package = "WithinHostExperiment")
 vcf2 <- system.file("extdata", "test_recipient.vcf",
     package = "WithinHostExperiment")
-
+ref <- Biostrings::readDNAStringSet(
+    system.file("extdata", "test_ref.fa", package = "WithinHostExperiment"))
 whe <- readWithinHost(
     c(vcf1, vcf2),
     colData = S4Vectors::DataFrame(
@@ -150,95 +431,197 @@ whe <- readWithinHost(
     genome = ref
 )
 whe
+GenomeInfoDb::seqlengths(whe)
 ```
 
-## From iVar TSV
+The object has 20 variant sites and 2 samples. Twenty is the union of the positions the
+two callers reported, not the number of calls: a position reported in only one sample
+still becomes a row, with `NA` in the other column. The `qcLog` line reads zero steps,
+as it must straight after import, and one transmission pair has been recognised from the
+`role` and `pair_id` columns we supplied. The `seqlengths()` call confirms that the
+1,000-base length of the reference has been recorded. If that line had returned `NA`, the
+per-site indices later in this vignette would stop with instructions rather than divide
+by a number nobody chose.
+
+## From a VCF already read into R
+
+Sometimes the file is already in memory, because it has been filtered, or because it
+holds several samples and so cannot be passed to `readWithinHost()` directly. The
+coercion `as(vcf, "WithinHostExperiment")` converts a `CollapsedVCF` or `ExpandedVCF`
+object, choosing the field layout from the header exactly as `caller = "auto"` does, and
+taking every sample the file holds. Sequence lengths recorded in the file are kept.
+
+```{r import-vcf-coerce}
+v <- VariantAnnotation::readVcf(vcf1)
+as(v, "WithinHostExperiment")
+```
+
+The result has 15 sites and 1 sample, which is the donor file on its own; the 20 rows
+above were the union across two files. No transmission pair is reported, because this
+route has no sample table to read a `role` column from: the sample names come from the
+VCF, and any other metadata has to be added to `colData()` afterwards. Records carrying
+several alternative alleles are split into one row per allele before conversion, and the
+import stops rather than guess when the header declares a per-allele field in a way that
+would silently give every allele the first allele's value.
+
+## From an iVar table
+
+`ivar variants` writes a tab-separated table, not a VCF, so an iVar-style VCF has been
+through a converter. `readWithinHostTable()` reads the table directly, which avoids that
+conversion. It accepts iVar's own columns (`REGION`, `POS`, `REF`, `ALT`, `REF_DP`,
+`ALT_DP`, `ALT_FREQ`, `TOTAL_DP`) with `format = "ivar"`, and a generic layout
+(`chrom`, `pos`, `ref`, `alt`, `aaf`, `depth`) with `format = "generic"`.
 
 ```{r import-tsv}
 tsv <- system.file("extdata", "test_donor_ivar.tsv",
     package = "WithinHostExperiment")
 whe_tsv <- readWithinHostTable(tsv, format = "ivar")
 whe_tsv
+GenomeInfoDb::seqlengths(whe_tsv)
 ```
 
-# The WithinHostExperiment object
-
-The container extends `RangedSummarizedExperiment`:
-
-```{r object-structure}
-# Assays: variant-level matrices (rows = sites, columns = samples)
-SummarizedExperiment::assayNames(whe)
-
-# rowRanges: genomic coordinates with ref/alt
-head(SummarizedExperiment::rowRanges(whe))
-
-# colData: sample metadata
-SummarizedExperiment::colData(whe)
-
-# Transmission pairs (from colData role + pair_id)
-transmissionPairs(whe)
-```
+The object again has 15 sites and 1 sample, and no sample table was supplied, so the
+sample identifier was taken from the file name. The important line is the last one:
+`seqlengths()` returns `NA`, because a table carries no reference and no header. Nothing
+is wrong with the object, but the per-site indices will refuse to run until the length
+is recorded, with `GenomeInfoDb::seqlengths(x) <- c(name = length)`. The worked example
+on real data does exactly that.
 
 # Quality control
 
-Accurate iSNV identification requires careful quality control.
-Roder et al. (2023, *mBio*) demonstrated that choice of
-variant caller and use of replicate sequencing have the most
-significant impact on iSNV discovery. `WithinHostExperiment`
-addresses both: it harmonises output from multiple callers
-(iVar, LoFreq, Freebayes) and provides replicate-aware QC as a
-first-class feature.
+Within-host calls are noisy, and the noise is concentrated where the signal is. Roder et
+al. (2023) found that the choice of variant caller and the use of replicate sequencing
+had the largest effects on which iSNVs were discovered. The
+package addresses both: it harmonises the output of several callers on import, and it
+treats replicate concordance as a first-class quality-control step rather than a script.
 
-## Standard QC with flagISNV
+The design principle throughout is **flag, do not delete**. A quality-control step sets
+entries of the logical `qcPass` matrix to `FALSE`, which we call a **QC flag**, and
+records itself in `qcLog`. No row is removed, so the same object can be re-examined
+under a different threshold, and the reason each call was set aside is still readable.
 
-`flagISNV()` marks variants that fail quality criteria. It does
-**not** delete rows -- it sets `qcPass` to `FALSE`. This preserves
-all data for potential re-analysis with different thresholds.
+## Describing a filter
 
-```{r qc-flag}
-# Create a filter
+An `ISNVFilter` is a small object holding the thresholds, separate from the act of
+applying them, so that the same thresholds can be applied to several experiments and
+stored on each. Six thresholds are carried: `minDepth`, a floor on read depth;
+`minFreq`, the **detection threshold**, the lowest allele frequency a call may have and
+be kept; `maxFreq`, above which a variant is treated as a consensus-level change rather
+than within-host variation; `minAltReads`, a floor on the reads supporting the
+alternative allele; `maxStrandBias`, the largest tolerated fold-difference between the
+strands; and `replicateConc`, recorded for provenance but applied by a separate
+function. Defaults follow the within-host literature, and the class documentation gives
+the reasoning for each.
+
+```{r qc-filter}
 filt <- ISNVFilter(minDepth = 200L, minFreq = 0.03)
 filt
+```
 
-# Apply (flag, don't delete)
+The `show` method prints every threshold, including the four we did not set, which is
+the point of printing it: `minFreq` and `maxFreq` appear as the interval `[0.03, 0.5]`,
+so a call at 60% is excluded here as a near-fixed change, not retained. A threshold you
+did not think about is still a threshold that will be applied, so read this output
+before trusting a filtered object. Base and mapping quality are deliberately absent:
+the object holds no per-site quality score, so those belong in the variant caller.
+
+## Applying a filter
+
+`flagISNV()` applies the thresholds in order and returns a new object. Nothing is
+deleted; the `qcPass` matrix and the `qcLog` change. Reading the log afterwards is how
+you learn which threshold did the work, which is rarely the one expected.
+
+```{r qc-flag}
 whe_qc <- flagISNV(whe, filt)
-
-# Check the audit log
 qcLog(whe_qc)
 ```
 
+Four steps were recorded, one per applicable threshold, with strand bias absent because
+this object has no per-strand count assays. The depth filter flagged one cell and the
+other three flagged none, so the depth floor of 200 is doing all the filtering here.
+`n_passed` settles at 39 out of 40: the matrix is 20 sites by 2 samples, and the 15
+cells where a sample made no call are counted as passed, because a filter cannot fail an
+absent call. Do not read `n_passed` as a number of surviving calls; the next function
+reports that.
+
+## Summarising quality per sample
+
+`qcSummary()` counts calls rather than cells, one row per sample, and is the table to
+report. `total_sites` is the number of sites where that sample has a frequency,
+`passed_sites` and `flagged_sites` split them by `qcPass`, `pass_rate` is the ratio, and
+`median_depth` and `median_freq` describe the calls the sample made.
+
 ```{r qc-summary}
-# Per-sample QC summary
 qcSummary(whe_qc)
 ```
 
+The donor made 15 calls, of which 14 passed and one was flagged, giving a pass rate of
+0.93; the recipient made 10 and kept all of them. The median depths, 1,600 and 1,950
+reads, are what make a 3% frequency threshold meaningful at all: at that depth 3% is
+about 50 supporting reads. A pass rate near zero, or a median depth of a few dozen,
+means the thresholds and the data disagree, and the thresholds are usually not the thing
+to change. These are synthetic files, so the figures describe the fixture only.
+
+## Extracting the calls that passed
+
+Analysis functions read `qcPass` themselves and use only passing calls by default, so
+subsetting is usually unnecessary. When you do need a smaller object, for example to
+pass to a function outside the package, `passedISNV()` keeps every site at which *at
+least one* sample passed.
+
 ```{r qc-passed}
-# Extract only QC-passed variants
 clean <- passedISNV(whe_qc)
-cat("Before:", nrow(whe_qc), "sites\n")
-cat("After passedISNV:", nrow(clean), "sites\n")
+cat("Before:", nrow(whe_qc), "sites; after passedISNV:", nrow(clean), "sites\n")
 ```
 
-The two tables count different things. `qcLog()` counts cells of the
-site-by-sample matrix, so its 40 cells include those where a sample has no
-call at a site; a filter cannot fail a call that is absent, so those cells
-stay passed. `qcSummary()` counts only the calls each sample made.
-`passedISNV()` keeps a site if any sample passed it: the one flagged call,
-at position 812 in the donor, is absent from the recipient, so the site is
-kept and the row count does not change. The pipe example above, which also
-masks primer sites, is where rows are removed.
+The row count does not change here, from 20 sites to 20, which surprises people. The one
+flagged call is in the donor at a site where the recipient has no call; the site is
+therefore still passed in at least one column, by the rule above, and the row stays. A
+site disappears only when every sample's call at it has been flagged. If you want to
+remove the flagged *cells* as well, set them to `NA` in the assays yourself, and expect
+to justify it: that is the deletion this package exists to avoid.
 
-## Replicate-aware QC
+## Technology-specific defaults
 
-If your data includes technical replicates, `flagReplicateDiscordance()`
-identifies sites where replicates disagree:
+A **technical replicate** aside, the error profile of the sequencing platform is the
+other thing that should set thresholds, and a 3% frequency threshold that is reasonable
+for Illumina is not reasonable for a platform whose per-base error rate is 3%.
+`adaptiveFilter()` returns a filter with thresholds chosen for a platform: Illumina,
+Oxford Nanopore, PacBio HiFi, or a generic fallback. The documentation gives the
+measurement behind each number.
 
-```{r replicate-qc}
+```{r qc-adaptive}
+adaptiveFilter("illumina")
+adaptiveFilter("ont")
+adaptiveFilter("pacbio_hifi")
+```
+
+The three differ in exactly the ways the platforms differ. Illumina keeps the 3%
+threshold at a depth of 100. Nanopore raises the frequency threshold to 10%, lowers the
+depth floor to 60, about the depth above which Bull et al. (2020) reported over 99%
+sensitivity and precision for single-nucleotide variants, and sets `maxStrandBias` to
+`Inf`, which disables strand-bias filtering rather than apply a threshold nobody has
+tested. PacBio HiFi sits between the two, at 5% and a depth of 50. These are starting
+points for your own data, not results: if you have replicates, measure your own noise
+floor instead.
+
+## Replicate-aware quality control
+
+Sequencing the same library twice is the most direct way to find out which low-frequency
+calls are real. A **technical replicate** is a second sequencing of the same biological
+sample, so a genuine variant should appear at a similar frequency in both, while an
+artefact of amplification or base calling need not.
+`flagReplicateDiscordance()` compares the frequencies within each `replicate_group` and
+flags the sites that disagree by more than `freqTolerance`; with
+`requireBothDetected = TRUE` it also flags sites seen in only one replicate. Flags are
+applied to every sample of the group, since discordance is a property of the site rather
+than of one replicate.
+
+```{r qc-replicate}
 rep1 <- system.file("extdata", "test_donor_rep1.vcf",
     package = "WithinHostExperiment")
 rep2 <- system.file("extdata", "test_donor_rep2.vcf",
     package = "WithinHostExperiment")
-
 whe_rep <- readWithinHost(
     c(rep1, rep2),
     colData = S4Vectors::DataFrame(
@@ -246,347 +629,146 @@ whe_rep <- readWithinHost(
         replicate_group = c("donor_reps", "donor_reps"),
         replicate_id    = c("1", "2")
     ),
-    caller = "ivar"
+    caller = "ivar", genome = ref
 )
-
 whe_rep <- flagReplicateDiscordance(whe_rep, freqTolerance = 0.05)
 qcLog(whe_rep)
 ```
 
-## Primer site filtering
+Two rows are recorded, one per argument, but only the first counts anything: the
+function makes a single pass that applies both criteria together and writes the whole
+count against `freqTolerance`, while the `requireBothDetected` row records the setting
+with `n_flagged` fixed at zero. So the zero in the second row is structural, and nothing
+about the data can be read from it. The 6 flagged cells are three sites across the two
+replicates: two whose frequencies differ by more than 0.05, and one that was detected in
+only one replicate, which the fixture includes on purpose. A tolerance in percentage points
+is itself a modelling choice: the sampling spread of a frequency difference grows with
+frequency, so a fixed tolerance removes proportionally more calls at intermediate
+frequencies than at the bottom of the range. Report the tolerance alongside any count of
+discordant sites.
 
-For amplicon-based sequencing, variants in primer binding regions
-are unreliable and should be flagged:
+## Masking primer sites
 
-```{r primer-qc}
-library(GenomicRanges)
-primers <- GRanges("test_segment", IRanges::IRanges(
-    start = c(40, 880), end = c(65, 950)))
+Amplicon protocols amplify the genome in overlapping pieces, and a read that begins
+inside a primer carries the primer's bases rather than the template's. A **primer site**
+is therefore a region where an apparent variant may be an artefact of the protocol, and
+it is masked rather than interpreted. `flagPrimerSites()` takes the primer coordinates as
+a `GRanges`, which is what `rtracklayer::import.bed()` returns for a BED file, and flags
+every call inside them.
+
+```{r qc-primer}
+primers <- GRanges("test_segment",
+    IRanges::IRanges(start = c(40, 880), end = c(65, 950)))
 whe_primer <- flagPrimerSites(whe_qc, primers)
 qcLog(whe_primer)
 ```
 
-# Diversity analysis
+The log now has five rows: the four from `flagISNV()` and one `primer_filter` step
+recording that two primer regions flagged 6 further cells, leaving 33 of the 40 cells
+passing. Because the step is appended rather than replacing anything, the order in which
+quality control was applied stays readable. The number of regions, not their
+coordinates, is recorded, so keep the BED file with the analysis.
 
-How much variation a host carries is summarised per sample by
-`calcDiversity()`, from the frequencies of the iSNVs that passed QC.
-It returns six indices, each treating every site as a biallelic locus:
+## Strand bias
 
-* `richness`, the number of iSNV sites;
-* `shannon`, the Shannon entropy of the allele frequencies summed over
-  sites;
-* `pi`, the nucleotide diversity: the expected number of differences
-  per site between two genomes drawn from the host, with a
-  finite-sample correction for the read depth;
-* `watterson`, Watterson's theta, from the number of segregating sites
-  and the median depth as the sample size;
-* `simpson`, the probability that two alleles drawn at a site differ,
-  summed over sites;
-* `chao1`, a richness estimate that adds the sites likely missed, from
-  the numbers of sites whose alternative allele was seen in exactly one
-  read and in exactly two.
+**Strand bias** means that the reads supporting a variant come overwhelmingly from one
+strand. Since a real variant is present on both strands of the template, strong bias
+suggests a systematic error. The simple fold-difference used by `flagISNV()` works for
+data with balanced strand coverage, but amplicon data are unbalanced by construction,
+and Mostefai et al. (2024) showed that filters ignoring that imbalance discard genuine
+variants. `sciStrandBias()` therefore normalises each site's forward-to-reverse ratio of
+alternative reads by the forward-to-reverse ratio of total coverage summed over all
+sites, after adding a pseudocount of one to each of the four counts, and reports the
+result on a base-2 logarithmic scale: zero means a site as balanced as the data as a
+whole.
 
-`pi` and `watterson` are per site, so they divide by the genome length,
-which the object carries in `seqlengths()` from the reference given on
-import; a call set without a recorded length stops here with
-instructions.
-
-```{r diversity}
-div <- calcDiversity(whe_qc)
-div
+```{r qc-sci}
+sci <- sciStrandBias(
+    fwd_alt   = c(50, 2, 30),
+    rev_alt   = c(45, 40, 28),
+    fwd_total = c(500, 500, 500),
+    rev_total = c(480, 480, 480))
+sci
 ```
 
-Each row is one sample. The first two columns say what the indices rest
-on: `n_sites_assessed` is the number of sites at which the sample has a
-call at all, before QC, and `detection_limit` the lowest frequency the
-filters applied would let through. A `pi` of zero with a positive
-`n_sites_assessed` therefore means every call failed QC, and a zero
-with `n_sites_assessed` of zero that no call was made. The example
-files describe a synthetic 1,000-base segment, so these values show the
-form of the output and nothing about a real infection. In real
-SARS-CoV-2 data the package's own README reports median `pi` in the
-region of 0.04 to 0.10 x 10^-4^ per site; an index far outside the
-range expected for the pathogen is more often a QC or depth problem
-than a discovery.
+The first and third sites score 0.09 and 0.04, within a hair of balance. The second
+scores -3.83, meaning its alternative reads are about 2 to the power 3.83, roughly
+fourteenfold, scarcer on the forward strand than the global coverage ratio would
+predict; 2 forward reads against 40 reverse is the signature of a strand-specific
+artefact. Scores are not p-values, and the threshold is a judgement: `flagStrandBiasSCI()`
+applies `|SCI| > maxSCI` to an object carrying the four per-strand count assays, with
+`maxSCI = 1.5` by default.
 
-# Transmission analysis
+## Detecting cross-contamination
 
-## Shared variant statistics
+In pooled sequencing, adapters are occasionally exchanged between library molecules, so
+reads from one sample are assigned to another. The signature is distinctive: a variant
+at high frequency in one sample appears at a very low frequency in another sample from
+the same run, at a ratio consistent with the hopping rate rather than with biology.
+`detectCrossContamination()` looks for that pattern and returns the suspect pairs, one
+row per event, without flagging anything.
 
-The first question about a transmission pair is how many of the
-donor's iSNVs reached the recipient. `calcSharedVariants()` counts, for
-one pair, the QC-passed sites present in both hosts, in the donor
-alone and in the recipient alone:
-
-```{r shared}
-sv <- calcSharedVariants(whe_qc, pairId = "pair_1")
-cat("Shared:", sv$n_shared, "\n")
-cat("Donor-only:", sv$n_donor_only, "\n")
-cat("Recipient-only:", sv$n_recipient_only, "\n")
-cat("Donor-only, recipient depth adequate / low / unknown:",
-    sv$n_donor_only_adequate_depth, "/", sv$n_donor_only_low_depth,
-    "/", sv$n_donor_only_unknown_depth, "\n")
+```{r qc-contamination}
+gr_c <- GRanges("seg", IRanges::IRanges(c(100, 200, 300), width = 1))
+mcols(gr_c)$ref <- c("A", "C", "G")
+mcols(gr_c)$alt <- c("T", "G", "A")
+freq_c <- matrix(c(0.80, 0.05, 0.30, 0.01, 0.40, 0.00), nrow = 3, ncol = 2)
+whe_c <- WithinHostExperiment(
+    assays = list(altFreq = freq_c), rowRanges = gr_c,
+    colData = S4Vectors::DataFrame(sample_id = c("A", "B"),
+        run = c("run1", "run1")))
+detectCrossContamination(whe_c, runCol = "run")
 ```
 
-A donor variant absent from the recipient is evidence of loss in
-transmission only where the recipient was sequenced deeply enough to
-have shown it, so the donor-only count is split by the recipient's
-read depth at the site. These objects were read from VCF files, which
-list only the sites a caller reported, so the recipient's depth at the
-sites it did not call is unknown and every donor-only site lands in the
-last group; a depth matrix from a coverage file would move them into
-the first two.
+Two events are reported, and the column to read is `freq_ratio`, the sink frequency over
+the source frequency. The first event, position 100 at 80% in sample A and 1% in sample
+B, has a ratio of 0.0125, within the 0.1% to 2% range typical of index hopping on
+Illumina platforms, so it is a plausible contaminant. The second, at 0.125, is several
+times the upper end of that range and is more likely a genuine shared variant. The
+function suggests; it does not decide, and a real study would set its own criteria on
+this table.
 
-## Quick bottleneck estimation
+## Putting the steps together
 
-For a lightweight MLE estimate using the beta-binomial method:
+Every function in the package takes the object as its first argument, so steps compose
+with R's native pipe, and the composed pipeline reads in the order it runs. This is also
+the shape in which quality control actually removes rows, since the masking and the
+extraction happen together.
 
-```{r bottleneck}
-nb <- quickBottleneck(whe_qc, pairId = "pair_1", maxNb = 50L)
-cat("Nb MLE:", nb$Nb, "\n")
-cat("95% CI: [", nb$ci[1], ",", nb$ci[2], "]\n")
+```{r qc-pipe}
+result <- whe |>
+    flagISNV(ISNVFilter(minDepth = 200L, minFreq = 0.03)) |>
+    flagPrimerSites(primers) |>
+    passedISNV()
+cat("Input:", nrow(whe), "sites; after QC and primer masking:",
+    nrow(result), "sites\n")
 ```
 
-`asViralBottleneckInput()` writes the donor and recipient frequencies
-of a pair into one frame, which is the input a beta-binomial estimator
-needs:
+Twenty sites enter and 17 leave. The three that go are the sites inside the primer
+regions where no sample had a passing call left, which is why this pipeline changes the
+row count while `passedISNV()` alone did not. The order matters: flagging after
+extracting would flag an object from which the evidence had already been removed, and
+the log would no longer describe the data in hand.
 
-```{r vb-bridge}
-vb_input <- asViralBottleneckInput(whe_qc, pairId = "pair_1")
-head(vb_input)
-```
+# Annotation
 
-# Interoperability
+## Labelling sites with genes
 
-`WithinHostExperiment` objects can be converted to standard
-Bioconductor and base R types for use with other packages.
+A list of positions says little until each position is attached to a gene, and the
+comparison most within-host studies want, which genes carry more variation than
+expected, needs that label. `annotateGenes()` adds a `GENE` column to the row metadata
+by overlapping the sites with gene ranges. The ranges are supplied as a `GRanges`, which
+is what `rtracklayer::import()` returns for a GFF3 or GTF file; the gene records are the
+rows with `type == "gene"`. A `TxDb` works too, and its genes are taken with
+`GenomicFeatures::genes()`.
 
-## Convert to data.frame
+The quantity computed is a simple interval overlap, ignoring strand because a variant
+site has no strand, with the label taken from the column named by `nameCol`, by default
+the GFF3 `Name` attribute. Where genes overlap, the default keeps the label of the
+longest overlapping range. Here a two-gene annotation of the synthetic segment is
+written to a temporary file and imported, as a real annotation would be.
 
-```{r as-dataframe}
-df <- as(whe_qc, "data.frame")
-head(df)
-```
-
-## Convert to VRanges
-
-For integration with `VariantAnnotation` workflows:
-
-```{r as-vranges}
-vr <- as(whe_qc, "VRanges")
-vr
-```
-
-## Export for downstream bottleneck tools
-
-The frame shown above under "Quick bottleneck estimation" carries the
-positions and the two frequencies, which is what a beta-binomial
-estimator takes. `ViralBottleneck` itself builds its objects from
-per-base read counts through `CreateTransmissionObject()`, so prepare
-those from the `altCount` and `refCount` assays rather than from this
-frame.
-
-# Visualisation
-
-```{r viz-spectrum, fig.width=6, fig.height=4}
-#| fig.cap: "Allele frequency spectrum of the QC-flagged example pair."
-plotFrequencySpectrum(whe_qc)
-```
-
-```{r viz-pair, fig.width=5, fig.height=5}
-#| fig.cap: "Donor against recipient allele frequency at each site."
-plotPairScatter(whe_qc, pairId = "pair_1")
-```
-
-```{r viz-dashboard, fig.width=8, fig.height=6}
-#| fig.cap: "Four-panel QC dashboard for the example object."
-plotQCDashboard(whe_qc)
-```
-
-# Reporting summaries
-
-`calcDiversity()` and `quickBottleneck()` give the figures a report on a
-transmission pair usually needs:
-
-```{r reporting-summary}
-div <- calcDiversity(whe_qc)
-cat("Shannon entropy:", round(div$shannon[1], 2), "\n")
-cat("Nucleotide diversity (pi):", format(div$pi[1], digits = 3), "\n")
-cat("Richness:", div$richness[1], "iSNV sites\n")
-
-nb <- quickBottleneck(whe_qc, pairId = "pair_1", maxNb = 50L)
-cat("Bottleneck Nb:", nb$Nb, "(95% CI:", nb$ci[1], "-", nb$ci[2], ")\n")
-```
-
-The example files describe a synthetic 1,000-base segment, so these numbers
-show the form of the output and are not evidence that the estimators are
-accurate. `checkDiversityPlausibility()`, used below, compares an
-estimate with the package's own heuristic range for a pathogen: a check
-on units and orders of magnitude, not a validation.
-
-# Case study: SARS-CoV-2 transmission pair
-
-This section demonstrates the complete workflow on real SARS-CoV-2
-iSNV data from Bendall et al. (2023) *Nature Communications* 14:272.
-We analyse household HH6 from Bendall *et al.* (2023). The study's pair
-table lists this household in both directions, as `HH6_A` and `HH6_B`, so
-it does not establish who infected whom; the example follows `HH6_A` and
-treats MHM1143 as the donor for illustration.
-
-```{r case-study-import}
-donor_file <- system.file("extdata", "MHM1143_rep1.tsv",
-    package = "WithinHostExperiment")
-recip_file <- system.file("extdata", "MHM1184_rep1.tsv",
-    package = "WithinHostExperiment")
-
-whe_sars2 <- readWithinHostTable(
-    c(donor_file, recip_file),
-    format = "ivar",
-    colData = S4Vectors::DataFrame(
-        sample_id = c("MHM1143", "MHM1184"),
-        role = c("donor", "recipient"),
-        pair_id = c("HH6", "HH6")
-    )
-)
-whe_sars2
-```
-
-An iVar table carries no reference length, so it is recorded here from
-the GenBank record the calls were made against (MN908947.3, 29,903
-bases), using the `seqlengths()` replacement that every Bioconductor
-ranges object understands:
-
-```{r case-study-seqlengths}
-GenomeInfoDb::seqlengths(whe_sars2) <- c(MN908947.3 = 29903L)
-```
-
-## QC and diversity
-
-```{r case-study-qc}
-whe_sars2 <- flagISNV(whe_sars2,
-    ISNVFilter(minDepth = 100L, minFreq = 0.03))
-qcSummary(whe_sars2)
-
-div_sars2 <- calcDiversity(whe_sars2)
-div_sars2
-```
-
-## Transmission analysis
-
-```{r case-study-transmission}
-sv <- calcSharedVariants(whe_sars2, pairId = "HH6")
-cat("Shared:", sv$n_shared, "/ Donor-only:", sv$n_donor_only,
-    "/ Recipient-only:", sv$n_recipient_only, "\n")
-```
-
-# Other pathogens
-
-To show that the workflow is not specific to SARS-CoV-2, we run it on
-small synthetic example files for three further pathogens and check the
-diversity estimates against the plausibility ranges of
-`checkDiversityPlausibility()`. The files are illustrative fixtures, not
-measurements, and the ranges are the package's own heuristics, so these
-sections demonstrate the interface rather than validate the estimates.
-Each file is a table without a reference, so the length of the region
-it covers is recorded on the object before the per-site indices are
-computed.
-
-## Influenza A (H3N2 HA segment)
-
-```{r multipathogen-flu}
-flu_file <- system.file("extdata", "test_influenza_donor.tsv",
-    package = "WithinHostExperiment")
-whe_flu <- readWithinHostTable(flu_file, format = "ivar",
-    colData = S4Vectors::DataFrame(sample_id = "flu_donor"))
-GenomeInfoDb::seqlengths(whe_flu) <- c(HA = 1701L)
-whe_flu <- flagISNV(whe_flu, adaptiveFilter("illumina"))
-div_flu <- calcDiversity(whe_flu, indices = c("pi", "shannon"))
-cat("Influenza pi:", format(div_flu$pi[1], digits = 3), "\n")
-cat("Influenza Shannon:", round(div_flu$shannon[1], 2), "\n")
-checkDiversityPlausibility(div_flu, pathogen = "influenza")
-```
-
-## HIV-1 (pol region)
-
-```{r multipathogen-hiv}
-hiv_file <- system.file("extdata", "test_hiv_sample.tsv",
-    package = "WithinHostExperiment")
-whe_hiv <- readWithinHostTable(hiv_file, format = "ivar",
-    colData = S4Vectors::DataFrame(sample_id = "hiv_sample"))
-GenomeInfoDb::seqlengths(whe_hiv) <- c(pol = 1000L)
-whe_hiv <- flagISNV(whe_hiv, adaptiveFilter("illumina"))
-div_hiv <- calcDiversity(whe_hiv, indices = c("pi", "shannon"))
-cat("HIV pi:", format(div_hiv$pi[1], digits = 3), "\n")
-cat("HIV Shannon:", round(div_hiv$shannon[1], 2), "\n")
-checkDiversityPlausibility(div_hiv, pathogen = "hiv")
-```
-
-## Mycobacterium tuberculosis
-
-```{r multipathogen-tb}
-tb_file <- system.file("extdata", "test_tb_sample.tsv",
-    package = "WithinHostExperiment")
-whe_tb <- readWithinHostTable(tb_file, format = "ivar",
-    colData = S4Vectors::DataFrame(sample_id = "tb_sample"))
-GenomeInfoDb::seqlengths(whe_tb) <- c(Rv0001 = 4411532L)
-whe_tb <- flagISNV(whe_tb, adaptiveFilter("illumina"))
-div_tb <- calcDiversity(whe_tb, indices = c("pi", "shannon"))
-cat("TB pi:", format(div_tb$pi[1], digits = 3), "\n")
-cat("TB Shannon:", round(div_tb$shannon[1], 2), "\n")
-checkDiversityPlausibility(div_tb, pathogen = "tb")
-```
-
-## Neutrality tests across pathogens
-
-```{r multipathogen-neutrality}
-nt_flu <- calcNeutralityTests(whe_flu, genomeLength = 1701L)
-nt_hiv <- calcNeutralityTests(whe_hiv, genomeLength = 1000L)
-nt_tb  <- calcNeutralityTests(whe_tb,  genomeLength = 4411532L)
-results <- data.frame(
-    pathogen = c("Influenza", "HIV-1", "M. tuberculosis"),
-    n_sites = c(nt_flu$n_sites, nt_hiv$n_sites, nt_tb$n_sites),
-    tajimaD = c(nt_flu$tajimaD, nt_hiv$tajimaD, nt_tb$tajimaD),
-    fusFs = c(nt_flu$fusFs, nt_hiv$fusFs, nt_tb$fusFs)
-)
-results
-```
-
-These fixtures are synthetic, and the tuberculosis one has only three
-sites, so the signs above carry no biological meaning. In real within-host
-data a negative Tajima's D or Fu's Fs is often read as purifying selection
-or expansion after a bottleneck, and a positive value as balancing
-selection or population structure; either reading needs far more sites
-than these examples hold.
-
-# Advanced features
-
-This section demonstrates additional analytical modules available
-in `WithinHostExperiment`. Each subsection provides a minimal
-working example.
-
-## Neutrality tests
-
-Tajima's D and Fu's Fs detect departures from neutral evolution.
-The `calcNeutralityTests()` method caps the effective sample size
-at *n* = 100 to avoid deep-sequencing bias (see `?tajimaD`).
-
-```{r neutrality}
-nt <- calcNeutralityTests(whe_qc, genomeLength = 1000L)
-nt
-```
-
-## Gene annotation
-
-`annotateGenes()` labels each variant site with the gene it falls
-in. It takes the genes as a `GRanges`, the object Bioconductor uses
-for genomic intervals, so any annotation that can be read into one
-will do. A GFF3 file is read with `rtracklayer::import()`, which
-returns every feature in the file with its type in a `type` column;
-the gene records are the subset with `type == "gene"`. Here a
-two-gene annotation for the test segment is written to a temporary
-file and imported:
-
-```{r gene-annotate}
+```{r annotate-genes}
 gff_file <- tempfile(fileext = ".gff3")
 writeLines(c(
     "##gff-version 3",
@@ -596,288 +778,1226 @@ writeLines(c(
 features <- rtracklayer::import(gff_file)
 genes <- features[features$type == "gene"]
 whe_ann <- annotateGenes(whe_qc, genes, nameCol = "Name")
-table(S4Vectors::mcols(
-    SummarizedExperiment::rowRanges(whe_ann))$GENE, useNA = "ifany")
+table(mcols(SummarizedExperiment::rowRanges(whe_ann))$GENE, useNA = "ifany")
 ```
 
-The table counts variant sites per gene; a site outside every gene
-would be counted under `NA`. The label is taken from the column named
-by `nameCol`, here the GFF3 `Name` attribute. Before overlapping, the
-function compares the sequence names on the two sides and stops if
-they share none. The same reference is often named differently by
-different sources (for SARS-CoV-2, `NC_045512.2` in RefSeq and
-`MN908947.3` in GenBank), and an overlap across mismatched names would
-otherwise return `NA` for every site without any error. A `TxDb` can
-be passed in place of the `GRanges`; its genes are then taken with
-`GenomicFeatures::genes()`.
+Eleven sites fall in `geneA` and nine in `geneB`, and the absence of an `NA` column means
+every site lies inside some gene, as it must when two genes tile the whole segment. A
+large `NA` count in real data means either that many sites are intergenic or that the
+annotation does not cover the region, and the two are worth telling apart. One failure
+mode is handled before the overlap: the sequence names on the two sides are compared,
+and the function stops if they share none. The same reference is often named differently
+by different sources, `NC_045512.2` in RefSeq against `MN908947.3` in GenBank for
+SARS-CoV-2, and an overlap across mismatched names would otherwise return `NA`
+everywhere without any error at all.
 
-### Codon and amino acid changes
+## Codon and amino acid consequences
 
-A substitution inside a coding sequence either keeps the amino acid
-the codon encodes (a *synonymous* change) or alters it (a
-*nonsynonymous* change, or a *nonsense* change when it creates a stop
-codon). Telling these apart is the first step of any analysis of
-selection, because selection acts on proteins: purifying selection
-removes amino acid changes faster than silent ones.
-`annotateCodonChange()` classifies every single-nucleotide iSNV. It
-takes two Bioconductor objects: the coding sequences, as the CDS
-records of an annotation in a `GRanges`, and the reference genome as a
-`DNAStringSet`. A FASTA file is read into a `DNAStringSet` with
-`Biostrings::readDNAStringSet()`; a GFF3 file is read with
-`rtracklayer::import()`, and its CDS records are the rows with
-`type == "CDS"`. CDS records that share an `ID` are joined into one
-coding sequence, which is how GFF3 files describe a protein split
-across a ribosomal frameshift. The translation itself is done by
-`VariantAnnotation::predictCoding()`.
+A substitution inside a coding sequence either leaves the amino acid unchanged, a
+**synonymous** change, or alters it, a **nonsynonymous** change, with a **nonsense**
+change the special case that creates a stop codon. The distinction is the foundation of
+every analysis of selection, because selection acts on proteins: purifying selection
+removes amino acid changes faster than silent ones, so the ratio of the two classes is
+informative where neither count is informative alone.
 
-Here the test segment is given one coding sequence covering its first
-999 bases, written as a GFF3 file and imported as a real annotation
-would be:
+`annotateCodonChange()` classifies every single-nucleotide iSNV. It needs the coding
+sequences, as the CDS records of an annotation, and the reference sequence as a
+`DNAStringSet`, and it passes the sites to `VariantAnnotation::predictCoding()`, so the
+translation comes from Bioconductor's own annotation machinery rather than from a codon
+table carried here. CDS records sharing an `ID` are joined into one coding sequence,
+which is how a GFF3 file describes a protein split across a ribosomal frameshift. Here
+the segment is given one coding sequence covering its first 999 bases.
 
-```{r codon-annotate}
-ref_fa <- system.file("extdata", "test_ref.fa",
-    package = "WithinHostExperiment")
-ref <- Biostrings::readDNAStringSet(ref_fa)
-ref
+```{r annotate-codon}
 gff_cds <- tempfile(fileext = ".gff3")
 writeLines(c("##gff-version 3",
-    "test_segment\t.\tCDS\t1\t999\t.\t+\t0\tID=cds-1;gene=testGene"),
-    gff_cds)
+    "test_segment\t.\tCDS\t1\t999\t.\t+\t0\tID=cds-1;gene=testGene"), gff_cds)
 cds <- rtracklayer::import(gff_cds)
 cds <- cds[cds$type == "CDS"]
 whe_codon <- annotateCodonChange(whe_qc, cds, ref)
-mc <- S4Vectors::mcols(SummarizedExperiment::rowRanges(whe_codon))
+mc <- mcols(SummarizedExperiment::rowRanges(whe_codon))
 table(mc$CONSEQUENCE, useNA = "ifany")
-head(as.data.frame(mc[, c("GENEID", "PROTEINLOC", "REFCODON",
-    "VARCODON", "REFAA", "VARAA", "CONSEQUENCE")]))
+head(as.data.frame(mc[, c("GENEID", "PROTEINLOC", "REFCODON", "VARCODON",
+    "REFAA", "VARAA", "CONSEQUENCE")]), 4)
 ```
 
-The `DNAStringSet` printed first holds one sequence, named as in the
-FASTA header; that name has to match the sequence names of the
-variants and of the annotation, and the function stops, naming both
-sets, if they share none. The table counts the iSNVs in each class.
-Every site here falls inside the coding sequence, so none is `NA`;
-sites outside every coding sequence, insertions, deletions and codons
-holding an ambiguous base would be. In the per-site columns, `REFCODON` and `VARCODON` are the
-codon before and after the substitution, read on the coding
-sequence's own strand, `REFAA` and `VARAA` the amino acids they encode
-(`*` for a stop codon) and `PROTEINLOC` the codon's position in the
-protein. The test segment is synthetic, so the classes carry no
-biological meaning. Where coding sequences overlap, as ORF1a and
-ORF1ab do in SARS-CoV-2, a site lies in several of them; the longest
-is reported by default and `collapse = "all"` keeps every one (see
-`?annotateCodonChange`).
+The table classifies all 20 sites: 15 nonsynonymous, 3 synonymous and 2 nonsense, with
+no `NA` because every site here falls inside the coding sequence. In real data the `NA`
+class collects sites outside every coding sequence, insertions and deletions,
+multi-nucleotide substitutions, and codons holding an ambiguous base, which are left
+untranslated with a warning rather than guessed at. In the per-site columns, `REFCODON`
+and `VARCODON` are the codon before and after the substitution, read on the coding
+sequence's own strand, `REFAA` and `VARAA` the amino acids they encode, with `*` for a
+stop codon, and `PROTEINLOC` the codon's position in the protein. Row 1, `TTC` to `TTT`,
+keeps phenylalanine and so is synonymous; row 2, `CAA` to `CAC`, turns glutamine into
+histidine. The classes carry no biological meaning here: the segment is a synthetic
+sequence, and a fixture with two nonsense changes among twenty sites would be
+extraordinary in a real infection. Where coding sequences overlap, as ORF1a and ORF1ab
+do in SARS-CoV-2, a site lies in several; the longest is reported by default and
+`collapse = "all"` keeps every one.
 
-## Selection analysis
+# Diversity
 
-### Within-host pN/pS
+## How much variation a host carries
 
-The balance of nonsynonymous to synonymous iSNVs in one host hints at
-the selection acting on the virus inside it. The raw counts cannot be
-compared directly, because a genome offers many more positions where a
-substitution changes the amino acid than positions where it does not.
-`pNpSWithinHost()` therefore divides each count by the number of
-synonymous or nonsynonymous *sites* in the coding sequences, counted by
-the method of Nei and Gojobori (1986): every codon has three sites,
-shared between the two classes according to how many of its possible
-substitutions keep the amino acid. The ratio of the two proportions,
-pN/pS, describes polymorphism within a host. It is not the dN/dS of a
-comparison between two sequences, and no multiple-hit correction
-applies to variants at these frequencies. The function takes the same
-coding sequences and reference as `annotateCodonChange()` and
-classifies each iSNV itself:
+Diversity indices compress a host's iSNV frequencies into one number per sample, which
+is what makes hosts, timepoints or treatment groups comparable at all. The compression
+also loses information, so the index has to be chosen for the question, and reported
+with what it rests on.
 
-```{r pnps}
-pnps <- pNpSWithinHost(whe_qc, cds, ref)
-pnps[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "pNpS")]
+`calcDiversity()` returns six indices, each treating every site as a biallelic locus.
+**Richness** is simply the number of iSNV sites that passed quality control. **Shannon
+entropy** is a measure of uncertainty about which allele a randomly chosen read carries,
+summed over sites, so it rises both with the number of sites and with how even the
+frequencies are. **Nucleotide diversity**, written pi, is the expected number of
+differences per site between two genomes drawn at random from the host, with a
+finite-sample correction for read depth following Nei (1987). **Watterson's theta** is a
+second diversity estimate built from the number of segregating sites rather than their
+frequencies, using the sample's median depth as the sample size. That is the sample size
+the `tajimaD` manual page warns against, since reads are not independent lineages and a
+depth-sized n makes this theta too small; the neutrality functions cap n at 100 instead,
+so their Watterson estimate is larger than this column and the two are not comparable.
+**Simpson's index** here is the probability that two alleles drawn at a site differ,
+summed over sites. **Chao1** estimates the richness that deeper sequencing would have
+found, from the numbers of sites whose alternative allele was seen in exactly one and in
+exactly two reads; with no doubletons the bias-corrected form is used, and without an
+`altCount` assay it simply equals the richness. The two per-site quantities, pi and
+Watterson's theta, divide by the genome length, which the function reads from
+`seqlengths()`; an object without a recorded length stops with instructions rather than
+guess.
+
+```{r diversity}
+div <- calcDiversity(whe_qc)
+div
 ```
 
-Each row is one sample. `nS` and `nN` count its synonymous and
-nonsynonymous iSNVs, nonsense changes included in `nN`; `S_sites` and
-`N_sites` are the same for every sample and add up to three times the
-number of sense codons in the coding sequence. Without selection, and
-under the counting model's assumption that every substitution is
-equally likely, pN/pS is expected near 1; values below 1 are what
-purifying selection against amino acid changes would produce. With
-counts as small as these, one more synonymous iSNV would change the
-ratio markedly, so it should be reported with its counts and never
-read on its own as evidence of selection. The segment here is
-synthetic, so these values carry no biological meaning. To estimate
-dN/dS between hosts instead, compare their consensus sequences with the
-models in the *MSA2dist* package.
+Each row is one sample, and the first two columns say what the indices rest on.
+`n_sites_assessed` is the number of sites at which the sample has any call, before
+quality control, and `detection_limit` is the lowest frequency the filters applied would
+have let through, here 0.03. Together they let a zero be read: a pi of zero with a
+positive `n_sites_assessed` means every call failed quality control, while a zero with
+`n_sites_assessed` of zero means no call was made, and the two call for different
+actions. In this object the donor's 15 assessed sites leave 14 after filtering, with pi
+of 4.5 per thousand sites and a Shannon entropy of 6.84; the recipient's 10 give pi of
+3.2 per thousand and 4.92. Chao1 equals the richness in both, because no passing call at
+these depths rests on only one or two reads, so there is nothing to add. The donor's
+Watterson's theta of 1.8e-03 uses its median depth of 1,600 as the sample size and is
+the uncapped value the neutrality section below sets against a capped one. Shannon
+entropy and Simpson's index are summed over sites rather than averaged, so values above
+1 are expected and they are not comparable across genomes of different length. These are
+synthetic fixtures: 14 iSNVs in 1,000 bases is denser than any real within-host
+population, and the numbers show the shape of the output only.
 
-### Selection coefficients from frequency trajectories
+## Checking an estimate for plausibility
 
-For longitudinal data, estimate the selection coefficient from
-the logit-transformed frequency change:
+A diversity estimate far from the values usually seen for a pathogen is more often a
+unit, depth or quality-control problem than a discovery, and the commonest version of
+that problem is a per-site quantity that was never divided by the genome length.
+`checkDiversityPlausibility()` compares each sample's estimates against a wide range per
+pathogen and reports whether each falls inside it. The ranges are the package's own
+heuristics, listed on its manual page and set generously enough that a correctly computed
+estimate on typical data falls inside; they are not taken from the literature and they
+are not a validation.
 
-```{r selection}
-freqs <- c(0.05, 0.10, 0.25, 0.50)
-s_hat <- estimateSelectionCoefficient(freqs,
-    times = c(0, 3, 7, 14))
-s_hat
+```{r diversity-plausibility}
+checkDiversityPlausibility(div, pathogen = "sars_cov_2")
 ```
 
-## Multi-caller consensus
+One row per sample and metric: `observed` is the estimate, `expected_min` and
+`expected_max` bound the range, and `in_range` is the verdict. Both samples pass on
+Shannon entropy and fail on pi, whose estimates near 4e-03 and 3e-03 sit above the upper
+bound of 1e-03 for SARS-CoV-2. That failure is the right answer for the wrong-looking
+reason: the fixture is a 1,000-base segment carrying more than a dozen iSNVs, so its
+per-site diversity really is far above anything a coronavirus shows, and the check has
+caught a fixture, not a bug. On real data a result like this would send you to the depth
+distribution and the detection threshold first. A result inside the range, conversely,
+says only that nothing is grossly wrong.
 
-When data from multiple variant callers are available, create a
-consensus call set:
+## Modelling diversity across samples
 
-```{r consensus}
-gr1 <- GenomicRanges::GRanges("seg",
-    IRanges::IRanges(c(100, 200, 300), width = 1))
-S4Vectors::mcols(gr1)$ref <- c("A", "C", "G")
-S4Vectors::mcols(gr1)$alt <- c("T", "G", "A")
-whe1 <- WithinHostExperiment(
-    assays = list(altFreq = matrix(c(0.10, 0.20, 0.30), ncol = 1)),
-    rowRanges = gr1,
-    colData = S4Vectors::DataFrame(sample_id = "S1"))
+With one index per sample, the question usually becomes whether the index moves with
+something: a sampling day, a vaccination status, a treatment group. `fitDiversityModel()`
+fits an ordinary linear model with `stats::lm()` and returns the coefficient table
+tidied into a data frame, adding a grouping column as a fixed effect when one is named.
+Because such a model is usually fitted once per index, the p-values need correcting for
+the number of tests, which `multitestCorrection()` does through `stats::p.adjust()`,
+defaulting to the Benjamini and Hochberg procedure. When the grouping is already a column
+of the sample table and no model is wanted, `compareDiversity()` computes one index per
+sample and applies a Wilcoxon rank-sum test to two groups or a Kruskal-Wallis test to
+more; with fewer than two samples in either of two groups it returns `NA` rather than a
+test.
 
-gr2 <- GenomicRanges::GRanges("seg",
-    IRanges::IRanges(c(100, 200, 400), width = 1))
-S4Vectors::mcols(gr2)$ref <- c("A", "C", "T")
-S4Vectors::mcols(gr2)$alt <- c("T", "G", "C")
-whe2 <- WithinHostExperiment(
-    assays = list(altFreq = matrix(c(0.12, 0.18, 0.15), ncol = 1)),
-    rowRanges = gr2,
-    colData = S4Vectors::DataFrame(sample_id = "S1"))
-
-cons <- consensusISNV(list(ivar = whe1, lofreq = whe2))
-cons
-
-## Pairwise caller concordance
-calcCallerConcordance(list(ivar = whe1, lofreq = whe2))
-```
-
-## Exact bottleneck estimation
-
-`exactBottleneck()` offers three estimators beyond the approximate
-`quickBottleneck()`: `"exact_bb"`, `"wright_fisher"` and
-`"presence_absence"`. The presence-absence estimator is shown here.
-
-```{r exact-bottleneck}
-nb_pa <- exactBottleneck(whe_qc, pairId = "pair_1",
-    maxNb = 50L, method = "presence_absence")
-cat("Presence-absence Nb:", nb_pa$Nb,
-    "(95% CI:", nb_pa$ci[1], "-", nb_pa$ci[2], ")\n")
-```
-
-## Longitudinal frequency tracking
-
-Track variant frequencies across time points within a host:
-
-```{r longitudinal}
-gr_l <- GenomicRanges::GRanges("seg1",
-    IRanges::IRanges(c(100, 200), width = 1))
-S4Vectors::mcols(gr_l)$ref <- c("A", "C")
-S4Vectors::mcols(gr_l)$alt <- c("T", "G")
-freq_l <- matrix(c(0.02, 0.10, 0.12, 0.15),
-    nrow = 2, ncol = 2)
-whe_l <- WithinHostExperiment(
-    assays = list(altFreq = freq_l),
-    rowRanges = gr_l,
-    colData = S4Vectors::DataFrame(
-        sample_id = c("t1", "t2"),
-        host_id = c("H1", "H1"),
-        timepoint = c(1, 2)))
-
-## Track frequencies
-trackFrequency(whe_l)
-
-## Detect emerging variants
-detectEmergingVariants(whe_l)
-```
-
-## SCI strand bias filtering
-
-The SCI score normalises strand bias by the global strand coverage
-ratio, which suits amplicon data with unequal strand coverage:
-
-```{r sci-strand}
-sci <- sciStrandBias(
-    fwd_alt   = c(50, 2, 30),
-    rev_alt   = c(45, 40, 28),
-    fwd_total = c(500, 500, 500),
-    rev_total = c(480, 480, 480))
-sci
-```
-
-## Adaptive technology-specific filtering
-
-Pre-configured filter presets for different sequencing platforms:
-
-```{r adaptive}
-adaptiveFilter("illumina")
-adaptiveFilter("ont")
-adaptiveFilter("pacbio_hifi")
-```
-
-## Diversity modelling and statistical utilities
-
-Fit linear models to diversity data and correct for multiple
-testing:
-
-```{r modeling}
+```{r diversity-model}
 div_df <- data.frame(
     shannon = c(1.2, 1.5, 0.8, 1.1, 1.9, 0.7),
     timepoint = c(1, 2, 3, 1, 2, 3),
     group = c("A", "A", "A", "B", "B", "B"))
-res <- fitDiversityModel(div_df, shannon ~ timepoint,
-    group_col = "group")
+res <- fitDiversityModel(div_df, shannon ~ timepoint, group_col = "group")
 res$summary_df
-
-## Multiple testing correction
-raw_p <- c(0.001, 0.04, 0.03, 0.5)
-multitestCorrection(raw_p)
+multitestCorrection(c(0.001, 0.04, 0.03, 0.5))
 ```
 
-## Plausibility check
+The coefficient table gives an estimate, a standard error, a t value and a p-value per
+term. The slope on `timepoint` is -0.20 with a standard error of 0.26, so the data are
+consistent with no change at all, and the group difference of 0.07 is far smaller than
+its own standard error: six hand-written values cannot show a trend, which is the honest
+reading. The correction then turns four raw p-values into adjusted ones, and the two
+middle values, 0.04 and 0.03, both become 0.053 and so cross from one side of the
+conventional 0.05 to the other. Correcting after choosing which tests to report is not
+enough; the set of tests has to be fixed in advance for the adjusted values to mean what
+they claim.
 
-A diversity estimate far from the values usually seen for a pathogen is
-more often a unit, depth or QC problem than a discovery.
-`checkDiversityPlausibility()` compares each sample's estimates with a
-wide range per pathogen. The ranges are the package's own heuristics,
-listed on its man page, not values from the literature, and a result
-inside them says only that nothing is grossly wrong. Here two
-hand-written samples are checked, one of them with a `pi` far above
-anything SARS-CoV-2 shows:
+# Site frequency spectrum
 
-```{r plausibility}
-div_check <- S4Vectors::DataFrame(sample_id = c("plausible", "suspect"),
-    pi = c(1e-4, 0.3), shannon = c(5.0, 7.5))
-checkDiversityPlausibility(div_check, pathogen = "sars_cov_2")
+## Building a spectrum
+
+Two hosts can carry the same number of iSNVs at the same average frequency and still
+have quite different populations: one may have many rare variants and the other a few
+intermediate ones. The **site frequency spectrum** is the distribution that tells them
+apart, a histogram of allele frequencies across sites. It is the quantity the neutrality
+statistics are computed from, so building it once and reusing it is both clearer and
+cheaper than recomputing summaries separately.
+
+`buildSFS()` constructs a `WithinHostSFS` object for one sample. Two choices define it.
+The first is folding. A **folded** spectrum bins the minor allele frequency, from the
+detection threshold to 0.5, and so makes no claim about which allele is ancestral; an
+**unfolded** spectrum bins the alternative allele frequency from the threshold to 1, and
+thereby treats the reference allele as ancestral at every site. Fold unless you have a
+reason to believe the reference is close to the population the host was infected from.
+The second choice is the detection threshold, which sets where the first bin starts:
+below it variants are unobservable, so starting at zero would invent an empty region of
+the spectrum. The genome length is read off the object and passed in, rather than typed.
+Unlike the length, the threshold is not read off the object: `buildSFS()` defaults it to
+0.03 whatever filters were applied, so pass `threshold` yourself to match the
+`detection_limit` that `calcDiversity()` reports. With the Nanopore preset's 10% floor,
+leaving the default would start the spectrum below the lowest frequency any call could
+have. `buildSFSList()` takes the same arguments and returns one spectrum per sample,
+named by `sample_id`.
+
+```{r sfs-build}
+glen <- sum(GenomeInfoDb::seqlengths(whe_qc))
+sfs_donor <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L,
+    genomeLength = glen)
+sfs_donor
 ```
 
-One row per sample and metric: `observed` is the estimate,
-`expected_min` and `expected_max` the range, and `in_range` the verdict.
-The suspect sample fails on `pi` alone; its Shannon entropy is
-unremarkable.
+The summary reports 14 variants distributed over 10 bins, which matches the donor's 14
+passing calls, so no call fell outside the binned range. `folded: TRUE` and
+`polarization: none` record that this spectrum carries no claim about ancestry, which is
+why the statistics needing derived-allele frequencies will refuse it. The threshold of
+0.03 is where the first bin begins, `corrected: FALSE` says no ascertainment correction
+has been applied, and the median depth of 1,600 reads is stored because the binomial
+correction below needs it. With 14 variants in 10 bins most bins hold one site or none,
+so this spectrum has no shape to speak of; real analyses need hundreds of sites.
+
+## Correcting for what could not be seen
+
+A detection threshold does not merely remove rare variants, it distorts the shape of the
+spectrum, because the bins near the threshold are the ones whose contents are partly
+unobservable. `correctSFSBias()` reweights the bins to compensate, by one of two methods.
+The `"truncation"` method assumes a uniform density of frequencies and multiplies every
+bin by the reciprocal of the observable fraction of the range, which rescales the
+spectrum without changing its shape. The `"binomial"` method uses the stored depth to
+compute the probability of observing a variant at each bin's frequency, and divides each
+bin by that probability, with detectability floored at 0.01 so that no bin is inflated
+more than a hundredfold.
+
+```{r sfs-correct}
+correctSFSBias(sfs_donor, method = "truncation")
+correctSFSBias(sfs_donor, method = "binomial")
+```
+
+Both results report `corrected: TRUE` and, here, the same 14 variants as before. That is
+the correct answer rather than a failure. The truncation factor is 0.5 divided by
+0.5 minus 0.03, about 1.06, and bin counts are whole numbers, so rounding absorbs the
+rescaling entirely. The binomial correction changes nothing for a different reason: at a
+median depth of 1,600 reads, a variant at 3% is expected to be supported by about 48
+reads, so detectability is essentially 1 in every bin and there is nothing to inflate.
+Note that a corrected spectrum no longer holds raw counts, so its number of segregating
+sites, and any statistic computed from it, inherits the correction's assumptions. Use
+uncorrected spectra when comparing two of them.
+
+## Comparing two spectra
+
+Asking whether two hosts, two timepoints, or the kept and discarded halves of one
+sample's calls have the same spectrum is a question about shape rather than totals.
+`compareSFS()` answers it with a chi-squared test for homogeneity on the raw counts in
+matching bins. Because the test compares counts bin by bin, the two spectra must share
+their breaks, their folding and their polarisation, and neither may be bias-corrected;
+the function stops, naming the difference, when any of this fails.
+
+```{r sfs-compare}
+sfs_recip <- buildSFS(whe_qc, sampleIdx = "recipient", nBins = 10L,
+    genomeLength = glen)
+cmp <- compareSFS(sfs_donor, sfs_recip)
+cmp[c("chisq_stat", "df", "chisq_p", "min_expected", "chisq_approx_ok",
+    "n1", "n2")]
+```
+
+The statistic is 3.57 on 8 degrees of freedom, with a p-value of 0.89: no evidence that
+the donor's 14 calls and the recipient's 10 are distributed differently. The degrees of
+freedom are 8 rather than 9 because bins empty in both spectra are dropped before
+testing, and the top bin holds nothing in either. The decisive line is
+`chisq_approx_ok`, which is `FALSE`: the smallest expected count is 0.42, far below the
+5 that the chi-squared approximation needs, so this p-value should not be quoted. The
+function reports that condition instead of warning about it, so that code can check it;
+a Monte Carlo p-value from `stats::chisq.test(simulate.p.value = TRUE)` is the usual
+remedy, and more sites is the real one.
+
+# Neutrality and selection
+
+## Neutrality statistics from the object
+
+Neutrality statistics ask whether the frequency spectrum looks like the one expected
+when every variant is equally fit. They are summaries of spectrum shape, and in
+within-host data that is all they should be asked to be. **Tajima's D** contrasts
+nucleotide diversity, which weights intermediate-frequency variants, with Watterson's
+theta, which counts segregating sites regardless of frequency, and normalises the
+difference by its expected standard deviation (Tajima 1989). Negative values indicate an
+excess of rare variants, as purifying selection or a recent expansion would produce;
+positive values indicate an excess of intermediate ones. **Fu's Fs** is a second
+statistic sensitive to an excess of rare alleles (Fu 1997). One assumption behind it is
+worth naming: Fs is defined on the number of distinct haplotypes, which per-site calls
+cannot supply, so `fusFs()` takes that number to be one more than the segregating sites.
+The package does not phase haplotypes, so nothing checks this.
+
+`calcNeutralityTests()` computes both per sample. One detail dominates their
+interpretation: reads are not independent lineages. Deep sequencing samples a viral
+population whose effective size is far smaller than the depth, and using raw depth as
+the sample size inflates the harmonic number in Watterson's estimator and biases D
+upwards. The method therefore caps the effective sample size at 100, following Lauring
+(2020) as the `tajimaD` manual page explains, and reports `n_sites`, the number of
+segregating sites each statistic rests on. Below three segregating sites D is a function
+of one or two frequencies rather than of a spectrum, so it is returned as `NA` with a
+warning.
+
+```{r neutrality-tests}
+nt <- calcNeutralityTests(whe_qc, genomeLength = glen)
+nt
+```
+
+The donor's D is 1.83 on 14 segregating sites and the recipient's 1.78 on 10, with Fu's
+Fs of 0.04 for the donor and 0.69 for the recipient; on so few sites neither value is
+interpretable. Always read D next to `n_sites`: a D computed from 10 sites is a
+description of 10 numbers, not a test. These fixtures are synthetic, and their
+frequencies were written by hand across the whole range from 4% to 45%, which is exactly
+what produces a positive D, so the sign here is a property of how the file was written.
+In real within-host data negative values are the common case, and negative D is expected
+both under purifying selection and after a bottleneck, so the statistic cannot
+distinguish them. Report D as a description of the spectrum, not as a test with a
+p-value.
+
+## Statistics from a spectrum, including Fay and Wu's H
+
+Building the spectrum once and deriving every statistic from it has one further
+advantage: it makes room for a statistic that needs more than the folded spectrum. **Fay
+and Wu's H** is the difference between nucleotide diversity and an estimator that
+weights high-frequency variants heavily, so a *negative* H marks an excess of
+high-frequency *derived* variants, the signature of a recent sweep or of hitchhiking
+(Fay and Wu 2000), while a positive H means the derived variants sit mostly at low
+frequency. It needs to know which allele is derived at each site, so
+`neutralityFromSFS()` stops on a folded spectrum and reports the polarisation it used.
+On an unfolded spectrum built here, that polarisation is `"reference"`: the reference
+allele stands in for the ancestral one, which holds only as far as the reference
+resembles the infecting population.
+
+```{r neutrality-sfs}
+sfs_unf <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L, fold = FALSE,
+    genomeLength = glen)
+neutralityFromSFS(sfs_unf)
+```
+
+The list reports the ingredients as well as the results: 14 segregating sites, an
+effective sample size of 100 from the depth cap, pi of 4.3e-03, Watterson's theta of
+2.7e-03, larger than the 1.8e-03 of the diversity table because n is capped here, and
+Fay and Wu's theta_H of 2.0e-03 per site, then D of 1.66, Fs of -0.14 and H
+of 2.4e-03, with `polarization` recording the assumption. Two cautions. First, D here is
+1.66 while the object-based route above gave 1.83, for two reasons: this route
+reconstructs pi from bin midpoints rather than from the frequencies themselves, and it
+omits the n/(n-1) finite-sample correction that the object route applies. The two are not
+expected to agree to the last digit, and neither is more correct than the other. Second,
+H is positive here because nothing in the fixture is a high-frequency derived variant:
+with the reference treated as ancestral, every call lies below 45%, so the
+high-frequency bins that would pull theta_H above pi are empty. Nothing in these numbers
+is biology.
+
+## Within-host pN/pS
+
+The balance of nonsynonymous to synonymous iSNVs inside one host is the most direct
+within-host signal of selection, but the raw counts cannot be compared: a genome offers
+many more positions at which a substitution would change the amino acid than positions
+at which it would not. `pNpSWithinHost()` therefore divides each count by the number of
+sites of its own class, counted by the method of Nei and Gojobori (1986), under which
+each codon carries three sites divided between the classes according to how many of its
+possible substitutions keep the amino acid. Writing n_S and n_N for the counts and S and
+N for the sites, the ratio is (n_N / N) divided by (n_S / S).
+
+This ratio is **pN/pS**, a ratio of *polymorphism* within one host, and it is not the
+**dN/dS** of a comparison between two sequences. The distinction is not pedantry: dN/dS
+counts substitutions that have fixed between lineages and is usually corrected for
+multiple hits at one site, whereas these variants segregate at a few percent inside one
+host, where no multiple-hit correction applies. Under the counting model's assumptions,
+that every substitution is equally likely and that there is no selection, pN/pS is
+expected near 1, and values below 1 are what purifying selection
+against amino acid changes produces.
+
+```{r selection-pnps}
+pnps <- pNpSWithinHost(whe_qc, cds, ref)
+pnps[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "pNpS")]
+```
+
+Each row here is one sample, because the fixture has a single gene; in general the table
+carries one row per sample and gene, with the per-gene counts, sites and ratio in six
+`gene_*` columns that this selection leaves out. The donor carries 3 synonymous and 11
+nonsynonymous iSNVs, the recipient 1 and 9, with nonsense changes counted as
+nonsynonymous, and each iSNV counts once whatever its frequency. `S_sites` and
+`N_sites`, 219.3 and 725.7, are the same for both samples because they are a property of
+the coding sequence, not of the data, and they sum to 945, three times the 315 sense
+codons of this 999-base coding sequence; the other 18 codons are stop codons, which
+carry no sites of either class. The ratios, 1.11 and 2.72, must be read with their counts
+and never alone: the recipient's ratio rests on a single synonymous
+iSNV, and one more such call would roughly halve it. Report pN/pS with n_S and n_N
+always. The segment is synthetic, so these values carry no biological meaning; the
+package's own figures on real SARS-CoV-2 data give a pooled ratio of 0.29 from 50
+nonsynonymous and 49 synonymous calls, which is the order of magnitude a real
+within-host estimate has.
+
+## Consensus sequences for between-host comparison
+
+If pN/pS describes polymorphism inside a host, the matching between-host quantity is
+dN/dS between the hosts' consensus sequences. A **consensus sequence** is the reference
+with each of a sample's substitutions at or above a frequency written in, so that it
+represents the single most common genome in that host. `consensusSequences()` builds one
+per sample and returns them as a `DNAStringSet`. Only substitutions are written in:
+insertions and deletions are skipped, with a warning, so that every consensus keeps the
+reference's length and stays aligned to the reference and to every other sample, which
+is what a codon-aware distance needs.
+
+```{r selection-consensus}
+cons <- consensusSequences(whe_qc, ref)
+S4Vectors::mcols(cons)
+```
+
+The `n_substitutions` column reports how many substitutions were written into each
+sequence, and here it is zero for both samples. That is correct: the default `minFreq`
+is 0.5, and the highest frequency anywhere in this fixture is 0.45, so no variant is the
+majority allele at its position and both consensuses equal the reference. This is the
+normal situation for within-host data, where most iSNVs are minority variants, and it is
+the reason a consensus sequence throws away almost everything this package measures.
+
+To have two sequences that differ at all, we must lower the threshold far below 0.5,
+which no real analysis should do: the result is not a consensus but the reference with
+every minority variant written in. We do it here only so that the interface to
+`r BiocStyle::Biocpkg("MSA2dist")` can be shown. The `region` argument restricts the
+output to the coding sequence, since a codon-aware model needs a sequence whose length is
+a multiple of three and whose frame is known.
+
+```{r selection-kaks, message=FALSE}
+cds_region <- GRanges("test_segment", IRanges::IRanges(1, 999), strand = "+")
+cons_cds <- consensusSequences(whe_qc, ref, minFreq = 0.03, region = cds_region)
+if (requireNamespace("MSA2dist", quietly = TRUE)) {
+    kaks <- cons_cds |> MSA2dist::dnastring2kaks(model = "Li")
+    kaks[, c("seq1", "seq2", "Ka", "Ks", "Ka/Ks")]
+}
+```
+
+One row is returned per pair of sequences. `Ka` and `Ks` are the nonsynonymous and
+synonymous distances per site under Li's model, 1.5e-02 and 5.6e-03, and their ratio,
+2.70, is what the `Ka/Ks` column holds; `Ka/Ks` is this literature's name for dN/dS.
+These numbers measure nothing: the sequences differ only because we wrote in variants at
+3%, so the comparison is between two artefacts of a threshold, on a synthetic segment.
+What the chunk does show is the division of labour. Polymorphism within a host is
+`pNpSWithinHost()`; divergence between sequences is a multiple-sequence-alignment
+problem, and `r BiocStyle::Biocpkg("MSA2dist")` implements the published models for it,
+so this package produces the sequences rather than reimplementing the distances.
+
+## Selection coefficients from a trajectory
+
+When the same host is sampled repeatedly, a variant's frequency trajectory carries more
+information than any single-timepoint ratio. Under a deterministic model of selection,
+the logit of the frequency, the logarithm of p over 1 minus p, is linear in time with
+slope equal to the selection coefficient s. `estimateSelectionCoefficient()` returns one
+estimate of s per consecutive interval, scaled by the generation time, so that the
+estimates can be compared and their variability seen.
+
+```{r selection-coefficient}
+freqs <- c(0.05, 0.10, 0.25, 0.50)
+s_hat <- estimateSelectionCoefficient(freqs, times = c(0, 3, 7, 14))
+s_hat
+```
+
+Three estimates come back for four timepoints, 0.249, 0.275 and 0.157 per day, one per
+interval. The first two agree and the third is about half as large, which is what a
+variant whose rise is slowing looks like; averaging them would hide exactly the
+information the per-interval output preserves. The model is deterministic, so it treats
+all of the change as selection and none as drift, and at these frequencies in a
+within-host population drift is not negligible. Read these values as a description of the
+trajectory's steepness, and see the section on scope for what a drift-aware analysis
+would need.
+
+# Transmission
+
+## Finding the pairs
+
+A **transmission pair** is two samples from different hosts, one of whom is believed to
+have infected the other, labelled `donor` and `recipient`. The pairing is epidemiological
+knowledge that no sequence analysis can supply, so it is declared in `colData()` through
+the `role` and `pair_id` columns, and the analysis functions read it from there rather
+than taking donor and recipient as arguments. `transmissionPairs()` reports what they
+will find.
+
+```{r transmission-pairs}
+transmissionPairs(whe_qc)
+```
+
+One pair is reported, with the donor's and recipient's `sample_id` values and the
+`pair_id` that joins them. An empty table means that the pairing is not expressed in
+`colData()`, usually because `role` is missing or spelled differently, and every
+transmission function will then report that it cannot find the pair. If a direction is
+not established, as is often the case, say so in the text: nothing in the object records
+how the direction was decided.
+
+## Counting shared variants
+
+The first question about a pair is how many of the donor's iSNVs reached the recipient.
+`calcSharedVariants()` counts, over the calls that passed quality control, the sites
+present in both hosts, in the donor alone and in the recipient alone. The subtlety is in
+the donor-only count. A donor variant absent from the recipient is evidence of loss in
+transmission only where the recipient was sequenced deeply enough at that site to have
+shown it, so the count is split three ways by the recipient's depth: adequate, low, or
+unknown.
+
+```{r transmission-shared}
+sv <- calcSharedVariants(whe_qc, pairId = "pair_1")
+cat("Shared:", sv$n_shared, "| donor-only:", sv$n_donor_only,
+    "| recipient-only:", sv$n_recipient_only, "\n")
+cat("Donor-only at adequate / low / unknown recipient depth:",
+    sv$n_donor_only_adequate_depth, "/", sv$n_donor_only_low_depth, "/",
+    sv$n_donor_only_unknown_depth, "\n")
+```
+
+Five sites are shared, nine are donor-only and five recipient-only, 19 in all, which is
+the union of the donor's 14 and the recipient's 10 passing calls. Every one of the nine
+donor-only sites falls in the unknown-depth group, and that is the output to attend to.
+These objects were read from VCF files, which list only the positions a caller reported,
+so the recipient's depth at the positions it did not report is simply not recorded, and
+no absence here can be distinguished from a failure to look. A depth matrix from a
+coverage file, or a table listing every assessed position, would move these sites into
+the first two groups and make the sharing rate interpretable. Until then, report the
+split, not just the total.
+
+## A quick bottleneck estimate
+
+A transmission **bottleneck** is the number of viral genomes that founded the infection
+in the recipient, written Nb. It matters because it governs how much of the donor's
+variation can survive transmission at all: a bottleneck of one or two makes the
+recipient's population a near-copy of one donor genome, so most donor iSNVs are lost by
+chance rather than by selection. `quickBottleneck()` computes an approximate
+beta-binomial maximum likelihood estimate over a grid of candidate sizes, in the manner
+of Sobel Leonard et al. (2017), without modelling the recipient's read depth.
+
+```{r transmission-quick}
+nb <- quickBottleneck(whe_qc, pairId = "pair_1", maxNb = 50L)
+cat("Nb:", nb$Nb, "with 95% CI [", nb$ci[1], ",", nb$ci[2], "],",
+    nb$n_variants, "donor variants, log-likelihood", round(nb$loglik, 2), "\n")
+```
+
+The estimate is 3, with a 95% interval from 1 to 7 from 14 donor variants. Three numbers
+decide whether to believe such an estimate. `n_variants` is the whole of the evidence: 14
+sites cannot distinguish a bottleneck of 3 from one of 7, which is what the interval
+says. The interval's upper end must be well below `maxNb`, since an estimate that reaches
+the grid's edge is censored by the grid rather than supported by the data;
+`quickBottleneck()` issues no warning, so check `nb$ci[2]` against `maxNb` yourself,
+while `exactBottleneck()` warns, but only when the point estimate itself reaches `maxNb`.
+And the log-likelihood is only comparable between estimators run on the same sites.
+
+One further caution applies to every estimator in this section. The frequency table they
+work from records a recipient frequency of zero wherever the recipient made no call, so
+each of the nine donor-only sites that `calcSharedVariants()` placed in the
+unknown-depth group is scored here as a variant lost in transmission. Where the recipient
+was simply not sequenced deeply enough at those positions, that scoring pulls the
+estimate downwards. This is a synthetic pair, so 3 is not an estimate of anything.
+
+## Estimators that model depth
+
+`exactBottleneck()` offers three estimators beyond the approximate one. `"exact_bb"` is
+a beta-binomial likelihood over the number of transmitted variant virions that does
+model the recipient's finite read depth, with two departures from the published method,
+both stated on its manual page: when all or none of the transmitted virions carry the
+variant, the recipient's read counts are modelled with a fixed error probability of half
+the detection threshold, and the recipient's detection threshold is not integrated out.
+`"presence_absence"` uses only whether each donor variant was detected in the recipient,
+through the probability 1 minus (1 minus frequency) to the power Nb, which discards the
+recipient's frequencies and so is robust to their being poorly estimated.
+`"wright_fisher"` is a heuristic score rather than a likelihood, and says so with a
+message when it runs. The presence-absence estimator is shown here because it needs the
+least from the data.
+
+```{r transmission-exact}
+nb_pa <- exactBottleneck(whe_qc, pairId = "pair_1", maxNb = 50L,
+    method = "presence_absence")
+cat("Presence-absence Nb:", nb_pa$Nb, "with 95% CI [", nb_pa$ci[1], ",",
+    nb_pa$ci[2], "] from", nb_pa$n_variants, "variants\n")
+```
+
+This estimator returns 2, with an interval from 1 to 4, against the 3 and 1 to 7 above,
+from the same 14 variants. The two intervals overlap heavily, which is the expected
+relationship between estimators using the same sites and different amounts of each
+site's information: they are not independent estimates to be averaged, and the difference
+between them measures the influence of the frequency information rather than any
+uncertainty about Nb. Choose the estimator that matches what your data support, report
+which one, and report its interval.
+
+## Exporting for other tools
+
+Bottleneck estimation is a field of its own, and the right move is usually to hand the
+data to a dedicated package rather than to re-estimate here.
+`asViralBottleneckInput()` writes the donor and recipient frequencies of one pair into a
+single frame, which is the input a beta-binomial estimator needs, and
+`exportPairFrequencies()` gives the fuller table with coordinates, alleles and a shared
+indicator for every site of the pair.
+
+```{r transmission-export}
+head(asViralBottleneckInput(whe_qc, pairId = "pair_1"), 4)
+head(exportPairFrequencies(whe_qc, pairId = "pair_1"), 4)
+```
+
+The first table has three columns, position and the two frequencies, with a zero where
+the recipient made no call; a beta-binomial estimator needs no more. The second keeps
+`chrom`, `ref` and `alt` as well, so that sites can be matched across objects by allele
+rather than by position alone, and flags with `shared` whether both hosts carry a
+frequency; here `NA` marks the sites one host did not report, which the first table
+renders as zero. Note that the `ViralBottleneck` package (Zheng et al. 2025) builds its
+objects from per-base read counts through `CreateTransmissionObject()`, so prepare
+those from the `altCount` and `refCount` assays rather than from either of these frames.
+
+# Longitudinal data
+
+## Tracking frequencies over time
+
+A host sampled once gives a snapshot; a host sampled repeatedly shows which variants are
+rising, which are falling and which appear once and vanish. The functions in this section
+need two `colData()` columns, a host identifier and a timepoint, and they work within
+each host. `trackFrequency()` reshapes the frequency matrix into the long format such
+analyses need, one row per variant and timepoint.
+
+```{r longitudinal-track}
+gr_l <- GRanges("seg1", IRanges::IRanges(c(100, 200), width = 1))
+mcols(gr_l)$ref <- c("A", "C")
+mcols(gr_l)$alt <- c("T", "G")
+freq_l <- matrix(c(0.02, 0.10, 0.12, 0.15), nrow = 2, ncol = 2)
+whe_l <- WithinHostExperiment(
+    assays = list(altFreq = freq_l), rowRanges = gr_l,
+    colData = S4Vectors::DataFrame(
+        sample_id = c("t1", "t2"), host_id = c("H1", "H1"),
+        timepoint = c(1, 2)))
+trackFrequency(whe_l)
+```
+
+Four rows come back for two variants at two timepoints. `variant_key` identifies a
+variant as `chrom:pos:alt`, so the same variant is recognisable across timepoints even
+though each is a separate column of the matrix, and `qc_passed` carries the flag forward
+so that a trajectory can be drawn with the failing points marked rather than silently
+dropped. A variant with no call at a timepoint contributes no row, which is why a
+trajectory with gaps is not the same as one that went to zero.
+
+## Detecting emerging variants
+
+Among the trajectories, the interesting ones are those that rise. `detectEmergingVariants()`
+reports a variant as emerging when it was below `freqThreshold` at one timepoint and rose
+by at least `minIncrease` by the next, within one host. The defaults, 0.05 for both, mean
+a variant that starts below 5% and gains at least 5 percentage points.
+
+```{r longitudinal-emerging}
+detectEmergingVariants(whe_l)
+```
+
+One of the two variants qualifies: the site at position 100 rose from 0.02 to 0.12, a
+change of 0.10, and the other began at 0.10, above the threshold, so it is not reported
+as emerging however much it rose. One row is one *interval*, not one variant, so a
+variant that rises twice appears twice, and the output should be read as a list of
+intervals to inspect. Neither threshold has any statistical content: a rise from 2% to
+12% at a depth of 50 reads is four reads against six and no rise at all, so check the
+depth of each reported interval before taking it seriously.
+
+## Flagging temporally inconsistent sites
+
+A genuine within-host variant arises from replication and should persist across
+consecutive samples, or change smoothly. A variant seen at one timepoint at 5% and absent
+at every other is more likely an artefact of library preparation or base calling.
+`flagTemporalInconsistency()` classifies each site within each host as persistent or
+transient, flags the transient ones, and records the step in the log. A site is persistent
+when it is detected at `minTimepoints` timepoints, optionally requiring them to be
+consecutive. Note what this cannot distinguish: a site also goes undetected on a day when
+its depth was too low or its frequency left the detection window, so a variant that goes
+to fixation can look transient.
+
+```{r longitudinal-temporal}
+gr_t <- GRanges("seg1", IRanges::IRanges(c(100, 200, 300), width = 1))
+mcols(gr_t)$ref <- c("A", "C", "G")
+mcols(gr_t)$alt <- c("T", "G", "A")
+freq_t <- matrix(c(0.1, 0.05, 0.15, NA, NA, 0.2, 0.2, NA, 0.1),
+    nrow = 3, ncol = 3)
+whe_t <- WithinHostExperiment(
+    assays = list(altFreq = freq_t), rowRanges = gr_t,
+    colData = S4Vectors::DataFrame(
+        sample_id = c("t1", "t2", "t3"), host_id = c("H1", "H1", "H1"),
+        timepoint = c(1, 2, 3)))
+whe_t <- flagTemporalInconsistency(whe_t, minTimepoints = 2L)
+mcols(SummarizedExperiment::rowRanges(whe_t))$temporal_class
+qcLog(whe_t)
+```
+
+The classification reads persistent, transient, persistent: the second site was detected
+only at the first timepoint, while the first and third were seen at two or three. The log
+then records one step that flagged 3 cells, which is the one transient site across all
+three samples of this host, since the classification is a property of the site in that
+host and the flag follows it. With several hosts, a site transient in one and persistent
+in another is flagged only in the samples of the first, and the site-level class reads
+persistent. The flag is an invitation to review, not a verdict.
+
+# Several callers
+
+## Building a consensus call set
+
+When replicates are unavailable, the next best check on a low-frequency call is whether a
+second variant caller, with different assumptions, found it too. Roder et al. (2023)
+recommend exactly this. `consensusISNV()` takes a named list of objects, one per caller,
+matches sites by sequence name, position and alternative allele, and keeps the sites that
+at least `min_callers` found with a frequency spread no greater than `freq_tolerance`.
+
+```{r callers-consensus}
+gr1 <- GRanges("seg", IRanges::IRanges(c(100, 200, 300), width = 1))
+mcols(gr1)$ref <- c("A", "C", "G")
+mcols(gr1)$alt <- c("T", "G", "A")
+whe1 <- WithinHostExperiment(
+    assays = list(altFreq = matrix(c(0.10, 0.20, 0.30), ncol = 1)),
+    rowRanges = gr1, colData = S4Vectors::DataFrame(sample_id = "S1"))
+gr2 <- GRanges("seg", IRanges::IRanges(c(100, 200, 400), width = 1))
+mcols(gr2)$ref <- c("A", "C", "T")
+mcols(gr2)$alt <- c("T", "G", "C")
+whe2 <- WithinHostExperiment(
+    assays = list(altFreq = matrix(c(0.12, 0.18, 0.15), ncol = 1)),
+    rowRanges = gr2, colData = S4Vectors::DataFrame(sample_id = "S1"))
+cons_calls <- consensusISNV(list(ivar = whe1, lofreq = whe2))
+cons_calls
+mcols(SummarizedExperiment::rowRanges(cons_calls))
+```
+
+Two of the four distinct sites survive: positions 100 and 200, found by both callers with
+frequency spreads of 0.02, well inside the default tolerance of 0.05. Positions 300 and
+400 were each found by one caller only and are gone. The row metadata records
+`n_callers`, `caller_names` and `freq_spread` for every surviving site, so the evidence
+for each is auditable. Read the `assays(2)` line in the summary carefully: the consensus
+object holds `altFreq`, the mean frequency across callers, and `qcPass` only. Read
+counts, depths and any quality-control history are *not* carried over, so run
+`flagISNV()` on each caller's own object before taking the consensus, never on the
+consensus itself.
+
+## Measuring agreement between callers
+
+Before trusting a consensus it is worth knowing how much the callers agreed to begin
+with, since a consensus of two callers that disagree about most sites is a small and
+possibly biased subset. `calcCallerConcordance()` reports the pairwise counts and the
+Jaccard index, the number of shared sites over the number in the union.
+
+```{r callers-concordance}
+calcCallerConcordance(list(ivar = whe1, lofreq = whe2))
+```
+
+The pair shares 2 sites, each caller has 1 of its own, and the Jaccard index is 2 over 4,
+0.5. A value near 1 means the callers see the same variants and a consensus costs little;
+a value near 0 means they disagree about nearly everything, and then the consensus is not
+a cleaned-up call set but a third, smaller one whose properties neither caller's
+validation covers. With real data expect Jaccard values well below 1 at low frequencies,
+which is the whole reason this check exists. `benchmarkCallers()` extends the comparison
+with precision, recall and F1 when a truth set is available.
+
+# Visualisation
+
+## The frequency spectrum of an object
+
+A table of frequencies hides the shape of a distribution, and the shape is what tells a
+plausible call set from an implausible one: within-host data should show many
+low-frequency variants and few intermediate ones, so a flat or top-heavy histogram is a
+reason to look at depth and thresholds. `plotFrequencySpectrum()` draws that histogram
+from the passing calls and returns a `ggplot` object, which can be modified like any
+other.
+
+```{r viz-spectrum, fig.width=6, fig.height=4, fig.cap="Allele frequency spectrum."}
+plotFrequencySpectrum(whe_qc)
+```
+
+The horizontal axis is allele frequency and the vertical axis counts sites. With 24
+passing calls spread across the whole range, this figure has no shape to read, which is
+the point: it is a fixture, and the function is being demonstrated rather than the data
+described. Note also that the view is clipped with coordinate limits rather than by
+removing data, so a point outside the axis range is hidden rather than dropped from any
+summary.
+
+## Donor against recipient
+
+For a transmission pair, the most informative single figure plots each site's donor
+frequency against its recipient frequency. Sites on the diagonal were transmitted and
+kept their frequency; sites on the axes were present in one host only; and the spread
+tells you how much the frequencies were reshuffled, which is what a bottleneck estimator
+quantifies.
+
+```{r viz-pair, fig.width=5, fig.height=5, fig.cap="Donor against recipient frequency."}
+plotPairScatter(whe_qc, pairId = "pair_1")
+```
+
+Each point is one site of the pair. Points along the lower axis are the donor-only sites
+counted above, and the five shared sites are those away from both axes. Because the
+sites the recipient did not report have no recorded frequency, their position on this
+figure is an artefact of how absence is drawn, not a measurement; the depth split from
+`calcSharedVariants()` is the honest version of the same information.
+
+## A quality-control dashboard
+
+When a new data set arrives, the useful first look is several views at once: the depth
+distribution, the frequency distribution, the proportion of calls flagged and the
+per-sample pass rates. `plotQCDashboard()` assembles them into one figure, which needs
+the `r BiocStyle::CRANpkg("patchwork")` package to compose the panels.
+
+```{r viz-dashboard, fig.width=8, fig.height=6, fig.cap="Four-panel QC dashboard."}
+plotQCDashboard(whe_qc)
+```
+
+The four panels answer the four questions above for this object. What to look for in your
+own data is a depth distribution with a long low tail, which tells you where to set
+`minDepth`; a frequency distribution piling up at the detection threshold, which suggests
+the threshold is doing more than removing noise; and pass rates that differ markedly
+between samples, which usually means one library behaved differently and should be
+examined before it is pooled with the rest.
+
+## A spectrum object
+
+The site frequency spectrum has its own plotting function, which takes `WithinHostSFS`
+objects rather than an experiment, and accepts a named list to draw several on one pair of
+axes. That is the comparison the class exists for: two hosts, two timepoints, or the same
+sample before and after a correction.
+
+```{r viz-sfs, fig.width=6, fig.height=4, fig.cap="Folded spectra of the two samples."}
+plotSFS(list(donor = sfs_donor, recipient = sfs_recip))
+```
+
+Each bar is one frequency bin and the colours distinguish the two samples, with
+`normalize = TRUE` switching from counts to proportions when the two differ in size. With
+14 and 10 variants in 10 bins, most bars stand at one or zero, which is the visual form of
+the warning that `compareSFS()` gave numerically: there is no shape here to compare. The
+palette is the colour-blind-safe set of Wong (2011), recycled beyond eight series.
+
+## A trajectory
+
+Finally, for longitudinal data, `plotFrequencyTrajectory()` draws one line per variant
+over time for a named host, which is the figure in which a rising variant becomes
+obvious and a transient one reveals itself as a single point.
+
+```{r viz-trajectory, fig.width=6, fig.height=4, fig.cap="Frequency trajectories, host H1."}
+plotFrequencyTrajectory(whe_l, hostId = "H1")
+```
+
+Two lines are drawn for the two variants of the toy object, over its two timepoints. With
+only two timepoints a line cannot show curvature, so this figure demonstrates the
+interface rather than any dynamics. In real use, read such a figure beside the depth at
+each point: an apparent sweep across a few percentage points can be the arrival of better
+coverage rather than of a variant.
+
+# A worked example on real data
+
+## The data
+
+Every example so far has been synthetic. This section runs the workflow on real
+SARS-CoV-2 iSNV calls from Bendall et al. (2023), who sequenced household transmission
+pairs in duplicate. The package ships both technical replicates of two samples from
+household HH6 as iVar tables, four of the study's 159 calls, and this section uses the
+first replicate of each. These are real but very small, two calls per sample, so they
+illustrate the workflow rather than reproduce the study.
+
+One caution about direction. The study's own pair table lists this household in both
+directions, as `HH6_A` and `HH6_B`, so it does not establish who infected whom. We follow
+`HH6_A` and treat MHM1143 as the donor for illustration only; nothing below should be read
+as a claim about the direction of transmission in this household.
+
+```{r case-import}
+donor_file <- system.file("extdata", "MHM1143_rep1.tsv",
+    package = "WithinHostExperiment")
+recip_file <- system.file("extdata", "MHM1184_rep1.tsv",
+    package = "WithinHostExperiment")
+whe_sars2 <- readWithinHostTable(
+    c(donor_file, recip_file), format = "ivar",
+    colData = S4Vectors::DataFrame(
+        sample_id = c("MHM1143", "MHM1184"),
+        role = c("donor", "recipient"),
+        pair_id = c("HH6", "HH6")))
+whe_sars2
+```
+
+The object holds 4 variant sites across 2 samples, so the two samples' calls do not
+overlap at all: two calls each at four distinct positions. One transmission pair is
+recognised from the `role` and `pair_id` columns. Four sites is a very small number, and
+every quantity below inherits that: the point of the section is that the code path is the
+same as for a full study, not that these values describe the household.
+
+## Recording the genome length
+
+An iVar table carries no reference sequence and no header, so the object arrived without a
+recorded genome length, and the per-site indices would refuse to run. The length belongs
+to the reference the calls were made against, here the GenBank record MN908947.3 at 29,903
+bases, and it is recorded with the `seqlengths()` replacement that every Bioconductor
+ranges object understands. Recording it on the object, rather than passing it to each
+function, is what keeps every per-site quantity dividing by the same number.
+
+```{r case-seqlengths}
+GenomeInfoDb::seqlengths(whe_sars2) <- c(MN908947.3 = 29903L)
+GenomeInfoDb::seqlengths(whe_sars2)
+```
+
+The length is now recorded against the sequence name used in the table. The name has to
+match: had the table used `NC_045512.2`, the RefSeq name for the same genome, assigning to
+`MN908947.3` would have failed rather than quietly recorded a length for a sequence with no
+sites on it. This is the same name-matching problem the annotation functions guard
+against.
+
+## Quality control and diversity
+
+With the length recorded, the standard workflow applies: flag the calls that fail depth
+and frequency thresholds, summarise the result per sample, then compute diversity from
+what passed. The thresholds here, a depth of 100 and a frequency of 3%, are the Illumina
+defaults discussed above.
+
+```{r case-qc}
+whe_sars2 <- flagISNV(whe_sars2, ISNVFilter(minDepth = 100L, minFreq = 0.03))
+qcSummary(whe_sars2)
+div_sars2 <- calcDiversity(whe_sars2)
+div_sars2
+```
+
+The donor kept both of its calls; the recipient kept one of two, at a median depth of
+2,667 reads, so its flagged call failed on frequency rather than depth, its median
+frequency of 0.033 sitting just at the threshold. Diversity follows from what passed: pi
+of 6.0e-06 for MHM1143 on 2 sites and 2.3e-06 for MHM1184 on 1. Expressed as the units the
+package's own figures use, those are 0.060 and 0.023 per 10,000 sites. These calls have
+been through the depth and frequency filters only, not the replicate-concordance step,
+so the comparable figure is the naive median of 0.096 that those figures report across
+the 83 samples of this study, not the median of 0.038 after replicate quality control.
+Both values sit below that naive median and within a factor of five of it. Two samples
+cannot confirm a median, but agreement in order of magnitude is the reassurance that the
+units are right, which is the next check.
+
+## Checking the magnitudes
+
+This is where the plausibility check earns its place. The same function that rejected the
+synthetic fixture's diversity should accept a real estimate from a real coronavirus data
+set, and if it does not, the units or the genome length are the first suspects.
+
+```{r case-plausibility}
+checkDiversityPlausibility(div_sars2, pathogen = "sars_cov_2")
+```
+
+Both samples now fall inside the range on both metrics: pi at 6.0e-06 and 2.3e-06 sits
+within 1e-06 to 1e-03, and the Shannon entropies, 0.38 and 0.16, are far below the upper
+bound of 15. Compare this with the synthetic object earlier, which failed on pi by more
+than threefold, and the contrast shows what the check is for. It remains a check on units
+and orders of magnitude only: these ranges are the package's own heuristics, and a
+verdict of `TRUE` is no evidence that an estimate is correct.
+
+## Transmission
+
+The last step of the workflow asks what the pair shares. With the direction taken as given
+and quality control applied, `calcSharedVariants()` counts the sites in both hosts, in the
+donor alone and in the recipient alone, splitting the donor-only count by the recipient's
+depth as before.
+
+```{r case-transmission}
+sv2 <- calcSharedVariants(whe_sars2, pairId = "HH6")
+cat("Shared:", sv2$n_shared, "| donor-only:", sv2$n_donor_only,
+    "| recipient-only:", sv2$n_recipient_only, "\n")
+cat("Donor-only at adequate / low / unknown recipient depth:",
+    sv2$n_donor_only_adequate_depth, "/", sv2$n_donor_only_low_depth, "/",
+    sv2$n_donor_only_unknown_depth, "\n")
+```
+
+No site is shared: 2 donor-only, 1 recipient-only, 3 in all. Both donor-only sites fall in
+the unknown-depth group, because an iVar table lists only the positions with a call, so
+nothing here records whether the recipient was sequenced deeply enough at those positions
+to have detected the variant. That is the correct conclusion from these two files, and it
+is a conclusion about data rather than about transmission. The package's own figures find
+the same pattern at scale on this study: of the 52 pairs whose donor carried at least one
+concordant iSNV, 47 share none with the recipient. Two limits shape that count. The
+study's recipient calls are limited to frequencies of 2 to 98%, so a donor variant that
+reached fixation in the recipient also counts as not shared; and in 26 of those pairs the
+recipient carries no iSNV call at all, so absence of data is easily recorded as absence
+of sharing.
+Bendall et al. (2023) report the bottleneck estimates for this cohort; these counts
+describe detection.
+
+# Other pathogens
+
+Nothing in the workflow is specific to SARS-CoV-2. To show that, we run the same steps on
+small synthetic fixtures for three further pathogens whose within-host diversity differs
+by orders of magnitude, and check each estimate against its own plausibility range. The
+files are illustrative fixtures, not measurements, and the ranges are heuristics, so these
+sections demonstrate the interface. Each file is a table without a reference, so the length
+of the region it covers is recorded on the object before any per-site index is computed.
+
+## Influenza A
+
+Influenza A has a segmented genome, and here one segment, the 1,701-base haemagglutinin
+segment of an H3N2 virus, stands for it. The workflow is unchanged: record the length, flag
+with the Illumina preset, compute diversity, check the magnitudes.
+
+```{r pathogen-flu}
+flu_file <- system.file("extdata", "test_influenza_donor.tsv",
+    package = "WithinHostExperiment")
+whe_flu <- readWithinHostTable(flu_file, format = "ivar",
+    colData = S4Vectors::DataFrame(sample_id = "flu_donor"))
+GenomeInfoDb::seqlengths(whe_flu) <- c(HA = 1701L)
+whe_flu <- flagISNV(whe_flu, adaptiveFilter("illumina"))
+div_flu <- calcDiversity(whe_flu, indices = c("pi", "shannon"))
+div_flu
+checkDiversityPlausibility(div_flu, pathogen = "influenza")
+```
+
+The sample has 12 assessed sites and a pi of 2.6e-03 per site with a Shannon entropy of
+6.47, and both fall inside the influenza ranges, 1e-05 to 5e-03 and 0 to 20. Passing here
+and failing on the SARS-CoV-2 fixture earlier is not a contradiction: the ranges differ by
+pathogen because within-host diversity does, and a short segment carrying a dozen iSNVs is
+plausible for influenza in a way it is not for a coronavirus. The estimate is still from a
+fixture.
+
+## HIV-1
+
+HIV-1 sits at the other end of the scale, with within-host populations an order of
+magnitude more diverse than a respiratory virus, and here a 1,000-base window of the `pol`
+region stands for one.
+
+```{r pathogen-hiv}
+hiv_file <- system.file("extdata", "test_hiv_sample.tsv",
+    package = "WithinHostExperiment")
+whe_hiv <- readWithinHostTable(hiv_file, format = "ivar",
+    colData = S4Vectors::DataFrame(sample_id = "hiv_sample"))
+GenomeInfoDb::seqlengths(whe_hiv) <- c(pol = 1000L)
+whe_hiv <- flagISNV(whe_hiv, adaptiveFilter("illumina"))
+div_hiv <- calcDiversity(whe_hiv, indices = c("pi", "shannon"))
+div_hiv
+checkDiversityPlausibility(div_hiv, pathogen = "hiv")
+```
+
+Twenty assessed sites give a pi of 6.6e-03 and a Shannon entropy of 10.01, both inside the
+HIV ranges of 1e-04 to 5e-02 and 0 to 30. Note that this pi is about two and a half times
+the influenza value and would have failed the SARS-CoV-2 check comfortably, which is the
+whole point of choosing the `pathogen` argument deliberately rather than leaving it at its
+default.
+
+## Mycobacterium tuberculosis
+
+Tuberculosis is the opposite case: a 4.4-megabase genome with very little within-host
+variation, so the per-site diversity is small not because few variants were found but
+because they are divided by a large genome.
+
+```{r pathogen-tb}
+tb_file <- system.file("extdata", "test_tb_sample.tsv",
+    package = "WithinHostExperiment")
+whe_tb <- readWithinHostTable(tb_file, format = "ivar",
+    colData = S4Vectors::DataFrame(sample_id = "tb_sample"))
+GenomeInfoDb::seqlengths(whe_tb) <- c(Rv0001 = 4411532L)
+whe_tb <- flagISNV(whe_tb, adaptiveFilter("illumina"))
+div_tb <- calcDiversity(whe_tb, indices = c("pi", "shannon"))
+div_tb
+checkDiversityPlausibility(div_tb, pathogen = "tb")
+```
+
+Three sites give a pi of 6.4e-08 and a Shannon entropy of 0.58, inside the tuberculosis
+ranges of 1e-09 to 1e-04 and 0 to 5. The five orders of magnitude between this pi and the
+HIV one above come mostly from the denominator, which is why a per-site index quoted
+without its genome length is uninterpretable, and why this package records the length on
+the object and reads it from there.
+
+## Neutrality statistics across the three
+
+Running the same statistic on all three makes the dependence on the number of sites
+visible, which is the lesson worth taking from this section. The genome length is read back
+off each object rather than retyped, and the table reports `n_sites` beside each statistic
+so that nothing can be read without it.
+
+```{r pathogen-neutrality}
+nt_flu <- calcNeutralityTests(whe_flu,
+    genomeLength = sum(GenomeInfoDb::seqlengths(whe_flu)))
+nt_hiv <- calcNeutralityTests(whe_hiv,
+    genomeLength = sum(GenomeInfoDb::seqlengths(whe_hiv)))
+nt_tb  <- calcNeutralityTests(whe_tb,
+    genomeLength = sum(GenomeInfoDb::seqlengths(whe_tb)))
+data.frame(
+    pathogen = c("Influenza", "HIV-1", "M. tuberculosis"),
+    n_sites = c(nt_flu$n_sites, nt_hiv$n_sites, nt_tb$n_sites),
+    tajimaD = c(nt_flu$tajimaD, nt_hiv$tajimaD, nt_tb$tajimaD),
+    fusFs = c(nt_flu$fusFs, nt_hiv$fusFs, nt_tb$fusFs))
+```
+
+The influenza and HIV fixtures give positive Tajima's D, 2.37 on 12 sites and 2.12 on 20,
+and the tuberculosis fixture gives -0.91 on 3. Read the `n_sites` column first: 3 is the
+smallest number at which D is defined at all, since below three segregating sites it is a
+function of one or two frequencies rather than of a spectrum and `tajimaD()` returns `NA`
+with a warning. A D computed from exactly three sites is formally defined and practically
+meaningless, and these are synthetic files besides, so no sign in this table carries any
+biological meaning. In real within-host data a negative D or Fs is often read as purifying
+selection or as expansion after a bottleneck, and a positive one as balancing selection or
+population structure; either reading needs far more sites than these fixtures hold, and the
+deep-sequencing caveats above apply to all of them.
 
 # Scope and limitations
 
-This package operates at the level of individual single nucleotide
-variants (iSNVs). It does **not** perform:
+This package operates at the level of individual single nucleotide variants. It does not
+perform the following, and we list them so that the boundary is explicit rather than
+discovered.
 
-- **Haplotype phasing or quasispecies reconstruction**, which require
-  read-level (BAM) analysis outside the scope of
-  `RangedSummarizedExperiment`. For haplotype-aware analysis, consider
-  CliqueSNV (Knyazev et al. 2021 *Nucleic Acids Res* 49:e102), ShoRAH
-  (Zagordi et al. 2011 *BMC Bioinformatics* 12:119), or similar
-  tools. Their output can be imported into `WithinHostExperiment`
-  for downstream diversity and QC analysis.
+**Haplotype phasing and quasispecies reconstruction.** Knowing which variants travel
+together on the same genome requires read-level analysis of alignments, which is outside
+what a `RangedSummarizedExperiment` of per-site calls can express. For haplotype-aware
+analysis consider CliqueSNV (Knyazev et al. 2021, *Nucleic Acids Res* 49:e102) or ShoRAH
+(Zagordi et al. 2011, *BMC Bioinformatics* 12:119). Their output can be imported here for
+downstream diversity and quality-control work.
 
-- **Co-infection vs diversity distinction**, which requires
-  phylogenetic analysis of full haplotypes. The multi-caller
-  consensus and replicate-concordance modules reduce artefacts
-  but do not resolve this.
+**Telling co-infection from within-host diversity.** Two distinct infecting lineages and
+one diversifying lineage can produce similar per-site frequency patterns, and separating
+them needs phylogenetic analysis of full haplotypes. The multi-caller consensus and
+replicate-concordance steps reduce artefacts but do not address this at all.
 
-- **Stochastic selection coefficient estimation**. The
-  `estimateSelectionCoefficient()` function uses a deterministic
-  logit-frequency model. For drift-aware inference, consider
-  dedicated Wright-Fisher or diffusion-based frameworks.
+**Drift-aware selection inference.** `estimateSelectionCoefficient()` fits a deterministic
+logit-frequency model, which attributes all frequency change to selection. For inference
+that separates selection from drift, use a dedicated Wright-Fisher or diffusion-based
+framework.
 
-# Session info
+**Neutrality testing as a formal test.** Tajima's D and Fu's Fs are reported here as
+descriptions of the frequency spectrum. Because sequencing reads are not independent
+lineages, their null distributions do not apply to deep-sequencing data, and a p-value
+computed from them would not mean what it appears to. Simulation that models the
+read-sampling process is the rigorous route.
+
+**Validating the estimators.** Nothing in this vignette validates any estimator. The
+fixtures are synthetic, the real example is two samples, and the plausibility ranges are
+heuristics of the package's own. Where a number is wanted for comparison, the package's
+figure script computes it from the public data and records it.
+
+# Glossary
+
+**Allele frequency.** The proportion of reads at a site carrying the non-reference base.
+
+**Bottleneck.** The number of viral genomes founding the infection in a recipient, written
+Nb; a small bottleneck loses most of the donor's variation by chance.
+
+**Consensus sequence.** The reference with each of a sample's substitutions at or above a
+frequency, usually 0.5, written in; it represents the single commonest genome in a host.
+
+**Detection threshold.** The lowest allele frequency a call may have and be kept, below
+which variants are treated as unobservable.
+
+**dN/dS.** The ratio of nonsynonymous to synonymous substitutions per site between two
+sequences, usually with a multiple-hit correction; a divergence measure, unlike pN/pS.
+
+**Folded and unfolded spectrum.** A folded site frequency spectrum bins the minor allele
+frequency from the threshold to 0.5 and claims nothing about ancestry; an unfolded one bins
+the alternative allele frequency from the threshold to 1 and treats the reference allele as
+ancestral.
+
+**iSNV.** Intra-host single nucleotide variant: a single-base difference segregating within
+one host's pathogen population.
+
+**Nucleotide diversity (pi).** The expected number of differences per site between two
+genomes drawn at random from the host.
+
+**pN/pS.** The ratio of nonsynonymous to synonymous polymorphism per site within one host;
+expected near 1 with no selection, below 1 under purifying selection.
+
+**Primer site.** A region where amplification primers bind, in which an apparent variant
+may be an artefact of the protocol and is therefore masked.
+
+**QC flag.** An entry of the logical `qcPass` matrix set to `FALSE` by a quality-control
+step; the call is retained and marked, never deleted.
+
+**Read depth.** The number of reads covering a site in a sample.
+
+**Shannon entropy.** A measure of how uncertain the allele carried by a randomly chosen
+read is, summed over sites, so it rises with both the number and the evenness of variants.
+
+**Site frequency spectrum.** The distribution of allele frequencies across a sample's
+variant sites, from which the neutrality statistics are computed.
+
+**Strand bias.** A variant supported overwhelmingly by reads from one strand, which
+suggests systematic error rather than a real variant present on both strands.
+
+**Synonymous and nonsynonymous.** A substitution in a coding sequence that leaves the amino
+acid unchanged is synonymous; one that alters it is nonsynonymous, and one that creates a
+stop codon is nonsense.
+
+**Tajima's D.** The normalised difference between nucleotide diversity and Watterson's
+theta; negative under an excess of rare variants, positive under an excess of
+intermediate-frequency ones.
+
+**Technical replicate.** A second sequencing of the same biological sample, used to
+distinguish genuine low-frequency variants from artefacts.
+
+**Transmission pair.** Two samples from different hosts, one believed to have infected the
+other, declared with the `role` and `pair_id` columns of `colData()`.
+
+# References
+
+Bendall EE, Callear AP, Getz A, et al. (2023). Rapid transmission and tight bottlenecks
+constrain the evolution of highly transmissible SARS-CoV-2 variants. *Nature
+Communications* 14:272.
+
+Bull RA, Adikari TN, Ferguson JM, et al. (2020). Analytical validity of nanopore sequencing
+for rapid SARS-CoV-2 genome analysis. *Nature Communications* 11:6272.
+
+Fay JC, Wu CI (2000). Hitchhiking under positive Darwinian selection. *Genetics*
+155:1405-1413.
+
+Fu YX (1997). Statistical tests of neutrality of mutations against population growth,
+hitchhiking and background selection. *Genetics* 147:915-925.
+
+Lauring AS (2020). Within-host viral diversity: a window into viral evolution. *Annual
+Review of Virology* 7:63-81.
+
+McCrone JT, Lauring AS (2016). Measurements of intrahost viral diversity are extremely
+sensitive to systematic errors in variant calling. *Journal of Virology* 90:6884-6895.
+
+Mostefai F, Gamache I, N'Guessan A, et al. (2024). Refining SARS-CoV-2 intra-host variation
+by leveraging large-scale sequencing data. *NAR Genomics and Bioinformatics* 6:lqae145.
+
+Nei M (1987). *Molecular Evolutionary Genetics.* Columbia University Press, New York.
+
+Nei M, Gojobori T (1986). Simple methods for estimating the numbers of synonymous and
+nonsynonymous nucleotide substitutions. *Molecular Biology and Evolution* 3:418-426.
+
+Roder AE, Johnson KEE, Knoll M, et al. (2023). Optimized quantification of intra-host viral
+diversity in SARS-CoV-2 and influenza virus sequence data. *mBio* 14:e01046-23.
+
+Sobel Leonard A, Weissman DB, Greenbaum B, Ghedin E, Koelle K (2017). Transmission
+bottleneck size estimation from pathogen deep-sequencing data. *Journal of Virology*
+91:e00171-17.
+
+Tajima F (1989). Statistical method for testing the neutral mutation hypothesis by DNA
+polymorphism. *Genetics* 123:585-595.
+
+Wong B (2011). Points of view: color blindness. *Nature Methods* 8:441.
+
+Zheng B, Johnson PCD, Hughes J (2025). ViralBottleneck: an R package for estimating viral
+transmission bottlenecks. *Virus Evolution* 11:veaf071.
+
+# Session information
+
+A vignette that cannot be traced to the versions that produced it cannot be reproduced,
+and Bioconductor packages change between releases. The chunk below records the R version,
+the platform and the exact version of every attached and loaded package, which is the first
+thing to compare when an output here differs from the one on your own machine.
 
 ```{r session}
 sessionInfo()
 ```
+
+The output lists the R version and platform, then the attached packages, then those loaded
+only through a namespace. Note that the `pkgload` or development-version entries that
+sometimes appear mean the package was not installed from a Bioconductor release, in which
+case differences from the published vignette are expected.

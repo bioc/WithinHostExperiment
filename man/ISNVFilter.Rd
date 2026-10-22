@@ -10,8 +10,6 @@ ISNVFilter(
   maxFreq = 0.5,
   minAltReads = 10L,
   maxStrandBias = 10,
-  minBaseQual = 20L,
-  minMapQual = 20L,
   replicateConc = FALSE
 )
 }
@@ -25,12 +23,6 @@ ISNVFilter(
 \item{minAltReads}{Integer. Minimum alt allele reads (default: 10).}
 
 \item{maxStrandBias}{Numeric. Max strand bias fold-diff (default: 10).}
-
-\item{minBaseQual}{Integer. Minimum base quality (default: 20).
-Recorded for provenance; \code{\link{flagISNV}} does not apply it.}
-
-\item{minMapQual}{Integer. Minimum mapping quality (default: 20).
-Recorded for provenance; \code{\link{flagISNV}} does not apply it.}
 
 \item{replicateConc}{Logical. Require replicate concordance
 (default: FALSE). Recorded for provenance; apply it with

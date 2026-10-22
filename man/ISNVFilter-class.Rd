@@ -60,16 +60,6 @@ alternative allele (default: 10).}
 \item{\code{maxStrandBias}}{Numeric scalar. Maximum strand bias as
 fold-difference between strands (default: 10.0).}
 
-\item{\code{minBaseQual}}{Integer scalar. Minimum mean base quality
-(default: 20). Recorded for provenance only:
-\code{\link{flagISNV}} does not apply it, because the object
-model has no per-site quality assay. Filter on quality in the
-variant caller instead.}
-
-\item{\code{minMapQual}}{Integer scalar. Minimum mean mapping quality
-(default: 20). Recorded for provenance only, as for
-\code{minBaseQual}.}
-
 \item{\code{replicateConc}}{Logical scalar. Whether replicate concordance
 is required (default: FALSE). Recorded for provenance only;
 apply it with \code{\link{flagReplicateDiscordance}}.}

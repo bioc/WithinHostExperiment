@@ -27,10 +27,6 @@ NULL
 #' @param maxFreq Numeric. Maximum alt allele frequency (default: 0.50).
 #' @param minAltReads Integer. Minimum alt allele reads (default: 10).
 #' @param maxStrandBias Numeric. Max strand bias fold-diff (default: 10).
-#' @param minBaseQual Integer. Minimum base quality (default: 20).
-#'   Recorded for provenance; \code{\link{flagISNV}} does not apply it.
-#' @param minMapQual Integer. Minimum mapping quality (default: 20).
-#'   Recorded for provenance; \code{\link{flagISNV}} does not apply it.
 #' @param replicateConc Logical. Require replicate concordance
 #'   (default: FALSE). Recorded for provenance; apply it with
 #'   \code{\link{flagReplicateDiscordance}}.
@@ -42,7 +38,6 @@ NULL
 #' ISNVFilter(minDepth = 500L, minFreq = 0.05)
 ISNVFilter <- function(minDepth = 100L, minFreq = 0.03, maxFreq = 0.50,
                        minAltReads = 10L, maxStrandBias = 10.0,
-                       minBaseQual = 20L, minMapQual = 20L,
                        replicateConc = FALSE) {
     new("ISNVFilter",
         minDepth      = as.integer(minDepth),
@@ -50,8 +45,6 @@ ISNVFilter <- function(minDepth = 100L, minFreq = 0.03, maxFreq = 0.50,
         maxFreq       = as.numeric(maxFreq),
         minAltReads   = as.integer(minAltReads),
         maxStrandBias = as.numeric(maxStrandBias),
-        minBaseQual   = as.integer(minBaseQual),
-        minMapQual    = as.integer(minMapQual),
         replicateConc = as.logical(replicateConc))
 }
 
@@ -65,8 +58,6 @@ setMethod("show", "ISNVFilter", function(object) {
         slot(object, "maxFreq"), "]\n", sep = "")
     cat("  minAltReads:  ", slot(object, "minAltReads"), "\n")
     cat("  maxStrandBias:", slot(object, "maxStrandBias"), "\n")
-    cat("  minBaseQual:  ", slot(object, "minBaseQual"), "\n")
-    cat("  minMapQual:   ", slot(object, "minMapQual"), "\n")
     cat("  replicateConc:", slot(object, "replicateConc"), "\n")
 })
 

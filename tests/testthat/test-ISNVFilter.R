@@ -6,9 +6,16 @@ test_that("ISNVFilter constructor works with defaults", {
     expect_equal(f@maxFreq, 0.50)
     expect_equal(f@minAltReads, 10L)
     expect_equal(f@maxStrandBias, 10.0)
-    expect_equal(f@minBaseQual, 20L)
-    expect_equal(f@minMapQual, 20L)
     expect_identical(f@replicateConc, FALSE)
+})
+
+test_that("ISNVFilter has no base or mapping quality threshold", {
+    ## those belong in the variant caller: the object holds no per-site
+    ## quality for a filter to read (was: recorded but not applied)
+    expect_false(any(c("minBaseQual", "minMapQual") %in%
+                         slotNames("ISNVFilter")))
+    expect_error(ISNVFilter(minBaseQual = 30L), "unused argument")
+    expect_error(ISNVFilter(minMapQual = 30L), "unused argument")
 })
 
 test_that("ISNVFilter constructor accepts custom values", {

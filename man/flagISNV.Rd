@@ -46,9 +46,10 @@ Filtering steps are applied in order:
     \code{fwdAltCount} and \code{revAltCount} assays exist
 }
 
-The \code{minBaseQual}, \code{minMapQual} and \code{replicateConc}
-slots of the filter are recorded for provenance but not applied
-here; a non-default value raises a warning. Use
+Base and mapping quality are not filtered here: the object holds no
+per-site quality, so those thresholds belong in the variant caller.
+The \code{replicateConc} slot of the filter is recorded for
+provenance but not applied here; \code{TRUE} raises a warning. Use
 \code{\link{flagReplicateDiscordance}} for replicate concordance.
 }
 \examples{

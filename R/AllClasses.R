@@ -25,14 +25,6 @@ NULL
 #'   alternative allele (default: 10).
 #' @slot maxStrandBias Numeric scalar. Maximum strand bias as
 #'   fold-difference between strands (default: 10.0).
-#' @slot minBaseQual Integer scalar. Minimum mean base quality
-#'   (default: 20). Recorded for provenance only:
-#'   \code{\link{flagISNV}} does not apply it, because the object
-#'   model has no per-site quality assay. Filter on quality in the
-#'   variant caller instead.
-#' @slot minMapQual Integer scalar. Minimum mean mapping quality
-#'   (default: 20). Recorded for provenance only, as for
-#'   \code{minBaseQual}.
 #' @slot replicateConc Logical scalar. Whether replicate concordance
 #'   is required (default: FALSE). Recorded for provenance only;
 #'   apply it with \code{\link{flagReplicateDiscordance}}.
@@ -100,8 +92,6 @@ NULL
         maxFreq       = "numeric",
         minAltReads   = "integer",
         maxStrandBias = "numeric",
-        minBaseQual   = "integer",
-        minMapQual    = "integer",
         replicateConc = "logical"
     ),
     prototype = list(
@@ -110,8 +100,6 @@ NULL
         maxFreq       = 0.50,
         minAltReads   = 10L,
         maxStrandBias = 10.0,
-        minBaseQual   = 20L,
-        minMapQual    = 20L,
         replicateConc = FALSE
     )
 )
@@ -169,24 +157,6 @@ setValidity("ISNVFilter", function(object) {
     } else if (v <= 0) {
         msg <- c(msg, sprintf(
             "'maxStrandBias' must be positive, got %.4f", v))
-    }
-
-    # minBaseQual
-    v <- slot(object, "minBaseQual")
-    if (length(v) != 1L || is.na(v)) {
-        msg <- c(msg, "'minBaseQual' must be a single non-NA integer")
-    } else if (v < 0L) {
-        msg <- c(msg, sprintf(
-            "'minBaseQual' must be non-negative, got %d", v))
-    }
-
-    # minMapQual
-    v <- slot(object, "minMapQual")
-    if (length(v) != 1L || is.na(v)) {
-        msg <- c(msg, "'minMapQual' must be a single non-NA integer")
-    } else if (v < 0L) {
-        msg <- c(msg, sprintf(
-            "'minMapQual' must be non-negative, got %d", v))
     }
 
     # replicateConc

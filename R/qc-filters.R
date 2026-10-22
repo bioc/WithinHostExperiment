@@ -38,9 +38,10 @@ NULL
 #'     \code{fwdAltCount} and \code{revAltCount} assays exist
 #' }
 #'
-#' The \code{minBaseQual}, \code{minMapQual} and \code{replicateConc}
-#' slots of the filter are recorded for provenance but not applied
-#' here; a non-default value raises a warning. Use
+#' Base and mapping quality are not filtered here: the object holds no
+#' per-site quality, so those thresholds belong in the variant caller.
+#' The \code{replicateConc} slot of the filter is recorded for
+#' provenance but not applied here; \code{TRUE} raises a warning. Use
 #' \code{\link{flagReplicateDiscordance}} for replicate concordance.
 #'
 #' @seealso \code{\link{ISNVFilter}} for filter configuration,
@@ -72,14 +73,7 @@ setMethod("flagISNV", "WithinHostExperiment",
         stop("WithinHostExperiment must have a 'qcPass' assay")
     }
 
-    ## Thresholds this function cannot apply must not pass unnoticed
-    if (!identical(slot(filter, "minBaseQual"), 20L) ||
-            !identical(slot(filter, "minMapQual"), 20L)) {
-        warning("minBaseQual and minMapQual are recorded but not ",
-                "applied: the object model has no per-site quality ",
-                "assay. Filter on quality in the variant caller.",
-                call. = FALSE)
-    }
+    ## A threshold this function cannot apply must not pass unnoticed
     if (isTRUE(slot(filter, "replicateConc"))) {
         warning("replicateConc is recorded but not applied by ",
                 "flagISNV(); use flagReplicateDiscordance().",

@@ -30,10 +30,12 @@
   right-closed, the stored depth is a median, the consensus object holds only
   allele frequencies, and the diversity ranges are heuristic plausibility
   bounds rather than literature values.
-* `ISNVFilter()` documents `minBaseQual`, `minMapQual` and `replicateConc` as
-  recorded but not applied, and `flagISNV()` warns when they are set, instead
-  of ignoring them silently. `WithinHostExperiment()` requires an `altFreq`
-  assay, as documented.
+* `ISNVFilter()` no longer has `minBaseQual` and `minMapQual` slots: the
+  object holds no per-site quality for a filter to read, so those
+  thresholds belong in the variant caller, and a filter that recorded
+  them without applying them misled. `replicateConc` is still recorded
+  but not applied, and `flagISNV()` warns when it is set.
+  `WithinHostExperiment()` requires an `altFreq` assay, as documented.
 * `trackFrequency()` builds its table in one vectorised step, which is much
   faster on genome-wide data and gives the same rows.
 * `plotFrequencySpectrum()`, `plotPairScatter()` and `plotQCDashboard()` clip the

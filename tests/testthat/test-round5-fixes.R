@@ -96,8 +96,6 @@ test_that("flagISNV warns about thresholds it cannot apply", {
     whe <- readWithinHost(vcf,
         colData = S4Vectors::DataFrame(sample_id = "donor"),
         caller = "ivar")
-    expect_warning(flagISNV(whe, ISNVFilter(minBaseQual = 30L)),
-                   "not.*applied")
     expect_warning(flagISNV(whe, ISNVFilter(replicateConc = TRUE)),
                    "flagReplicateDiscordance")
     expect_no_warning(flagISNV(whe, ISNVFilter()))

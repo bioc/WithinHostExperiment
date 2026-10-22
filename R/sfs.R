@@ -69,13 +69,11 @@ NULL
 #'
 #' @examples
 #' data(example_whe)
-#' ## a folded spectrum of the first sample, in ten bins from 3% to 50%
+#' ## a folded spectrum of the first sample, in ten bins from 3% to 50%;
+#' ## the summary reports its polarisation, "none" for a folded spectrum,
+#' ## and the genome length, read from seqlengths(example_whe)
 #' sfs <- buildSFS(example_whe, sampleIdx = 1L, nBins = 10L)
 #' sfs
-#' sfs@counts
-#' sfs@polarization
-#' ## the genome length was read from seqlengths(example_whe)
-#' sfs@genomeLength
 #'
 #' @aliases WithinHostSFS
 #' @exportClass WithinHostSFS

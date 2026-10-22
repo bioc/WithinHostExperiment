@@ -49,6 +49,18 @@ All figures use real, publicly available data:
 | **Farjo *et al.* (2024)** *J. Virol.* 98:e01618-23 | Participant 432870: {{fig4::::saliva samples in the source data::%d}} daily saliva samples; the {{fig4::::samples analysed (mean coverage >= 1000x)::%d}} that the study analysed (mean coverage of at least 1,000x; days {{fig4::::days of infection analysed::%s}}) are used | Longitudinal within-host evolution (Fig 4) |
 | **NCBI RefSeq** NC_045512.2 | SARS-CoV-2 gene annotation (GFF3) and reference sequence (FASTA) | `annotateGenes()` (Fig 3b); `annotateCodonChange()`, through `VariantAnnotation::predictCoding()`, and the site counts of `pNpSWithinHost()` (Fig 5b) |
 
+Four files from the Bendall *et al.* call table ship inside the package,
+in `inst/extdata`: both technical replicates of the donor and of the
+recipient of household HH6, four of the study's 159 calls, which the
+vignette and the tests use as real data. The study's repository states no
+licence, so they are reproduced as a short excerpt attributed to the
+paper and to the repository, and anyone wanting the data for their own
+work should take them from the source. The Farjo *et al.* files used for
+Figure 4 are kept only in the repository, not in the package, and come
+from a repository released under the MIT licence; the two NCBI RefSeq
+files are public domain. `inst/scripts/README.md` gives the provenance of
+every shipped file.
+
 All figures were generated with {{session::::R version::%s}} by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
 quoted below to `readme_figure_values.csv`; the captions are filled from

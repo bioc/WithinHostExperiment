@@ -21,7 +21,8 @@ metadata. Must contain \code{sample_id}. May also contain
 \item{genome}{Optional \code{DNAStringSet} holding the reference
 sequence, as returned by \code{Biostrings::readDNAStringSet()}. The
 length of each sequence is recorded in
-\code{seqlengths(rowRanges())}.}
+\code{seqlengths(rowRanges())}. It must name the sequences the calls
+lie on and be long enough to hold them; see Details.}
 }
 \value{
 A \code{\link{WithinHostExperiment}}.
@@ -78,7 +79,13 @@ the header, or split the records first (for example with
 \strong{Sequence lengths.} Lengths are recorded in
 \code{seqlengths(rowRanges())} from the VCF header's \code{##contig}
 lines and from \code{genome}; two sources that disagree are an
-error. Functions that need the genome length read it from there.
+error. Functions that need the genome length read it from there, so
+\code{genome} is checked before anything is recorded: it is an error
+when it names none of the sequences the calls lie on, or when a call
+lies past the end of its sequence, since either way it is not the
+reference the calls were made against. A sequence the calls lie on
+that \code{genome} does not name is left without a length, with a
+warning.
 
 When technical replicates are not available, Roder et al. (2023,
 \emph{mBio} 14:e01046-23) recommend using a combination of

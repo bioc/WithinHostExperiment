@@ -7,7 +7,8 @@
 #' @importClassesFrom VariantAnnotation VCF
 #' @importFrom GenomicRanges GRanges
 #' @importFrom GenomeInfoDb seqnames seqlengths seqlengths<- seqlevels
-#' @importFrom IRanges IRanges start
+#'   seqlevelsInUse
+#' @importFrom IRanges IRanges start end width
 #' @importFrom S4Vectors DataFrame metadata metadata<-
 #' @importFrom SummarizedExperiment rowRanges rowRanges<-
 NULL
@@ -51,7 +52,8 @@ NULL
 #' @param genome Optional \code{DNAStringSet} holding the reference
 #'   sequence, as returned by \code{Biostrings::readDNAStringSet()}. The
 #'   length of each sequence is recorded in
-#'   \code{seqlengths(rowRanges())}.
+#'   \code{seqlengths(rowRanges())}. It must name the sequences the calls
+#'   lie on and be long enough to hold them; see Details.
 #'
 #' @return A \code{\link{WithinHostExperiment}}.
 #'
@@ -83,7 +85,13 @@ NULL
 #' \strong{Sequence lengths.} Lengths are recorded in
 #' \code{seqlengths(rowRanges())} from the VCF header's \code{##contig}
 #' lines and from \code{genome}; two sources that disagree are an
-#' error. Functions that need the genome length read it from there.
+#' error. Functions that need the genome length read it from there, so
+#' \code{genome} is checked before anything is recorded: it is an error
+#' when it names none of the sequences the calls lie on, or when a call
+#' lies past the end of its sequence, since either way it is not the
+#' reference the calls were made against. A sequence the calls lie on
+#' that \code{genome} does not name is left without a length, with a
+#' warning.
 #'
 #' When technical replicates are not available, Roder et al. (2023,
 #' \emph{mBio} 14:e01046-23) recommend using a combination of
@@ -165,10 +173,49 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
     whe <- .mergeToWHE(parsed, colData, callerName = caller,
                        seqlengths = lens)
     if (!is.null(genome)) {
+        genome <- .prepareReference(genome)
+        .checkGenome(rowRanges(whe), genome)
         SummarizedExperiment::rowRanges(whe) <-
-            .fillSeqlengths(rowRanges(whe), .prepareReference(genome))
+            .fillSeqlengths(rowRanges(whe), genome)
     }
     whe
+}
+
+## Stop when 'genome' names none of the sequences the calls lie on, or
+## when a call lies past the end of its sequence: either way it is not
+## the reference the calls were made against, and recording its lengths
+## would give every per-site statistic a wrong denominator. A sequence
+## it does not name is left without a length, with a warning.
+.checkGenome <- function(rr, genome) {
+    v <- seqlevelsInUse(rr)
+    if (length(v) == 0L) return(invisible(TRUE))
+    g <- names(genome)
+    if (length(intersect(v, g)) == 0L)
+        stop("'genome' names none of the sequences the calls lie on, so ",
+             "no length could be recorded.
+",
+             "  variant seqlevels: ", paste(v, collapse = ", "), "
+",
+             "  'genome' sequences: ", paste(g, collapse = ", "), "
+",
+             "Rename one of them to match, for example with ",
+             "GenomeInfoDb::renameSeqlevels().", call. = FALSE)
+    unnamed <- setdiff(v, g)
+    if (length(unnamed))
+        warning("'genome' has no sequence named ",
+                paste(unnamed, collapse = ", "),
+                "; no length is recorded for it.", call. = FALSE)
+    chrom <- as.character(seqnames(rr))
+    len <- width(genome)[match(chrom, g)]
+    beyond <- !is.na(len) & end(rr) > len
+    if (any(beyond)) {
+        k <- which(beyond)[1L]
+        stop(sum(beyond), " call(s) lie past the end of their 'genome' ",
+             "sequence, the first at ", chrom[k], ":", start(rr)[k],
+             " on a sequence of ", len[k], " bases, so 'genome' is not ",
+             "the reference the calls were made against.", call. = FALSE)
+    }
+    invisible(TRUE)
 }
 
 

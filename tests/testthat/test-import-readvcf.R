@@ -74,6 +74,40 @@ test_that("a genome that disagrees with a contig length is an error", {
         "seg \\(1000 vs 900\\)")
 })
 
+lofreq_two_seqs <- function() vcf_file(c("##fileformat=VCFv4.2",
+    "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+    "##INFO=<ID=AF,Number=A,Type=Float,Description=\"AF\">",
+    "#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO",
+    "segA	100	.	A	G	100	PASS	DP=1000;AF=0.1",
+    "segB	523	.	C	T	100	PASS	DP=1000;AF=0.2"))
+
+test_that("a genome naming none of the call sequences is an error (was: nothing recorded, silently)", {
+    genome <- Biostrings::DNAStringSet(c(segX = strrep("A", 1000)))
+    expect_error(readWithinHost(lofreq_two_seqs(),
+        colData = S4Vectors::DataFrame(sample_id = "d"), caller = "lofreq",
+        genome = genome), "segA, segB.*segX")
+})
+
+test_that("a genome shorter than a called position is an error (was: a wrong length, silently)", {
+    genome <- Biostrings::DNAStringSet(c(segA = strrep("A", 1000),
+                                         segB = strrep("A", 500)))
+    expect_error(readWithinHost(lofreq_two_seqs(),
+        colData = S4Vectors::DataFrame(sample_id = "d"), caller = "lofreq",
+        genome = genome), "segB:523 on a sequence of 500 bases")
+})
+
+test_that("a call sequence the genome does not name is left without a length", {
+    genome <- Biostrings::DNAStringSet(c(segA = strrep("A", 1000)))
+    expect_warning(whe <- readWithinHost(lofreq_two_seqs(),
+        colData = S4Vectors::DataFrame(sample_id = "d"), caller = "lofreq",
+        genome = genome), "no sequence named segB")
+    lens <- GenomeInfoDb::seqlengths(SummarizedExperiment::rowRanges(whe))
+    expect_identical(lens[["segA"]], 1000L)
+    expect_true(is.na(lens[["segB"]]))
+    ## and calcDiversity() then says which length is missing
+    expect_error(calcDiversity(whe, indices = "pi"), "not recorded for segB")
+})
+
 test_that("a file with more than one sample is refused, the object is not", {
     f <- vcf_file(c("##fileformat=VCFv4.2",
         "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",

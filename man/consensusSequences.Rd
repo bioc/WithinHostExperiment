@@ -89,15 +89,20 @@ comes back as one sequence read in its own direction. Positions are
 those of the reference, since no length-changing edit is made.
 }
 \examples{
-## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA, and three hosts
-ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+## A coding sequence of 15 codons and three hosts, each carrying one
+## synonymous and one nonsynonymous change at high frequency:
+## host1 6 G>A (CTG -> CTA) and 7 A>G (AAA -> GAA),
+## host2 12 G>A (GGG -> GGA) and 13 T>C (TTT -> CTT),
+## host3 18 C>A (CCC -> CCA) and 19 A>C (AAA -> CAA)
+ref <- Biostrings::DNAStringSet(c(
+    seg1 = "ATGCTGAAAGGGTTTCCCAAACTGATGGTTCTGAAAGGGTTTTAA"))
 gr <- GenomicRanges::GRanges("seg1",
-    IRanges::IRanges(c(1, 6, 9), width = 1))
-S4Vectors::mcols(gr)$ref <- c("A", "G", "A")
-S4Vectors::mcols(gr)$alt <- c("G", "A", "G")
-freqs <- cbind(host1 = c(0.95, 0.10, 0.02),
-               host2 = c(0.03, 0.88, 0.04),
-               host3 = c(0.01, 0.02, 0.97))
+    IRanges::IRanges(c(6, 7, 12, 13, 18, 19), width = 1))
+S4Vectors::mcols(gr)$ref <- c("G", "A", "G", "T", "C", "A")
+S4Vectors::mcols(gr)$alt <- c("A", "G", "A", "C", "A", "C")
+freqs <- cbind(host1 = c(0.95, 0.91, 0.02, 0.03, 0.01, 0.02),
+               host2 = c(0.03, 0.02, 0.88, 0.93, 0.04, 0.01),
+               host3 = c(0.01, 0.04, 0.02, 0.01, 0.97, 0.90))
 whe <- WithinHostExperiment(
     assays = list(altFreq = freqs),
     rowRanges = gr,
@@ -106,9 +111,10 @@ whe <- WithinHostExperiment(
 cons <- consensusSequences(whe, ref)
 cons
 
-## dN/dS between the hosts' consensus coding sequences
+## dN/dS between the hosts' consensus coding sequences: every pair
+## differs by two synonymous and two nonsynonymous changes
 if (requireNamespace("MSA2dist", quietly = TRUE)) {
-    kaks <- MSA2dist::dnastring2kaks(cons, model = "Li")
+    kaks <- suppressMessages(MSA2dist::dnastring2kaks(cons, model = "Li"))
     kaks[, c("seq1", "seq2", "Ka", "Ks", "Ka/Ks")]
 }
 }

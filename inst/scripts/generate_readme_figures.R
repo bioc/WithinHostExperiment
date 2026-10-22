@@ -112,8 +112,11 @@ p_label <- function(p) {
 saved_figures <- character()
 save_figure <- function(plot, name, width, height) {
     png_file <- file.path(FIGDIR, paste0(name, ".png"))
+    ## grDevices::png rather than ggsave()'s default, which switches to
+    ## ragg whenever ragg is installed and so changes every figure's bytes
+    ## with the library rather than with the data
     ggsave(png_file, plot, width = width, height = height, dpi = 300,
-           bg = "white")
+           bg = "white", device = grDevices::png)
     ggsave(file.path(OUT, paste0(name, ".pdf")), plot, width = width,
            height = height, device = grDevices::cairo_pdf)
     saved_figures <<- c(saved_figures, png_file)

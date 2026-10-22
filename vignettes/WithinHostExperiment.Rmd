@@ -847,8 +847,15 @@ sequence as a `DNAStringSet`, and it passes the sites to
 `VariantAnnotation::predictCoding()`, so the translation comes from
 Bioconductor's own annotation machinery rather than from a codon table carried
 here. CDS records sharing an `ID` are joined into one coding sequence, which is
-how a GFF3 file describes a protein split across a ribosomal frameshift. Here
-the segment is given one coding sequence covering its first 999 bases.
+how a GFF3 file describes a protein split across a ribosomal frameshift. The
+records are turned into the `TxDb` that `predictCoding()` reads with the
+`r BiocStyle::Biocpkg("txdbmaker")` package, which this route therefore needs. A
+`TxDb` you already have can be passed instead, but one built from the GFF3 file
+with `txdbmaker::makeTxDbFromGFF()` is not always equivalent: for the NCBI
+SARS-CoV-2 annotation it drops ORF1ab, whose two parts overlap by one
+nucleotide, and leaves every call in ORF1a and ORF1ab unannotated, so pass the
+CDS records when in doubt. Here the segment is given one coding sequence
+covering its first 999 bases.
 
 ```{r annotate-codon}
 gff_cds <- tempfile(fileext = ".gff3")

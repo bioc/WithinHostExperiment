@@ -35,7 +35,11 @@ cycle.
   an alternative start codon (`CTG` or `TTG`) at the first base of a
   coding sequence reads as `M`, and a codon holding an ambiguous base is
   left unannotated, with a warning. The reference length is recorded in
-  `seqlengths(rowRanges(x))`.
+  `seqlengths(rowRanges(x))`. The `GRanges` and `GRangesList` routes build
+  the `TxDb` with txdbmaker; a `TxDb` built with
+  `txdbmaker::makeTxDbFromGFF()` can lack transcripts the GFF3 holds (for
+  NC_045512.2 it drops ORF1ab), so the man page advises passing the CDS
+  records instead.
 * `dndsWithinHost()` is replaced by `pNpSWithinHost(x, cds, ref)`, which
   takes the same inputs as `annotateCodonChange()` and calls it to
   classify each iSNV. The quantity is a ratio of nonsynonymous to

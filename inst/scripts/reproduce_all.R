@@ -20,7 +20,10 @@
 ##   2. install                    this source into a temporary library
 ##   3. prepare_lauring_data.R     Bendall et al. excerpts: real_data/MHM*
 ##                                 and the four HH6 files in inst/extdata
-##   4. create_test_data.R         the twelve synthetic fixtures (seed 42)
+##   4. create_test_data.R         the twelve synthetic fixtures (seed 42),
+##                                 then the three fixtures without a
+##                                 generator against the checksums that
+##                                 make_extdata.R records
 ##   5. save_example_data.R        data/example_whe.rda
 ##   6. tests                      tests/testthat against the installed
 ##                                 package
@@ -188,6 +191,19 @@ fixtures <- file.path(EXT, c("test_ref.fa", "test_donor.vcf",
 run_stage("4 create_test_data",
           file.path("inst", "scripts", "create_test_data.R"),
           watch = fixtures)
+
+## The three fixtures without a generator. Their checksums are recorded
+## once, in make_extdata.R, and read from it here.
+extdata_exprs <- parse(file.path("inst", "scripts", "make_extdata.R"))
+is_unchanged <- vapply(extdata_exprs, function(e)
+    is.call(e) && identical(e[[1L]], as.name("<-")) &&
+        identical(e[[2L]], as.name("unchanged")), logical(1))
+unchanged <- eval(extdata_exprs[[which(is_unchanged)]][[3L]])
+now <- unname(md5(file.path(EXT, names(unchanged))))
+moved <- names(unchanged)[is.na(now) | now != unname(unchanged)]
+note("4 fixtures, no generator", if (length(moved)) "FAIL" else "PASS",
+     if (length(moved)) paste("changed:", paste(moved, collapse = ", "))
+     else paste(length(unchanged), "file(s) match make_extdata.R"))
 
 ## ---- 5. Example dataset, compared by content --------------------------
 rda <- file.path("data", "example_whe.rda")

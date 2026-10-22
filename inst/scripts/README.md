@@ -127,6 +127,7 @@ they are kept as they are rather than replaced by a new generator.
 
 | Script | In the tarball | Purpose |
 |--------|----------------|---------|
+| `make_extdata.R` | yes | Runs the fixture generators in order and checks the three files that have none against recorded checksums |
 | `create_test_data.R` | yes | Writes the twelve synthetic fixtures listed above into `inst/extdata` |
 | `prepare_lauring_data.R` | yes | Builds the per-sample replicate tables from the Bendall *et al.* data and copies the HH6 pair into `inst/extdata` |
 | `save_example_data.R` | yes | Builds `data/example_whe.rda` from the three synthetic VCFs in `inst/extdata` |
@@ -135,6 +136,8 @@ they are kept as they are rather than replaced by a new generator.
 | `README_template.md` | no | The README source that `fill_readme.R` fills |
 | `prepare_farjo_metadata.R` | no | Builds the Farjo *et al.* sample metadata; this one does need network access |
 | `verify_claims.R` | no | Ad hoc check that the documented capabilities run |
+| `reproduce_all.R` | no | Rebuilds every derived file from the raw data and checks each against the committed copy |
+| `readme_values/` | no | Values, checksums and session record of the last figure run, which `fill_readme.R` and `reproduce_all.R` read |
 | `real_data/` | no | Inputs for the figure script and for `prepare_lauring_data.R` |
 
 The entries marked "no" are excluded by `.Rbuildignore` and exist only

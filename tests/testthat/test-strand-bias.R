@@ -103,6 +103,9 @@ test_that("sciStrandBias() takes the global ratio over sites with all four count
     expect_true(is.na(sci[3]))
     expect_equal(sci[ok], sciStrandBias(fa[ok], ra[ok], ft[ok], rt[ok]))
     expect_true(all(is.na(sciStrandBias(NA_real_, 1, 2, 3))))
+    ## NA on its own is logical, and is a missing site as well
+    expect_true(all(is.na(sciStrandBias(NA, 1, 2, 3))))
+    expect_error(sciStrandBias(TRUE, 1, 2, 3), "'fwd_alt' must be numeric")
 })
 
 test_that("flagStrandBiasSCI() checks samples that have absent calls (was: flagged nothing)", {

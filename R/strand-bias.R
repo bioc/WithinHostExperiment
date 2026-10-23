@@ -73,6 +73,8 @@ sciStrandBias <- function(fwd_alt, rev_alt, fwd_total, rev_total) {
                    fwd_total = fwd_total, rev_total = rev_total)
     for (nm in names(counts)) {
         x <- counts[[nm]]
+        ## NA alone is stored as logical: a vector of missing sites
+        if (is.logical(x) && all(is.na(x))) x <- as.numeric(x)
         if (!is.numeric(x))
             stop("'", nm, "' must be numeric.")
         if (any(is.nan(x) | (!is.na(x) & (is.infinite(x) | x < 0))))

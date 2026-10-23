@@ -67,6 +67,14 @@ same expectation under neutrality, so H is centred on 0, and
 \code{\link{calcNeutralityTests}} applies. A negative H indicates an
 excess of high-frequency variants.
 
+Because H weights the high-frequency classes most, it is
+uninterpretable when QC has removed them. The function therefore stops
+on a spectrum whose \code{maxFreq} slot is below 1, as it is after
+\code{\link{flagISNV}} with the default \code{\link{ISNVFilter}},
+which drops every call above 0.5: H would then be positive whatever
+the data. Flag the object with \code{ISNVFilter(maxFreq = 1)} before
+\code{buildSFS(fold = FALSE)}.
+
 The per-site values need the spectrum's genome length, which
 \code{\link{buildSFS}} takes from the object; a spectrum without one
 is an error rather than a set of per-genome values labelled per site.

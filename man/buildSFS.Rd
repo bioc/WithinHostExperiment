@@ -30,7 +30,12 @@ treating the reference allele as ancestral
 (\code{polarization = "reference"}). Default: \code{TRUE}.}
 
 \item{usePassedOnly}{Logical. If \code{TRUE}, only use QC-passed
-variants. Default: \code{TRUE}.}
+variants. Default: \code{TRUE}. The spectrum's \code{maxFreq} slot
+then records the smallest \code{maxFreq} among the filters applied
+with \code{\link{flagISNV}}, above which no call can appear; with
+the default \code{\link{ISNVFilter}} that is 0.5, so an unfolded
+spectrum is empty above 0.5. Flag with \code{maxFreq = 1} to keep
+the high-frequency classes.}
 
 \item{threshold}{Numeric. Detection threshold (default: 0.03).
 The first bin starts at this value, not 0. It must be at least 0

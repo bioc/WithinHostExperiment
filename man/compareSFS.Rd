@@ -10,7 +10,7 @@ compareSFS(sfs1, sfs2)
 \item{sfs1}{A \code{\link{WithinHostSFS}} object.}
 
 \item{sfs2}{A \code{\link{WithinHostSFS}} object with the same
-breaks, folding and polarisation as \code{sfs1}.}
+breaks, folding, polarisation and \code{maxFreq} as \code{sfs1}.}
 }
 \value{
 A named list with components:
@@ -41,8 +41,9 @@ homogeneity between two \code{\link{WithinHostSFS}} objects
 }
 \details{
 The test compares raw variant counts in matching bins, so the two
-spectra must share their breaks, their folding and their
-polarisation, and neither may be bias-corrected: the counts of a
+spectra must share their breaks, their folding, their polarisation
+and their QC frequency cap (the \code{maxFreq} slot), and neither may
+be bias-corrected: the counts of a
 corrected spectrum are rescaled and no longer multinomial. The
 function stops, naming the difference, when any of these does not
 hold. Bins where both spectra are

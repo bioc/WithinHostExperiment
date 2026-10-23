@@ -66,6 +66,16 @@ whose frequency lies strictly between 0 and 1.}
 
 \item{\code{corrected}}{Logical scalar. Whether ascertainment bias
 correction has been applied.}
+
+\item{\code{maxFreq}}{Numeric scalar, above 0 and at most 1 (default 1). The
+highest alternative allele frequency a call could have kept through
+QC: \code{\link{buildSFS}} stores the smallest \code{maxFreq} among
+the filters applied with \code{\link{flagISNV}} when it uses
+QC-passed calls only, and 1 otherwise. Below 1, the spectrum holds no
+call above it, so the high-frequency classes are empty by
+construction; \code{\link{neutralityFromSFS}} refuses such an
+unfolded spectrum, and \code{\link{compareSFS}} compares only spectra
+with the same value.}
 }}
 
 \examples{

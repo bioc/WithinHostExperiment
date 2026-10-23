@@ -185,6 +185,61 @@ test_that("neutralityFromSFS() puts pi and theta_H on the same classes, so H is 
     expect_equal(res$tajimaD, 0)
 })
 
+.sweep_whe <- function() {
+    ## two rare calls and five high-frequency derived ones
+    freq <- c(0.05, 0.08, 0.85, 0.9, 0.92, 0.95, 0.97)
+    gr <- GRanges("seg", IRanges::IRanges(seq_along(freq) * 100L, width = 1))
+    WithinHostExperiment(
+        assays = list(altFreq = matrix(freq, ncol = 1),
+                      totalDepth = matrix(1000L, nrow = length(freq),
+                                          ncol = 1)),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = "S1"))
+}
+
+test_that("neutralityFromSFS() refuses an unfolded spectrum QC capped below 1 (was: H positive by construction)", {
+    whe <- .sweep_whe()
+    ## without QC nothing is capped, and the sweep gives a negative H
+    sfs <- buildSFS(whe, fold = FALSE, nBins = 10L, genomeLength = 1000L)
+    expect_identical(sfs@maxFreq, 1)
+    expect_lt(neutralityFromSFS(sfs)$fayWuH, 0)
+    ## the default filter removes every call above 0.5, the classes H
+    ## weights most
+    capped <- flagISNV(whe, ISNVFilter(minDepth = 100L))
+    sfs <- buildSFS(capped, fold = FALSE, nBins = 10L, genomeLength = 1000L)
+    expect_identical(sfs@maxFreq, 0.5)
+    expect_error(neutralityFromSFS(sfs), "removed by QC")
+    expect_error(neutralityFromSFS(sfs), "maxFreq = 1", fixed = TRUE)
+    ## a filter that keeps them gives the negative H back
+    kept <- flagISNV(whe, ISNVFilter(minDepth = 100L, maxFreq = 1))
+    sfs <- buildSFS(kept, fold = FALSE, nBins = 10L, genomeLength = 1000L)
+    expect_identical(sfs@maxFreq, 1)
+    expect_lt(neutralityFromSFS(sfs)$fayWuH, 0)
+    ## the strictest of several filters is recorded, and only when QC is
+    ## applied
+    twice <- flagISNV(capped, ISNVFilter(minDepth = 100L, maxFreq = 0.4))
+    expect_identical(buildSFS(twice, genomeLength = 1000L)@maxFreq, 0.4)
+    expect_identical(buildSFS(twice, usePassedOnly = FALSE,
+                              genomeLength = 1000L)@maxFreq, 1)
+})
+
+test_that("WithinHostSFS carries its maxFreq through validity, show, correction and comparison", {
+    expect_error(new("WithinHostSFS", maxFreq = 0), "maxFreq")
+    expect_error(new("WithinHostSFS", maxFreq = 1.5), "maxFreq")
+    expect_error(new("WithinHostSFS", maxFreq = NA_real_), "maxFreq")
+    expect_identical(new("WithinHostSFS")@maxFreq, 1)
+    whe <- .make_whe(20)
+    open <- buildSFS(whe, genomeLength = 1000L)
+    capped <- buildSFS(flagISNV(whe, ISNVFilter(minDepth = 100L)),
+                       genomeLength = 1000L)
+    expect_output(show(capped), "maxFreq: 0.5")
+    expect_false(any(grepl("maxFreq", capture.output(show(open)))))
+    for (m in c("truncation", "binomial"))
+        expect_identical(correctSFSBias(capped, method = m)@maxFreq, 0.5)
+    expect_error(compareSFS(open, capped), "sfs1: 1; sfs2: 0.5")
+    expect_no_error(compareSFS(capped, capped))
+})
+
 # ---- compareSFS ----
 
 test_that("compareSFS compares two SFS objects", {

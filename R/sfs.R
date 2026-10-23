@@ -12,7 +12,7 @@
 
 #' @include AllClasses.R
 #' @include methods.R
-#' @importFrom methods setClass setValidity new is
+#' @importFrom methods setClass setValidity new is slot
 #' @importFrom S4Vectors DataFrame
 #' @importFrom SummarizedExperiment assay assayNames colData
 #' @importFrom stats median pnorm dbinom
@@ -59,6 +59,15 @@ NULL
 #'   (e.g., 0.03). Sites below this are unobservable.
 #' @slot corrected Logical scalar. Whether ascertainment bias
 #'   correction has been applied.
+#' @slot maxFreq Numeric scalar, above 0 and at most 1 (default 1). The
+#'   highest alternative allele frequency a call could have kept through
+#'   QC: \code{\link{buildSFS}} stores the smallest \code{maxFreq} among
+#'   the filters applied with \code{\link{flagISNV}} when it uses
+#'   QC-passed calls only, and 1 otherwise. Below 1, the spectrum holds no
+#'   call above it, so the high-frequency classes are empty by
+#'   construction; \code{\link{neutralityFromSFS}} refuses such an
+#'   unfolded spectrum, and \code{\link{compareSFS}} compares only spectra
+#'   with the same value.
 #'
 #' @return An object of class \code{WithinHostSFS}, normally created by
 #'   \code{\link{buildSFS}}; the \code{show} method prints a summary of the
@@ -89,7 +98,8 @@ NULL
         meanDepth    = "numeric",
         threshold    = "numeric",
         corrected    = "logical",
-        polarization = "character"
+        polarization = "character",
+        maxFreq      = "numeric"
     ),
     prototype = list(
         counts       = integer(0),
@@ -101,7 +111,8 @@ NULL
         meanDepth    = NA_real_,
         threshold    = 0.03,
         corrected    = FALSE,
-        polarization = "reference"
+        polarization = "reference",
+        maxFreq      = 1
     )
 )
 
@@ -126,6 +137,9 @@ setValidity("WithinHostSFS", function(object) {
                             "ancestral: polarization \"reference\" or",
                             "\"outgroup\""))
     }
+    mf <- object@maxFreq
+    if (length(mf) != 1L || is.na(mf) || mf <= 0 || mf > 1)
+        msg <- c(msg, "maxFreq must be a single number above 0 and at most 1")
     if (length(msg) == 0L) TRUE else msg
 })
 
@@ -144,6 +158,8 @@ setMethod("show", "WithinHostSFS", function(object) {
         cat("  genome:", object@genomeLength, "bp\n")
     if (!is.na(object@meanDepth))
         cat("  median depth:", round(object@meanDepth), "x\n")
+    if (object@maxFreq < 1)
+        cat("  maxFreq:", object@maxFreq, "(QC removed every call above it)\n")
 })
 
 
@@ -194,7 +210,12 @@ setMethod("show", "WithinHostSFS", function(object) {
 #'   treating the reference allele as ancestral
 #'   (\code{polarization = "reference"}). Default: \code{TRUE}.
 #' @param usePassedOnly Logical. If \code{TRUE}, only use QC-passed
-#'   variants. Default: \code{TRUE}.
+#'   variants. Default: \code{TRUE}. The spectrum's \code{maxFreq} slot
+#'   then records the smallest \code{maxFreq} among the filters applied
+#'   with \code{\link{flagISNV}}, above which no call can appear; with
+#'   the default \code{\link{ISNVFilter}} that is 0.5, so an unfolded
+#'   spectrum is empty above 0.5. Flag with \code{maxFreq = 1} to keep
+#'   the high-frequency classes.
 #' @param threshold Numeric. Detection threshold (default: 0.03).
 #'   The first bin starts at this value, not 0. It must be at least 0
 #'   and below the top of the spectrum: 0.5 when folded, 1 otherwise.
@@ -238,10 +259,17 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
              call. = FALSE)
     freq <- freq_mat[, sampleIdx]
 
-    ## Apply QC
+    ## Apply QC, recording the frequency cap it imposed: the strictest
+    ## maxFreq among the filters applied, or 1 when none was or QC is not
+    ## being applied
+    cap <- 1
     if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
         qc <- assay(whe, "qcPass")[, sampleIdx]
         freq[!qc] <- NA
+        filters <- qcFilters(whe)
+        if (length(filters))
+            cap <- min(1, vapply(filters, function(f)
+                as.numeric(slot(f, "maxFreq")), numeric(1)))
     }
     ## only segregating sites, 0 < f < 1, as in calcNeutralityTests(): a
     ## fixed site would otherwise fill the top bin of an unfolded spectrum
@@ -285,7 +313,8 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         meanDepth    = md,
         threshold    = threshold,
         corrected    = FALSE,
-        polarization = if (fold) "none" else "reference")
+        polarization = if (fold) "none" else "reference",
+        maxFreq      = cap)
 }
 
 
@@ -422,7 +451,8 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
         meanDepth    = sfs@meanDepth,
         threshold    = sfs@threshold,
         corrected    = TRUE,
-        polarization = sfs@polarization)
+        polarization = sfs@polarization,
+        maxFreq      = sfs@maxFreq)
 }
 
 
@@ -462,6 +492,14 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' \eqn{\hat{\pi}} carries the \eqn{n/(n-1)} correction that
 #' \code{\link{calcNeutralityTests}} applies. A negative H indicates an
 #' excess of high-frequency variants.
+#'
+#' Because H weights the high-frequency classes most, it is
+#' uninterpretable when QC has removed them. The function therefore stops
+#' on a spectrum whose \code{maxFreq} slot is below 1, as it is after
+#' \code{\link{flagISNV}} with the default \code{\link{ISNVFilter}},
+#' which drops every call above 0.5: H would then be positive whatever
+#' the data. Flag the object with \code{ISNVFilter(maxFreq = 1)} before
+#' \code{buildSFS(fold = FALSE)}.
 #'
 #' The per-site values need the spectrum's genome length, which
 #' \code{\link{buildSFS}} takes from the object; a spectrum without one
@@ -513,6 +551,16 @@ neutralityFromSFS <- function(sfs, n = NULL) {
              "spectrum is folded (polarization \"none\"). Build it with ",
              "buildSFS(fold = FALSE), or use calcNeutralityTests() for ",
              "Tajima's D and Fu's Fs, which need no polarisation.",
+             call. = FALSE)
+    if (sfs@maxFreq < 1)
+        stop("Fay and Wu's H weights the high-frequency derived classes ",
+             "most, and those were removed by QC: every call above ",
+             "maxFreq = ", sfs@maxFreq, " was dropped before this spectrum ",
+             "was built, so the classes are empty by construction and H ",
+             "would be positive whatever the data. Flag the object with ",
+             "flagISNV(x, ISNVFilter(..., maxFreq = 1)) and rebuild the ",
+             "spectrum with buildSFS(fold = FALSE), or use ",
+             "calcNeutralityTests() for Tajima's D and Fu's Fs.",
              call. = FALSE)
 
     S <- sfs@nSites
@@ -600,8 +648,9 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #' (e.g., before vs. after QC, or two timepoints).
 #'
 #' The test compares raw variant counts in matching bins, so the two
-#' spectra must share their breaks, their folding and their
-#' polarisation, and neither may be bias-corrected: the counts of a
+#' spectra must share their breaks, their folding, their polarisation
+#' and their QC frequency cap (the \code{maxFreq} slot), and neither may
+#' be bias-corrected: the counts of a
 #' corrected spectrum are rescaled and no longer multinomial. The
 #' function stops, naming the difference, when any of these does not
 #' hold. Bins where both spectra are
@@ -616,7 +665,7 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #'
 #' @param sfs1 A \code{\link{WithinHostSFS}} object.
 #' @param sfs2 A \code{\link{WithinHostSFS}} object with the same
-#'   breaks, folding and polarisation as \code{sfs1}.
+#'   breaks, folding, polarisation and \code{maxFreq} as \code{sfs1}.
 #'
 #' @return A named list with components:
 #'   \describe{
@@ -664,6 +713,11 @@ compareSFS <- function(sfs1, sfs2) {
              "same polarisation (sfs1: ",
              if (sfs1@folded) "folded" else sfs1@polarization, "; sfs2: ",
              if (sfs2@folded) "folded" else sfs2@polarization, ").",
+             call. = FALSE)
+    if (!isTRUE(all.equal(sfs1@maxFreq, sfs2@maxFreq)))
+        stop("SFS objects must share their QC frequency cap; calls above ",
+             "maxFreq were removed from one spectrum but not from the ",
+             "other (sfs1: ", sfs1@maxFreq, "; sfs2: ", sfs2@maxFreq, ").",
              call. = FALSE)
     if (sfs1@corrected || sfs2@corrected)
         stop("compareSFS() tests raw counts; a bias-corrected spectrum ",

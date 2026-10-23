@@ -203,6 +203,14 @@ test_that("a recorded 0 is never a removed recipient call, whatever the threshol
     expect_identical(vb$recipient_freq, c(0.15, 0, 0))
 })
 
+test_that("a donor's recorded 0 is never a donor variant, whatever the threshold (was: kept at threshold 0)", {
+    ## the donor lists sites 400 and 500 at aaf 0; without flagISNV() no QC
+    ## mask turns those 0s into NA first, so only the donor rule leaves them out
+    vb <- asViralBottleneckInput(.pair_from_tables(), pairId = "p",
+                                 threshold = 0)
+    expect_identical(vb$pos, c(100L, 200L, 300L))
+})
+
 test_that("plotPairScatter() draws a recorded recipient 0 as donor-only (was: Shared, then Other)", {
     p <- plotPairScatter(.pair_from_tables(), pairId = "p")
     cats <- table(p$data$category)

@@ -29,13 +29,15 @@ NULL
 #'
 #' iVar's \code{PASS} column, the outcome of its own test of each call,
 #' is not read, so a row with \code{PASS} \code{FALSE} is imported as a
-#' call, and \code{\link{flagISNV}} judges it by depth and frequency
-#' alone. To drop such rows, remove them from the file first:
+#' call, and \code{\link{flagISNV}} judges it by its depth, frequency and
+#' read-count thresholds alone. To drop such rows, remove them from the
+#' file first, reading every column as text so that the file is written
+#' back unchanged:
 #' \preformatted{
-#' calls <- read.delim(path)
+#' calls <- read.delim(path, colClasses = "character")
 #' passed <- tempfile(fileext = ".tsv")
-#' write.table(calls[calls$PASS, ], passed, sep = "\\t", quote = FALSE,
-#'     row.names = FALSE)
+#' write.table(calls[calls$PASS == "TRUE", ], passed, sep = "\\t",
+#'     quote = FALSE, row.names = FALSE)
 #' whe <- readWithinHostTable(passed, format = "ivar")
 #' }
 #'
@@ -51,8 +53,8 @@ NULL
 #' for an insertion and \code{-T} for a deletion), and nothing tells
 #' them apart from substitutions: they pass \code{flagISNV()} like any
 #' other call and enter the diversity statistics. A VCF read by
-#' \code{\link{readWithinHost}} writes the same deletion as, for
-#' instance, \code{CTA} to \code{C}, so the two routes do not match it by
+#' \code{\link{readWithinHost}} writes the same one-base deletion as, for
+#' instance, \code{AT} to \code{A}, so the two routes do not match it by
 #' allele. To keep substitutions only, subset to rows whose \code{ref}
 #' and \code{alt} are one base each:
 #' \preformatted{
@@ -68,10 +70,10 @@ NULL
 #' whe
 #'
 #' ## Only the rows iVar passed
-#' calls <- read.delim(tsv)
+#' calls <- read.delim(tsv, colClasses = "character")
 #' passed <- tempfile(fileext = ".tsv")
-#' write.table(calls[calls$PASS, ], passed, sep = "\t", quote = FALSE,
-#'     row.names = FALSE)
+#' write.table(calls[calls$PASS == "TRUE", ], passed, sep = "\t",
+#'     quote = FALSE, row.names = FALSE)
 #' readWithinHostTable(passed, format = "ivar")
 readWithinHostTable <- function(files, format = c("ivar", "generic"),
                                 colData = NULL) {
@@ -117,7 +119,10 @@ readWithinHostTable <- function(files, format = c("ivar", "generic"),
 
 #' @keywords internal
 .parseIvarTsv <- function(file) {
-    df <- read.delim(file, stringsAsFactors = FALSE)
+    ## read.delim() would turn a column that holds only "T" into TRUE
+    df <- read.delim(file, stringsAsFactors = FALSE,
+                     colClasses = c(REGION = "character", REF = "character",
+                                    ALT = "character"))
     ## Expected columns: REGION, POS, REF, ALT, REF_DP, ALT_DP,
     ## ALT_FREQ, TOTAL_DP
     required <- c("REGION", "POS", "REF", "ALT")
@@ -146,7 +151,10 @@ readWithinHostTable <- function(files, format = c("ivar", "generic"),
 
 #' @keywords internal
 .parseGenericCsv <- function(file) {
-    df <- read.csv(file, stringsAsFactors = FALSE)
+    ## read.csv() would turn a column that holds only "T" into TRUE
+    df <- read.csv(file, stringsAsFactors = FALSE,
+                   colClasses = c(chrom = "character", ref = "character",
+                                  alt = "character"))
     required <- c("chrom", "pos", "ref", "alt", "aaf", "depth")
     missing_cols <- setdiff(required, colnames(df))
     if (length(missing_cols) > 0L) {

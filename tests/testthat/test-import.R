@@ -181,12 +181,31 @@ test_that("iVar's PASS and strand columns are not read, as the man page says", {
     expect_identical(rowRanges(whe)$alt[3], "+TTG")
     expect_false("strand_bias_filter" %in% qcLog(whe)$step)
     ## the documented recipe drops the PASS FALSE row
-    calls <- read.delim(tsv)
+    calls <- read.delim(tsv, colClasses = "character")
     passed <- tempfile(fileext = ".tsv")
-    write.table(calls[calls$PASS, ], passed, sep = "\t", quote = FALSE,
-        row.names = FALSE)
-    expect_identical(BiocGenerics::start(rowRanges(readWithinHostTable(
-        passed, format = "ivar"))), c(100L, 300L))
+    write.table(calls[calls$PASS == "TRUE", ], passed, sep = "\t",
+        quote = FALSE, row.names = FALSE)
+    kept <- readWithinHostTable(passed, format = "ivar")
+    expect_identical(BiocGenerics::start(rowRanges(kept)), c(100L, 300L))
+    expect_identical(rowRanges(kept)$alt, c("G", "+TTG"))
+})
+
+test_that("readWithinHostTable() keeps an allele of T when the column holds only T (was: TRUE)", {
+    ## read.delim() and read.csv() read a column of "T" as logical
+    tsv <- tempfile(fileext = ".tsv")
+    writeLines(c(paste("REGION", "POS", "REF", "ALT", "REF_DP", "ALT_DP",
+                       "ALT_FREQ", "TOTAL_DP", sep = "\t"),
+        paste("seg", 100, "C", "T", 900, 100, 0.1, 1000, sep = "\t"),
+        paste("seg", 200, "C", "T", 960, 40, 0.04, 1000, sep = "\t")), tsv)
+    rr <- rowRanges(readWithinHostTable(tsv, format = "ivar"))
+    expect_identical(rr$alt, c("T", "T"))
+    expect_identical(rr$ref, c("C", "C"))
+    csv <- tempfile(fileext = ".csv")
+    writeLines(c("chrom,pos,ref,alt,aaf,depth", "T,100,T,G,0.1,1000",
+                 "T,200,T,A,0.2,1000"), csv)
+    rr <- rowRanges(readWithinHostTable(csv, format = "generic"))
+    expect_identical(rr$ref, c("T", "T"))
+    expect_identical(as.character(GenomicRanges::seqnames(rr)), c("T", "T"))
 })
 
 # ---- readWithinHostTable: generic CSV ----

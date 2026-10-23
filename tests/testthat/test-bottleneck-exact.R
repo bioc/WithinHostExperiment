@@ -243,6 +243,41 @@ test_that("a recipient call removed by QC is left out of every estimator (was: s
     }
 })
 
+test_that("presence_absence leaves out a donor variant above 1 - threshold (was: Nb = 1 at log-likelihood -Inf)", {
+    ## three donor variants: one the recipient carries, one it lacks,
+    ## and one fixed in the donor that the recipient lacks
+    pair <- function(n) {
+        gr <- GenomicRanges::GRanges("seg",
+                                     IRanges::IRanges(1:3 * 10, width = 1))
+        S4Vectors::mcols(gr)$ref <- "A"
+        S4Vectors::mcols(gr)$alt <- "G"
+        whe <- WithinHostExperiment(
+            assays = list(altFreq = cbind(d = c(0.3, 0.2, 1),
+                                          r = c(0.4, NA, NA))),
+            rowRanges = gr,
+            colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+                role = c("donor", "recipient"), pair_id = c("p", "p"),
+                row.names = c("d", "r")))
+        whe[seq_len(n), ]
+    }
+    expect_message(pa <- exactBottleneck(pair(3L), pairId = "p", maxNb = 50L,
+                                         method = "presence_absence"),
+                   "1 donor variant site\\(s\\) above 1 - threshold")
+    two <- exactBottleneck(pair(2L), pairId = "p", maxNb = 50L,
+                           method = "presence_absence")
+    expect_true(is.finite(pa$loglik))
+    expect_equal(pa[c("Nb", "ci", "loglik", "n_variants")],
+                 two[c("Nb", "ci", "loglik", "n_variants")])
+    expect_identical(pa$n_excluded[["donor_near_fixation"]], 1L)
+    expect_identical(two$n_excluded[["donor_near_fixation"]], 0L)
+    ## wright_fisher keeps the fixed site, whose score is -Inf at every
+    ## Nb, and stops rather than return Nb = 1
+    expect_error(suppressMessages(
+        exactBottleneck(pair(3L), pairId = "p", maxNb = 50L,
+                        method = "wright_fisher")),
+        "not finite at any Nb from 1 to 50")
+})
+
 test_that("exactBottleneck says that wright_fisher is a heuristic", {
     vcf1 <- system.file("extdata", "test_donor.vcf",
         package = "WithinHostExperiment")

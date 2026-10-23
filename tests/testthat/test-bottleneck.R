@@ -37,9 +37,9 @@ test_that(".logSumExp is numerically stable", {
     expect_true(result > -1000)
 })
 
-test_that("quickBottleneck() refuses a maxNb below 1 (was: Nb of length 0 and two warnings)", {
+test_that("quickBottleneck() refuses a maxNb below 1 or outside the integer range (was: Nb of length 0, truncation, text and logical accepted)", {
     whe <- .make_pair_whe()
-    for (bad in list(0L, -3, 2.5, NA, c(10L, 20L), "50")) {
+    for (bad in list(0L, -3, 2.5, NA, c(10L, 20L), "50", TRUE, 3e9, Inf)) {
         expect_error(quickBottleneck(whe, pairId = "p1", maxNb = bad),
                      "'maxNb' must be a positive integer")
         expect_error(exactBottleneck(whe, pairId = "p1", maxNb = bad,

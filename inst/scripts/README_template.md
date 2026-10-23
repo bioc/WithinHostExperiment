@@ -6,7 +6,7 @@
 Diversity, and Transmission Bottleneck Workflows*
 
 [![License: Artistic-2.0](https://img.shields.io/badge/License-Artistic--2.0-blue.svg)](https://opensource.org/licenses/Artistic-2.0)
-[![BioC status](https://img.shields.io/badge/BioC-0.99.0-orange.svg)](https://bioconductor.org/)
+[![BioC status](https://img.shields.io/badge/Bioconductor-in%20review-orange.svg)](https://github.com/Bioconductor/BiocContributions/issues/199)
 
 </div>
 
@@ -62,7 +62,7 @@ RefSeq files, NCBI states that it places no restrictions on the use or
 distribution of the data in its molecular databases.
 `inst/scripts/README.md` gives the provenance of every shipped file.
 
-All figures were generated with {{session::::R version::%s}} by
+All figures were made with {{session::::R version::%s}} by
 `inst/scripts/generate_readme_figures.R`, which also writes every number
 quoted below to `inst/scripts/readme_values/readme_figure_values.csv`;
 the captions are filled from
@@ -85,7 +85,7 @@ of the two replicates.
 > *n* = {{fig1::a::concordant calls (|freq diff| <= 0.02)::%d}}) and discordant
 > (*n* = {{fig1::a::discordant calls::%d}}); R^2 = {{fig1::a::replicate R2::%.3f}}. That figure is carried by the
 > spread across the whole range: among the calls below 10% mean frequency,
-> where QC does its work, R^2 is {{fig1::a::replicate R2 below 10% mean frequency::%.3f}}, and the median difference
+> where QC does its work, R^2 is {{fig1::a::replicate R2 below 10% mean frequency::%.3f}}. Across all calls, the median difference
 > between replicates is {{fig1::a::median absolute replicate difference (percentage points)::%.1f}} percentage points.
 > **(b)** Per-sample nucleotide diversity before (naive) and after
 > replicate QC; black diamonds mark the medians
@@ -349,7 +349,7 @@ Data files in `inst/scripts/real_data/` (GitHub only, not in installed package):
 | `Transmission_pairs.csv` | Bendall *et al.* 2023 | Household transmission pair metadata |
 | `farjo_longitudinal/` | Farjo *et al.* 2024 | Daily saliva iVar TSVs for participant 432870, with `samples_432870.csv` (dates, coverage and study inclusion, built by `inst/scripts/prepare_farjo_metadata.R` from github.com/BROOKELAB/SARS-CoV-2-within-host-evolution) |
 | `sars2_NC045512.gff3` | NCBI RefSeq | SARS-CoV-2 gene annotation (NC_045512.2) |
-| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read with `Biostrings::readDNAStringSet()` and passed to `pNpSWithinHost()`, which classifies each call with `annotateCodonChange()`, for Figure 5b |
+| `sars2_NC045512.fasta` | NCBI RefSeq | Reference sequence (NC_045512.2), read with `Biostrings::readDNAStringSet()` and passed to `pNpSWithinHost()`, which takes each call's codons from `annotateCodonChange()`, for Figure 5b |
 | `MHM*_rep*.tsv`, `all_variants_filtered_unmerged.tsv` | Bendall *et al.* 2023 | Per-sample iVar tables and the pre-merge call table, kept as provenance for the merged file above; the figure script reads neither |
 | `farjo_longitudinal/user_432870.csv` | Farjo *et al.* 2024 | The study's own per-SNP summary for this participant, kept for comparison; not read by the figure script |
 

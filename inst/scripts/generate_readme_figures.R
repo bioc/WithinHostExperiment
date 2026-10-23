@@ -563,7 +563,7 @@ p5a <- ggplot(taj_qc, aes(x = D_qc)) +
 ## b: Nei-Gojobori pN/pS, pooling the concordant iSNVs of all samples.
 ## The CDS records are grouped into one transcript per protein by their ID;
 ## the reference is read as a DNAStringSet and renamed to the GenBank
-## accession the calls use. pNpSWithinHost() classifies each call through
+## accession the calls use. pNpSWithinHost() takes each call's codons from
 ## predictCoding() and warns that ORF1a/ORF1ab and ORF7a/ORF7b overlap.
 cds_records <- gff_features[gff_features$type == "CDS"]
 ref_dna <- Biostrings::readDNAStringSet(inputs[["fasta"]])

@@ -195,6 +195,14 @@ test_that("a pair that carries no allele gives empty results (was: an error)", {
     expect_no_error(print(p))
 })
 
+test_that("a recorded 0 is never a removed recipient call, whatever the threshold (was: left out at threshold 0)", {
+    ## the recipient lists site 200 at aaf 0, which minFreq fails
+    whe <- flagISNV(.pair_from_tables(), ISNVFilter())
+    vb <- asViralBottleneckInput(whe, pairId = "p", threshold = 0)
+    expect_identical(vb$pos, c(100L, 200L, 300L))
+    expect_identical(vb$recipient_freq, c(0.15, 0, 0))
+})
+
 test_that("plotPairScatter() draws a recorded recipient 0 as donor-only (was: Shared, then Other)", {
     p <- plotPairScatter(.pair_from_tables(), pairId = "p")
     cats <- table(p$data$category)

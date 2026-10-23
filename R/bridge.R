@@ -188,8 +188,9 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
                              usePassedOnly = TRUE) {
     pf <- .pairTable(whe, pairId, usePassedOnly)
 
-    ## Filter to donor variants above threshold
-    donor_above <- !is.na(pf$donor_freq) & pf$donor_freq >= threshold
+    ## Filter to donor variants at or above threshold; a recorded 0 is
+    ## never a variant, whatever the threshold
+    donor_above <- .carries(pf$donor_freq) & pf$donor_freq >= threshold
     pf <- pf[donor_above, , drop = FALSE]
 
     ## A recipient call at or above threshold that QC removed is not an
@@ -198,7 +199,7 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
     if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
         r_raw <- assay(whe, "altFreq")[cbind(pf$row_index,
                                              pf$recipient_col)]
-        failed <- is.na(pf$recipient_freq) & !is.na(r_raw) &
+        failed <- is.na(pf$recipient_freq) & .carries(r_raw) &
             r_raw >= threshold
     }
     n_failed <- sum(failed)

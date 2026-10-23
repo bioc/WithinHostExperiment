@@ -94,120 +94,63 @@ consensusISNV <- function(whe_list, min_callers = 2L,
 
     caller_names <- names(whe_list)
 
-    ## Build a unified site table: chrom:pos:alt -> list of callers + freqs
-    ## Use the first sample column from each WHE for frequency comparison
-    site_records <- list()
-    for (ci in seq_along(whe_list)) {
-        w <- whe_list[[ci]]
-        rr <- rowRanges(w)
-        freq_mat <- assay(w, "altFreq")
-        mc <- mcols(rr)
-        chr_vals <- as.character(seqnames(rr))
-        pos_vals <- start(rr)
-        alt_vals <- if ("alt" %in% colnames(mc)) {
-            as.character(mc$alt)
-        } else {
-            rep(NA_character_, length(rr))
-        }
-        ref_vals <- if ("ref" %in% colnames(mc)) {
-            as.character(mc$ref)
-        } else {
-            rep(NA_character_, length(rr))
-        }
-
-        n_samples <- ncol(freq_mat)
-        for (si in seq_len(n_samples)) {
-            sample_id <- colnames(freq_mat)[si]
-            if (is.null(sample_id)) sample_id <- paste0("S", si)
-            for (ri in seq_len(length(rr))) {
-                freq_val <- freq_mat[ri, si]
-                if (is.na(freq_val)) next
-                key <- paste(chr_vals[ri], pos_vals[ri],
-                             alt_vals[ri], sample_id, sep = ":")
-                if (is.null(site_records[[key]])) {
-                    site_records[[key]] <- list(
-                        chrom = chr_vals[ri],
-                        pos = pos_vals[ri],
-                        ref = ref_vals[ri],
-                        alt = alt_vals[ri],
-                        sample_id = sample_id,
-                        callers = character(),
-                        freqs = numeric()
-                    )
-                }
-                site_records[[key]]$callers <- c(
-                    site_records[[key]]$callers,
-                    caller_names[ci])
-                site_records[[key]]$freqs <- c(
-                    site_records[[key]]$freqs, freq_val)
-            }
-        }
-    }
-
-    if (length(site_records) == 0L) {
+    ## One row per non-missing call, ordered by caller, then sample
+    ## column, then site. A record is one site and allele in one sample.
+    calls <- do.call(rbind, lapply(seq_along(whe_list), function(ci)
+        .consensusCalls(whe_list[[ci]], ci)))
+    if (nrow(calls) == 0L) {
         stop("No variant sites found across callers.")
     }
+    rec <- .firstSeenGroup(calls$chrom, calls$pos, calls$alt,
+                           calls$sample_id)
+    n_rec <- max(rec)
 
-    ## Filter by min_callers and freq_tolerance
-    keep <- vapply(site_records, function(rec) {
-        n <- length(unique(rec$callers))
-        if (n < min_callers) return(FALSE)
-        spread <- max(rec$freqs) - min(rec$freqs)
-        spread <= freq_tolerance
-    }, logical(1))
+    ## Callers per record, each counted once, and the spread of their
+    ## frequencies; ordering by frequency puts each record's minimum
+    ## first and its maximum last
+    once <- !duplicated((rec - 1) * length(whe_list) + calls$caller)
+    n_callers <- tabulate(rec[once], n_rec)
+    o <- order(rec, calls$freq)
+    spread <- calls$freq[o][!duplicated(rec[o], fromLast = TRUE)] -
+        calls$freq[o][!duplicated(rec[o])]
 
-    kept <- site_records[keep]
+    kept <- which(n_callers >= min_callers & spread <= freq_tolerance)
     if (length(kept) == 0L) {
         stop("No sites passed consensus filters ",
              "(min_callers = ", min_callers,
              ", freq_tolerance = ", freq_tolerance, ").")
     }
+    in_kept <- rec %in% kept
+    mean_freq <- vapply(
+        split(calls$freq[in_kept], factor(rec[in_kept], levels = kept)),
+        mean, numeric(1), USE.NAMES = FALSE)
+    names_kept <- .callerNames(rec[once], calls$caller[once], kept,
+                               caller_names)
 
-    ## Group by sample_id and build matrices
-    all_samples <- unique(vapply(kept, `[[`, character(1), "sample_id"))
-    ## Get unique site keys (chrom:pos:alt)
-    site_keys <- unique(vapply(kept, function(rec) {
-        paste(rec$chrom, rec$pos, rec$alt, sep = ":")
-    }, character(1)))
-
-    ## Build GRanges for unique sites
-    site_parts <- strsplit(site_keys, ":")
-    gr <- GRanges(
-        seqnames = vapply(site_parts, `[`, character(1), 1L),
-        ranges = IRanges(
-            as.integer(vapply(site_parts, `[`, character(1), 2L)),
-            width = 1L)
-    )
-
-    ## Get ref/alt/metadata from first record of each site
-    n_callers_vec <- integer(length(site_keys))
-    caller_names_vec <- character(length(site_keys))
-    freq_spread_vec <- numeric(length(site_keys))
-    ref_vec <- character(length(site_keys))
-    alt_vec <- character(length(site_keys))
-
-    n_sites <- length(site_keys)
-    n_samp <- length(all_samples)
-    freq_mat <- matrix(NA_real_, nrow = n_sites, ncol = n_samp,
+    ## Each kept record by its first call; sites and samples in the
+    ## order they are first seen among the kept records
+    first <- which(!duplicated(rec))[kept]
+    site <- .firstSeenGroup(calls$chrom[first], calls$pos[first],
+                            calls$alt[first])
+    all_samples <- unique(calls$sample_id[first])
+    freq_mat <- matrix(NA_real_, nrow = max(site),
+                       ncol = length(all_samples),
                        dimnames = list(NULL, all_samples))
+    freq_mat[cbind(site, match(calls$sample_id[first], all_samples))] <-
+        mean_freq
 
-    for (rec in kept) {
-        sk <- paste(rec$chrom, rec$pos, rec$alt, sep = ":")
-        si <- match(sk, site_keys)
-        sj <- match(rec$sample_id, all_samples)
-        freq_mat[si, sj] <- mean(rec$freqs)
-        n_callers_vec[si] <- length(unique(rec$callers))
-        caller_names_vec[si] <- paste(unique(rec$callers), collapse = ",")
-        freq_spread_vec[si] <- max(rec$freqs) - min(rec$freqs)
-        ref_vec[si] <- rec$ref
-        alt_vec[si] <- rec$alt
-    }
-
-    mcols(gr)$ref <- ref_vec
-    mcols(gr)$alt <- alt_vec
-    mcols(gr)$n_callers <- n_callers_vec
-    mcols(gr)$caller_names <- caller_names_vec
-    mcols(gr)$freq_spread <- freq_spread_vec
+    ## Coordinates come from each site's own calls. The site columns
+    ## describe the last kept record of each site, as they always have.
+    at <- first[!duplicated(site)]
+    last <- integer(max(site))
+    last[site] <- seq_along(site)
+    gr <- GRanges(seqnames = calls$chrom[at],
+                  ranges = IRanges(calls$pos[at], width = 1L))
+    mcols(gr)$ref <- calls$ref[first][last]
+    mcols(gr)$alt <- calls$alt[first][last]
+    mcols(gr)$n_callers <- n_callers[kept][last]
+    mcols(gr)$caller_names <- names_kept[last]
+    mcols(gr)$freq_spread <- spread[kept][last]
 
     cd <- DataFrame(sample_id = all_samples)
 
@@ -216,6 +159,58 @@ consensusISNV <- function(whe_list, min_callers = 2L,
         rowRanges = gr,
         colData = cd
     )
+}
+
+## The non-missing calls of one caller's object, one row each, sample
+## column by sample column; 'ci' is the caller's place in the list.
+.consensusCalls <- function(w, ci) {
+    rr <- rowRanges(w)
+    mc <- mcols(rr)
+    fm <- as.matrix(assay(w, "altFreq"))
+    sample_ids <- colnames(fm)
+    if (is.null(sample_ids)) sample_ids <- paste0("S", seq_len(ncol(fm)))
+    allele <- function(col) {
+        if (col %in% colnames(mc)) as.character(mc[[col]])
+        else rep(NA_character_, length(rr))
+    }
+    hit <- which(!is.na(fm), arr.ind = TRUE)
+    i <- hit[, 1L]
+    data.frame(chrom = as.character(seqnames(rr))[i],
+               pos = start(rr)[i],
+               ref = allele("ref")[i],
+               alt = allele("alt")[i],
+               sample_id = sample_ids[hit[, 2L]],
+               caller = rep(ci, length(i)),
+               freq = fm[hit],
+               stringsAsFactors = FALSE)
+}
+
+## Number the distinct combinations of the vectors in '...' (all of one
+## length) in the order they are first seen, with no pasted key, so no
+## character inside a value can make two combinations collide.
+.firstSeenGroup <- function(...) {
+    id <- rep.int(1L, length(..1))
+    for (x in list(...)) {
+        k <- match(x, unique(x))
+        key <- (as.numeric(id) - 1) * max(k) + k
+        id <- match(key, unique(key))
+    }
+    id
+}
+
+## Comma-separated caller names of each kept record, in list order.
+## 'rec' and 'caller' hold one entry per caller of a record.
+.callerNames <- function(rec, caller, kept, caller_names) {
+    at <- match(rec, kept)
+    out <- character(length(kept))
+    started <- logical(length(kept))
+    for (ci in seq_along(caller_names)) {
+        j <- at[caller == ci & !is.na(at)]
+        out[j] <- ifelse(started[j], paste0(out[j], ",", caller_names[ci]),
+                         caller_names[ci])
+        started[j] <- TRUE
+    }
+    out
 }
 
 

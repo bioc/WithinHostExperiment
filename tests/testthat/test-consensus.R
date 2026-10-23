@@ -87,6 +87,54 @@ test_that("consensusISNV() counts a caller once when it lists a site twice (was:
     expect_equal(mc$freq_spread, c(0.02, 0.01))
 })
 
+test_that("consensusISNV() keeps a sequence name containing ':' (was: cut at the colon)", {
+    a <- .caller_whe("HLA-A*01:01", c(10, 20), c("T", "G"), c(0.10, 0.20))
+    b <- .caller_whe("HLA-A*01:01", c(20, 10), c("G", "T"), c(0.21, 0.11))
+    rr <- SummarizedExperiment::rowRanges(consensusISNV(list(a = a, b = b)))
+    expect_identical(as.character(GenomeInfoDb::seqnames(rr)),
+                     c("HLA-A*01:01", "HLA-A*01:01"))
+    expect_identical(GenomicRanges::start(rr), c(10L, 20L))
+    expect_identical(S4Vectors::mcols(rr)$alt, c("T", "G"))
+})
+
+test_that("consensusISNV() matches a worked three-caller example with gaps", {
+    a <- .caller_whe("seg", c(10, 20, 30), c("T", "G", "C"),
+                     cbind(s1 = c(0.10, 0.20, NA), s2 = c(NA, 0.40, 0.50)))
+    b <- .caller_whe("seg", c(20, 10, 30), c("G", "T", "C"),
+                     cbind(s1 = c(0.22, 0.11, 0.30), s2 = c(0.41, NA, 0.52)))
+    cc <- .caller_whe("seg", c(30, 10), c("C", "T"),
+                      cbind(s1 = c(NA, 0.12), s2 = c(0.51, 0.50)))
+    cons <- consensusISNV(list(a = a, b = b, c = cc))
+    rr <- SummarizedExperiment::rowRanges(cons)
+    expect_identical(GenomicRanges::start(rr), c(10L, 20L, 30L))
+    expect_equal(SummarizedExperiment::assay(cons, "altFreq"),
+                 cbind(s1 = c(0.11, 0.21, NA), s2 = c(NA, 0.405, 0.51)))
+    mc <- S4Vectors::mcols(rr)
+    expect_identical(mc$ref, c("A", "A", "A"))
+    expect_identical(mc$alt, c("T", "G", "C"))
+    ## the site columns describe the site's last kept record: at 20 that
+    ## is sample s2, where a and b differ by 0.01
+    expect_identical(mc$n_callers, c(3L, 2L, 3L))
+    expect_identical(mc$caller_names, c("a,b,c", "a,b", "a,b,c"))
+    expect_equal(mc$freq_spread, c(0.02, 0.01, 0.02))
+    ## 30 in s1 and 10 in s2 were seen by one caller only
+    expect_error(consensusISNV(list(a = a, b = b, c = cc), min_callers = 4L),
+                 "No sites passed consensus filters")
+})
+
+test_that("consensusISNV() handles 2,000 sites in 20 samples from two callers", {
+    set.seed(1)
+    n <- 2000L
+    freq <- matrix(stats::runif(n * 20L, 0.05, 0.5), n, 20L,
+                   dimnames = list(NULL, paste0("s", seq_len(20L))))
+    a <- .caller_whe("seg", seq_len(n), rep("T", n), freq)
+    b <- .caller_whe("seg", seq_len(n), rep("T", n), freq + 0.01)
+    cons <- consensusISNV(list(a = a, b = b))
+    expect_identical(dim(cons), c(n, 20L))
+    expect_equal(unname(SummarizedExperiment::assay(cons, "altFreq")),
+                 unname(freq) + 0.005)
+})
+
 test_that("calcCallerConcordance returns correct pairwise stats from VCFs", {
     whes <- .load_caller_whes()
     result <- calcCallerConcordance(whes)

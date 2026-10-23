@@ -61,7 +61,7 @@ NULL
 #'     \item{expected_min}{Lower bound of the plausibility range.}
 #'     \item{expected_max}{Upper bound of the plausibility range.}
 #'     \item{in_range}{Logical; whether the observed value falls
-#'       within the range.}
+#'       within the range, and \code{FALSE} when the value is missing.}
 #'   }
 #'
 #' @export

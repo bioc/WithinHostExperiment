@@ -19,7 +19,10 @@ NULL
 #'   samples.
 #' @param runCol Character scalar (optional). Column name in
 #'   \code{colData} identifying the sequencing run/batch. If
-#'   \code{NULL}, all samples are compared against each other.
+#'   \code{NULL}, all samples are compared against each other. A
+#'   name that is not a column of \code{colData} is an error.
+#'   Samples whose run is \code{NA} are left out of every
+#'   comparison, with a warning giving their number.
 #' @param sourceMinFreq Numeric scalar. Minimum frequency in the
 #'   "source" sample for a variant to be considered a potential
 #'   contaminant origin (default: 0.20).
@@ -134,10 +137,21 @@ detectCrossContamination <- function(whe,
     }
 
     ## Determine run groups
-    if (!is.null(runCol) && runCol %in% colnames(cd)) {
-        runs <- as.character(cd[[runCol]])
-    } else {
+    if (is.null(runCol)) {
         runs <- rep("all", n_samples)
+    } else {
+        if (!is.character(runCol) || length(runCol) != 1L ||
+            is.na(runCol))
+            stop("'runCol' must be NULL or a single column name of ",
+                 "colData(whe).")
+        if (!runCol %in% colnames(cd))
+            stop("Column '", runCol, "' not found in colData. ",
+                 "Available columns: ",
+                 paste(colnames(cd), collapse = ", "))
+        runs <- as.character(cd[[runCol]])
+        if (anyNA(runs))
+            warning(sum(is.na(runs)), " sample(s) with NA in '", runCol,
+                    "' are excluded from the comparison.")
     }
 
     results <- list()

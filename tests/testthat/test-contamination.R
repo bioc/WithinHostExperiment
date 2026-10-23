@@ -63,3 +63,37 @@ test_that("detectCrossContamination respects run grouping", {
     res <- detectCrossContamination(whe, runCol = "run")
     expect_equal(nrow(res), 0L)  # not flagged across runs
 })
+
+.make_run_whe <- function(runs) {
+    n <- length(runs)
+    gr <- GRanges("seg", IRanges::IRanges(100, width = 1))
+    mcols(gr)$ref <- "A"; mcols(gr)$alt <- "T"
+    WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.80, rep(0.01, n - 1L)),
+                                       nrow = 1, ncol = n)),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = LETTERS[seq_len(n)], run = runs))
+}
+
+test_that("detectCrossContamination() stops on a runCol missing from colData (was: compared all samples)", {
+    whe <- .make_run_whe(c("run1", "run2"))
+    expect_error(detectCrossContamination(whe, runCol = "Run"),
+                 "Column 'Run' not found in colData.*Available columns: sample_id, run")
+})
+
+test_that("detectCrossContamination() refuses a runCol that is not one column name", {
+    whe <- .make_run_whe(c("run1", "run2"))
+    for (bad in list(1, c("run", "sample_id"), NA_character_, TRUE)) {
+        expect_error(detectCrossContamination(whe, runCol = bad),
+                     "'runCol' must be NULL or a single column name")
+    }
+})
+
+test_that("detectCrossContamination() warns when runCol has NA values, which are excluded", {
+    whe <- .make_run_whe(c("run1", "run1", NA))
+    expect_warning(res <- detectCrossContamination(whe, runCol = "run"),
+                   "1 sample\\(s\\) with NA in 'run'")
+    expect_equal(nrow(res), 1L)
+    expect_identical(res$sink_sample, "B")
+    expect_identical(res$run, "run1")
+})

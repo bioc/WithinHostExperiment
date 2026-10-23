@@ -19,7 +19,10 @@ samples.}
 
 \item{runCol}{Character scalar (optional). Column name in
 \code{colData} identifying the sequencing run/batch. If
-\code{NULL}, all samples are compared against each other.}
+\code{NULL}, all samples are compared against each other. A
+name that is not a column of \code{colData} is an error.
+Samples whose run is \code{NA} are left out of every
+comparison, with a warning giving their number.}
 
 \item{sourceMinFreq}{Numeric scalar. Minimum frequency in the
 "source" sample for a variant to be considered a potential

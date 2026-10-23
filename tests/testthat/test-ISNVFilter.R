@@ -59,12 +59,16 @@ test_that("ISNVFilter takes a ConcordanceRule or NULL as replicateConc", {
     rule <- ConcordanceRule(freqTolerance = 0.1)
     expect_identical(ISNVFilter(replicateConc = rule)@replicateConc, rule)
     ## the logical it used to record is refused, naming the class to use
-    expect_error(ISNVFilter(replicateConc = TRUE), "ConcordanceRule")
-    expect_error(ISNVFilter(replicateConc = FALSE), "ConcordanceRule")
+    expect_error(ISNVFilter(replicateConc = TRUE),
+                 "must be a ConcordanceRule or NULL")
+    expect_error(ISNVFilter(replicateConc = FALSE),
+                 "must be a ConcordanceRule or NULL")
+    expect_error(ISNVFilter(replicateConc = 0.05),
+                 "must be a ConcordanceRule or NULL")
     ## a rule changed after construction is caught by the filter's validity
     f <- ISNVFilter(replicateConc = rule)
     f@replicateConc@freqTolerance <- -1
-    expect_error(validObject(f), "freqTolerance")
+    expect_error(validObject(f), "'replicateConc': .*freqTolerance")
 })
 
 test_that("ISNVFilter and ConcordanceRule show the replicate settings", {
@@ -72,6 +76,9 @@ test_that("ISNVFilter and ConcordanceRule show the replicate settings", {
     expect_output(show(ISNVFilter(replicateConc = ConcordanceRule(0.1))),
                   "freqTolerance 0.1, requireBothDetected TRUE")
     expect_output(show(ConcordanceRule()), "requireBothDetected: TRUE")
+    rule <- ConcordanceRule(freqTolerance = 0.25, requireBothDetected = FALSE)
+    expect_output(show(rule), "freqTolerance: +0\\.25")
+    expect_output(show(rule), "requireBothDetected: FALSE")
 })
 
 test_that("ISNVFilter has no base or mapping quality threshold", {

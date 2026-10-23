@@ -305,7 +305,7 @@ test_that("flagISNV applies replicateConc (was: recorded, warned, ignored)", {
     expect_identical(slot(qcFilters(got)[[1]], "replicateConc"), rule)
     ## a rule with nothing to compare is an error, not a silent no-op
     expect_error(flagISNV(.single_whe(), ISNVFilter(replicateConc = rule)),
-                 "replicate_group")
+                 "needs a 'replicate_group' column")
     lone <- whe
     SummarizedExperiment::colData(lone)$replicate_group <- c("a", "b", NA)
     expect_error(flagISNV(lone, ISNVFilter(replicateConc = rule)),

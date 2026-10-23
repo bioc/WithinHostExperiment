@@ -223,6 +223,15 @@ test_that("neutralityFromSFS() refuses an unfolded spectrum QC capped below 1 (w
                               genomeLength = 1000L)@maxFreq, 1)
 })
 
+test_that("buildSFS() names fold and a cap of 0 (was: a base-R or validity error)", {
+    whe <- .make_whe(20)
+    expect_error(buildSFS(whe, fold = NA, genomeLength = 1000L),
+                 "'fold' must be TRUE or FALSE")
+    none <- flagISNV(whe, ISNVFilter(minFreq = 0, maxFreq = 0))
+    expect_error(buildSFS(none, genomeLength = 1000L),
+                 "QC removed every call")
+})
+
 test_that("WithinHostSFS carries its maxFreq through validity, show, correction and comparison", {
     expect_error(new("WithinHostSFS", maxFreq = 0), "maxFreq")
     expect_error(new("WithinHostSFS", maxFreq = 1.5), "maxFreq")

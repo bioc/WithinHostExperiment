@@ -250,6 +250,8 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         nBins < 1 || nBins != round(nBins))
         stop("'nBins' must be a single whole number of at least 1.",
              call. = FALSE)
+    if (!is.logical(fold) || length(fold) != 1L || is.na(fold))
+        stop("'fold' must be TRUE or FALSE.", call. = FALSE)
     top <- if (fold) 0.5 else 1
     if (!is.numeric(threshold) || length(threshold) != 1L ||
         !is.finite(threshold) || threshold < 0 || threshold >= top)
@@ -270,6 +272,9 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         if (length(filters))
             cap <- min(1, vapply(filters, function(f)
                 as.numeric(slot(f, "maxFreq")), numeric(1)))
+        if (cap <= 0)
+            stop("QC removed every call: the strictest maxFreq among ",
+                 "qcFilters(whe) is ", cap, ".", call. = FALSE)
     }
     ## only segregating sites, 0 < f < 1, as in calcNeutralityTests(): a
     ## fixed site would otherwise fill the top bin of an unfolded spectrum

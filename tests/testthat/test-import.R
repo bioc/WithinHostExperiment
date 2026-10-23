@@ -163,6 +163,32 @@ test_that("readWithinHostTable reads iVar TSV", {
     expect_true("altFreq" %in% assayNames(whe))
 })
 
+test_that("iVar's PASS and strand columns are not read, as the man page says", {
+    tsv <- tempfile(fileext = ".tsv")
+    writeLines(c(paste("REGION", "POS", "REF", "ALT", "REF_DP", "ALT_DP",
+                       "ALT_FREQ", "TOTAL_DP", "PVAL", "PASS", "REF_RV",
+                       "ALT_RV", sep = "\t"),
+        paste("seg", 100, "A", "G", 900, 100, 0.1, 1000, 0.001, "TRUE",
+              450, 0, sep = "\t"),
+        paste("seg", 200, "C", "T", 960, 40, 0.04, 1000, 0.2, "FALSE",
+              480, 20, sep = "\t"),
+        paste("seg", 300, "A", "+TTG", 900, 100, 0.1, 1000, 0.001, "TRUE",
+              450, 50, sep = "\t")), tsv)
+    whe <- flagISNV(readWithinHostTable(tsv, format = "ivar"))
+    ## the PASS FALSE row and the insertion are calls that pass QC
+    expect_true(all(assay(whe, "qcPass")))
+    expect_identical(BiocGenerics::width(rowRanges(whe)), rep(1L, 3L))
+    expect_identical(rowRanges(whe)$alt[3], "+TTG")
+    expect_false("strand_bias_filter" %in% qcLog(whe)$step)
+    ## the documented recipe drops the PASS FALSE row
+    calls <- read.delim(tsv)
+    passed <- tempfile(fileext = ".tsv")
+    write.table(calls[calls$PASS, ], passed, sep = "\t", quote = FALSE,
+        row.names = FALSE)
+    expect_identical(BiocGenerics::start(rowRanges(readWithinHostTable(
+        passed, format = "ivar"))), c(100L, 300L))
+})
+
 # ---- readWithinHostTable: generic CSV ----
 
 test_that("readWithinHostTable reads generic CSV", {

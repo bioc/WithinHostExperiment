@@ -96,6 +96,44 @@ reference the calls were made against. A sequence the calls lie on
 that \code{genome} does not name is left without a length, with a
 warning.
 
+\strong{What is not read.} The \code{FILTER} column is not read, so a
+record the caller rejected (LoFreq's \code{sb_fdr} or
+\code{min_snvqual}, for instance) is imported as a call, and
+\code{\link{flagISNV}} judges it by depth and frequency alone. To drop
+such records, read the file with \code{readVcf()}, keep those whose
+\code{FILTER} is \code{PASS} or \code{.}, and convert the object:
+\preformatted{
+vcf <- VariantAnnotation::readVcf(path)
+keep <- VariantAnnotation::filt(vcf) \%in\% c("PASS", ".")
+whe <- as(vcf[keep, ], "WithinHostExperiment")
+}
+The object then takes its sample names from the VCF (\code{"sample1"}
+when it has no sample column), not from \code{colData}.
+
+Per-strand counts, such as LoFreq's \code{DP4} or Freebayes's
+\code{SAF} and \code{SAR}, are not imported. The strand-bias step of
+\code{flagISNV()} runs only when the assays \code{fwdAltCount} and
+\code{revAltCount} are present, so on an imported object it is skipped
+and leaves no \code{qcLog} row, although \code{qcFilters()} records
+the filter's \code{maxStrandBias}; \code{\link{flagStrandBiasSCI}}
+stops for want of those assays and of \code{fwdTotalCount} and
+\code{revTotalCount}. Assays added with \code{assay(x, "fwdAltCount")
+<-} and so on before \code{flagISNV()} are used.
+
+Insertions and deletions are imported as rows of width 1 at their
+\code{POS}, with \code{ref} and \code{alt} as the VCF writes them
+(\code{CTA} and \code{C} for a deletion of two bases), and nothing
+tells them apart from substitutions: they pass \code{flagISNV()} like
+any other call and enter the diversity statistics. An iVar TSV read by
+\code{readWithinHostTable()} writes the same deletion in its own
+notation, so the two routes do not match it by allele. To keep
+substitutions only, subset to rows whose \code{ref} and \code{alt}
+are one base each:
+\preformatted{
+rr <- SummarizedExperiment::rowRanges(whe)
+whe <- whe[nchar(rr$ref) == 1L & nchar(rr$alt) == 1L, ]
+}
+
 When technical replicates are not available, Roder et al. (2023,
 \emph{mBio} 14:e01046-23) recommend using a combination of
 multiple variant callers with stringent cutoffs to reduce false
@@ -114,4 +152,8 @@ whe
 ## The same file read into R first, then converted
 v <- VariantAnnotation::readVcf(vcf)
 as(v, "WithinHostExperiment")
+
+## Only the records the caller passed (FILTER is PASS or ".")
+keep <- VariantAnnotation::filt(v) \%in\% c("PASS", ".")
+as(v[keep, ], "WithinHostExperiment")
 }

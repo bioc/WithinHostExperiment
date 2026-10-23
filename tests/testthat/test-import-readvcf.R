@@ -246,6 +246,40 @@ test_that("as(vr, 'WithinHostExperiment') keeps the sequence lengths", {
                  c(0.1, 0.25))
 })
 
+test_that("FILTER, strand counts and indels are handled as the man page says", {
+    f <- vcf_file(c("##fileformat=VCFv4.2", "##source=lofreq call",
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+        "##INFO=<ID=AF,Number=1,Type=Float,Description=\"AF\">",
+        "##INFO=<ID=DP4,Number=4,Type=Integer,Description=\"DP4\">",
+        "##FILTER=<ID=sb_fdr,Description=\"Strand bias\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+        "seg\t45\t.\tC\tT\t255\tPASS\tDP=1500;AF=0.35;DP4=488,487,262,263",
+        "seg\t198\t.\tA\tG\t255\tsb_fdr\tDP=2200;AF=0.22;DP4=858,858,484,0",
+        "seg\t300\t.\tA\tAGT\t255\t.\tDP=1000;AF=0.1;DP4=450,450,50,50",
+        "seg\t400\t.\tCTA\tC\t255\tPASS\tDP=1000;AF=0.1;DP4=450,450,50,50"))
+    whe <- flagISNV(readWithinHost(f, colData = S4Vectors::DataFrame(
+        sample_id = "d"), caller = "lofreq"))
+    ## the rejected record and both indels are calls that pass QC
+    expect_true(all(SummarizedExperiment::assay(whe, "qcPass")))
+    ## the indels are width-1 rows in the VCF's own notation
+    rr <- SummarizedExperiment::rowRanges(whe)
+    expect_identical(BiocGenerics::width(rr), rep(1L, 4L))
+    expect_identical(rr$alt[3:4], c("AGT", "C"))
+    ## no strand assays, so the strand step leaves no qcLog row
+    expect_false("fwdAltCount" %in% SummarizedExperiment::assayNames(whe))
+    expect_false("strand_bias_filter" %in% qcLog(whe)$step)
+    expect_error(flagStrandBiasSCI(whe), "fwdAltCount")
+    ## the documented FILTER recipe drops the rejected record
+    vcf <- VariantAnnotation::readVcf(f)
+    keep <- VariantAnnotation::filt(vcf) %in% c("PASS", ".")
+    expect_identical(BiocGenerics::start(SummarizedExperiment::rowRanges(
+        as(vcf[keep, ], "WithinHostExperiment"))), c(45L, 300L, 400L))
+    ## and the documented subset keeps substitutions only
+    sub <- whe[nchar(rr$ref) == 1L & nchar(rr$alt) == 1L, ]
+    expect_identical(BiocGenerics::start(SummarizedExperiment::rowRanges(
+        sub)), c(45L, 198L))
+})
+
 test_that("caller detection reads the header, given a header or a path", {
     path <- system.file("extdata", "test_donor_freebayes.vcf",
                         package = "WithinHostExperiment")

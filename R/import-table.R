@@ -24,12 +24,55 @@ NULL
 #'
 #' @return A \code{\link{WithinHostExperiment}}.
 #'
+#' @details
+#' Only the columns named under \code{format} are read.
+#'
+#' iVar's \code{PASS} column, the outcome of its own test of each call,
+#' is not read, so a row with \code{PASS} \code{FALSE} is imported as a
+#' call, and \code{\link{flagISNV}} judges it by depth and frequency
+#' alone. To drop such rows, remove them from the file first:
+#' \preformatted{
+#' calls <- read.delim(path)
+#' passed <- tempfile(fileext = ".tsv")
+#' write.table(calls[calls$PASS, ], passed, sep = "\\t", quote = FALSE,
+#'     row.names = FALSE)
+#' whe <- readWithinHostTable(passed, format = "ivar")
+#' }
+#'
+#' iVar's per-strand counts (\code{REF_RV}, \code{ALT_RV}) are not
+#' imported. The strand-bias step of \code{flagISNV()} runs only when the
+#' assays \code{fwdAltCount} and \code{revAltCount} are present, so on an
+#' imported object it is skipped and leaves no \code{qcLog} row, although
+#' \code{qcFilters()} records the filter's \code{maxStrandBias};
+#' \code{\link{flagStrandBiasSCI}} stops for want of those assays.
+#'
+#' Insertions and deletions are imported as rows of width 1 at their
+#' position, with the caller's allele notation (iVar writes \code{+TTG}
+#' for an insertion and \code{-T} for a deletion), and nothing tells
+#' them apart from substitutions: they pass \code{flagISNV()} like any
+#' other call and enter the diversity statistics. A VCF read by
+#' \code{\link{readWithinHost}} writes the same deletion as, for
+#' instance, \code{CTA} to \code{C}, so the two routes do not match it by
+#' allele. To keep substitutions only, subset to rows whose \code{ref}
+#' and \code{alt} are one base each:
+#' \preformatted{
+#' rr <- SummarizedExperiment::rowRanges(whe)
+#' whe <- whe[nchar(rr$ref) == 1L & nchar(rr$alt) == 1L, ]
+#' }
+#'
 #' @export
 #' @examples
 #' tsv <- system.file("extdata", "test_donor_ivar.tsv",
 #'     package = "WithinHostExperiment")
 #' whe <- readWithinHostTable(tsv, format = "ivar")
 #' whe
+#'
+#' ## Only the rows iVar passed
+#' calls <- read.delim(tsv)
+#' passed <- tempfile(fileext = ".tsv")
+#' write.table(calls[calls$PASS, ], passed, sep = "\t", quote = FALSE,
+#'     row.names = FALSE)
+#' readWithinHostTable(passed, format = "ivar")
 readWithinHostTable <- function(files, format = c("ivar", "generic"),
                                 colData = NULL) {
     format <- match.arg(format)

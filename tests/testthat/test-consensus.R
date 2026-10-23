@@ -50,6 +50,43 @@ test_that("consensusISNV works with three callers and min_callers = 3", {
     expect_true(all(mc$n_callers == 3L))
 })
 
+## Helper: one caller's object from sites and a frequency matrix
+.caller_whe <- function(seqnames, pos, alt, freq, ref = rep("A", length(pos)),
+                        seqinfo = NULL, colData = NULL) {
+    freq <- as.matrix(freq)
+    if (is.null(colnames(freq)))
+        colnames(freq) <- paste0("s", seq_len(ncol(freq)))
+    gr <- GenomicRanges::GRanges(seqnames, IRanges::IRanges(pos, width = 1L))
+    if (!is.null(seqinfo)) GenomeInfoDb::seqinfo(gr) <- seqinfo[
+        GenomeInfoDb::seqlevels(gr)]
+    S4Vectors::mcols(gr)$ref <- ref
+    S4Vectors::mcols(gr)$alt <- alt
+    if (is.null(colData))
+        colData <- S4Vectors::DataFrame(sample_id = colnames(freq))
+    WithinHostExperiment(assays = list(altFreq = freq), rowRanges = gr,
+                         colData = colData)
+}
+
+test_that("consensusISNV() counts a caller once when it lists a site twice (was: twice)", {
+    ## caller a reports seg:10 T twice, caller b never reports it
+    a <- .caller_whe("seg", c(10, 10, 20), c("T", "T", "G"),
+                     c(0.10, 0.11, 0.30))
+    b <- .caller_whe("seg", c(20, 10), c("G", "T"), c(0.31, NA))
+    cons <- consensusISNV(list(a = a, b = b))
+    expect_identical(GenomicRanges::start(
+        SummarizedExperiment::rowRanges(cons)), 20L)
+    ## with b reporting it too, the site has two callers, each named once
+    b2 <- .caller_whe("seg", c(20, 10), c("G", "T"), c(0.31, 0.12))
+    cons2 <- consensusISNV(list(a = a, b = b2))
+    mc <- S4Vectors::mcols(SummarizedExperiment::rowRanges(cons2))
+    expect_identical(mc$n_callers, c(2L, 2L))
+    expect_identical(mc$caller_names, c("a,b", "a,b"))
+    ## all three frequencies enter the mean and the spread
+    expect_equal(SummarizedExperiment::assay(cons2, "altFreq")[, 1],
+                 c(mean(c(0.10, 0.11, 0.12)), mean(c(0.30, 0.31))))
+    expect_equal(mc$freq_spread, c(0.02, 0.01))
+})
+
 test_that("calcCallerConcordance returns correct pairwise stats from VCFs", {
     whes <- .load_caller_whes()
     result <- calcCallerConcordance(whes)

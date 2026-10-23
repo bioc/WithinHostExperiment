@@ -39,7 +39,8 @@ NULL
 #' @return A \code{\link{WithinHostExperiment}} containing only
 #'   consensus sites. \code{mcols(rowRanges)} includes:
 #'   \describe{
-#'     \item{n_callers}{Number of callers detecting the site.}
+#'     \item{n_callers}{Number of callers detecting the site; a caller
+#'       that lists the same site and allele twice counts once.}
 #'     \item{caller_names}{Comma-separated caller names.}
 #'     \item{freq_spread}{Range of allele frequencies across callers.}
 #'   }
@@ -149,7 +150,7 @@ consensusISNV <- function(whe_list, min_callers = 2L,
 
     ## Filter by min_callers and freq_tolerance
     keep <- vapply(site_records, function(rec) {
-        n <- length(rec$callers)
+        n <- length(unique(rec$callers))
         if (n < min_callers) return(FALSE)
         spread <- max(rec$freqs) - min(rec$freqs)
         spread <= freq_tolerance
@@ -195,8 +196,8 @@ consensusISNV <- function(whe_list, min_callers = 2L,
         si <- match(sk, site_keys)
         sj <- match(rec$sample_id, all_samples)
         freq_mat[si, sj] <- mean(rec$freqs)
-        n_callers_vec[si] <- length(rec$callers)
-        caller_names_vec[si] <- paste(rec$callers, collapse = ",")
+        n_callers_vec[si] <- length(unique(rec$callers))
+        caller_names_vec[si] <- paste(unique(rec$callers), collapse = ",")
         freq_spread_vec[si] <- max(rec$freqs) - min(rec$freqs)
         ref_vec[si] <- rec$ref
         alt_vec[si] <- rec$alt

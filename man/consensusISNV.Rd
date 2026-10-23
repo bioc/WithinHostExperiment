@@ -22,7 +22,8 @@ to pass (default: 0.05).}
 A \code{\link{WithinHostExperiment}} containing only
   consensus sites. \code{mcols(rowRanges)} includes:
   \describe{
-    \item{n_callers}{Number of callers detecting the site.}
+    \item{n_callers}{Number of callers detecting the site; a caller
+      that lists the same site and allele twice counts once.}
     \item{caller_names}{Comma-separated caller names.}
     \item{freq_spread}{Range of allele frequencies across callers.}
   }

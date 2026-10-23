@@ -21,7 +21,14 @@ NULL
 #'   (default: TRUE).
 #'
 #' @return A \code{DataFrame} with columns: chrom, position, ref, alt,
-#'   donor_freq, recipient_freq, shared (logical).
+#'   donor_freq, recipient_freq, shared (logical) and pair_id. A host
+#'   carries the allele at a site when its frequency there is known and
+#'   above 0; \code{shared} is \code{TRUE} where both hosts carry it.
+#'   A recorded frequency of 0, such as a site that a table lists
+#'   without alternative reads, is an assessed site without the allele:
+#'   it is kept as 0 in its frequency column, and is not shared. A
+#'   frequency is \code{NA} where the host has no call, or its call
+#'   failed QC. Sites that neither host carries are left out.
 #'
 #' @export
 #' @examples
@@ -81,8 +88,11 @@ exportPairFrequencies <- function(whe, pairId = NULL,
             r_freq[!qc_mat[, r_col]] <- NA
         }
 
-        ## Keep rows where at least one has data
-        has_data <- !is.na(d_freq) | !is.na(r_freq)
+        ## A host carries the allele where its frequency is known and
+        ## above 0; a recorded 0 is an assessed site without the allele
+        d_pres <- .carries(d_freq)
+        r_pres <- .carries(r_freq)
+        has_data <- d_pres | r_pres
 
         DataFrame(
             chrom          = as.character(seqnames(rr))[has_data],
@@ -91,14 +101,16 @@ exportPairFrequencies <- function(whe, pairId = NULL,
             alt            = alt_col[has_data],
             donor_freq     = d_freq[has_data],
             recipient_freq = r_freq[has_data],
-            shared         = !is.na(d_freq[has_data]) &
-                !is.na(r_freq[has_data]),
+            shared         = (d_pres & r_pres)[has_data],
             pair_id        = as.character(pairs$pair_id[p])
         )
     })
 
     do.call(rbind, result_list)
 }
+
+## TRUE where a frequency is known and above 0
+.carries <- function(freq) !is.na(freq) & freq > 0
 
 #' Export data for ViralBottleneck package
 #'
@@ -165,6 +177,11 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
 #' that passed QC.
 #'
 #' @details
+#' A host carries a variant at a site when its frequency there is known
+#' and above 0, as in \code{\link{exportPairFrequencies}}; a recorded
+#' frequency of 0 is a site that was assessed and found without the
+#' variant.
+#'
 #' A donor variant absent from the recipient means one thing when the
 #' recipient was sequenced deeply enough at that site to have shown it,
 #' and another when it was not. The donor-only count is therefore
@@ -177,9 +194,13 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
 #' object was read from VCF files, which list only the sites with a
 #' call, so with such input most donor-only sites fall in the last
 #' group; a depth matrix from a coverage file, or a table listing every
-#' assessed site, is needed to tell the first two apart. A fourth
-#' group, \code{n_donor_only_recipient_failed_qc}, holds the sites where
-#' the recipient did make a call but QC removed it, for example a call
+#' assessed site with its depth and a frequency of 0 where the recipient
+#' had no alternative reads (\code{\link{readWithinHostTable}} with
+#' \code{format = "generic"} and \code{aaf = 0}), is needed to tell the
+#' first two apart. A fourth group,
+#' \code{n_donor_only_recipient_failed_qc}, holds the sites where the
+#' recipient did make a call, at a frequency above 0, but QC removed
+#' it, for example a call
 #' above \code{maxFreq} in a recipient where the variant rose towards
 #' fixation: such a site is not absent, so it is kept out of the three
 #' depth groups. Only a donor-only site at adequate depth is evidence of
@@ -230,8 +251,10 @@ calcSharedVariants <- function(whe, pairId, minDepth = NULL) {
         stop("'minDepth' must be a single non-negative number.")
     pf <- exportPairFrequencies(whe, pairId = pairId)
 
-    d_only <- !is.na(pf$donor_freq) & is.na(pf$recipient_freq)
-    r_only <- is.na(pf$donor_freq) & !is.na(pf$recipient_freq)
+    d_pres <- .carries(pf$donor_freq)
+    r_pres <- .carries(pf$recipient_freq)
+    d_only <- d_pres & !r_pres
+    r_only <- r_pres & !d_pres
     shared <- sum(pf$shared)
     total  <- nrow(pf)
 
@@ -249,9 +272,10 @@ calcSharedVariants <- function(whe, pairId, minDepth = NULL) {
     } else {
         rep(NA_integer_, nrow(pf))
     }
-    ## a recipient call at the site that QC removed is not an absence
+    ## a recipient call at the site that QC removed is not an absence; a
+    ## recorded frequency of 0 is not a call
     r_call <- assay(whe, "altFreq")[match(key_pf, key_all), r_col]
-    failed   <- d_only & !is.na(r_call)
+    failed   <- d_only & .carries(r_call)
     adequate <- d_only & !failed & !is.na(r_depth) & r_depth >= minDepth
     low      <- d_only & !failed & !is.na(r_depth) & r_depth < minDepth
     unknown  <- d_only & !failed & is.na(r_depth)

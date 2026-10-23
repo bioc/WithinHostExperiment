@@ -115,6 +115,50 @@ test_that("a recipient call removed by QC is not an absence at adequate depth (w
     expect_equal(sv$n_donor_only_unknown_depth, 1L)
 })
 
+## A pair read from two generic CSV tables that list every assessed site:
+## an assessed site without alternative reads is a row with aaf = 0
+.pair_from_tables <- function() {
+    write_table <- function(aaf, depth) {
+        f <- tempfile(fileext = ".csv")
+        utils::write.csv(data.frame(chrom = "seg", pos = 1:5 * 100L,
+                                    ref = "A", alt = "G", aaf = aaf,
+                                    depth = depth),
+                         f, row.names = FALSE)
+        f
+    }
+    ## site 100 is in both hosts, 200 and 300 are donor variants the
+    ## recipient lacks at depths 1000 and 20, 400 is in the recipient
+    ## alone, and 500 is in neither
+    donor <- write_table(c(0.10, 0.20, 0.30, 0, 0), rep(1000L, 5))
+    recipient <- write_table(c(0.15, 0, 0, 0.20, 0),
+                             c(1000L, 1000L, 20L, 1000L, 1000L))
+    readWithinHostTable(c(donor, recipient), format = "generic",
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+            role = c("donor", "recipient"), pair_id = c("p", "p")))
+}
+
+test_that("a frequency of 0 is not a call in a pair (was: counted as shared)", {
+    whe <- .pair_from_tables()
+    pf <- exportPairFrequencies(whe, pairId = "p")
+    ## the site carried by neither host is not listed
+    expect_identical(pf$position, c(100L, 200L, 300L, 400L))
+    expect_identical(pf$shared, c(TRUE, FALSE, FALSE, FALSE))
+    ## the recorded zeros are kept as they are
+    expect_identical(pf$recipient_freq, c(0.15, 0, 0, 0.20))
+    for (x in list(whe, flagISNV(whe, ISNVFilter()))) {
+        sv <- calcSharedVariants(x, pairId = "p")
+        expect_identical(sv$n_shared, 1L)
+        expect_identical(sv$n_donor_only, 2L)
+        expect_identical(sv$n_donor_only_adequate_depth, 1L)
+        expect_identical(sv$n_donor_only_low_depth, 1L)
+        expect_identical(sv$n_donor_only_unknown_depth, 0L)
+        expect_identical(sv$n_donor_only_recipient_failed_qc, 0L)
+        expect_identical(sv$n_recipient_only, 1L)
+        expect_identical(sv$n_total, 4L)
+        expect_equal(sv$sharing_rate, 1 / 4)
+    }
+})
+
 test_that("exportPairFrequencies errors without pairs", {
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")

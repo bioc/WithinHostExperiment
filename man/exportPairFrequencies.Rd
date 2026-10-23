@@ -18,7 +18,14 @@ If NULL, exports all pairs.}
 }
 \value{
 A \code{DataFrame} with columns: chrom, position, ref, alt,
-  donor_freq, recipient_freq, shared (logical).
+  donor_freq, recipient_freq, shared (logical) and pair_id. A host
+  carries the allele at a site when its frequency there is known and
+  above 0; \code{shared} is \code{TRUE} where both hosts carry it.
+  A recorded frequency of 0, such as a site that a table lists
+  without alternative reads, is an assessed site without the allele:
+  it is kept as 0 in its frequency column, and is not shared. A
+  frequency is \code{NA} where the host has no call, or its call
+  failed QC. Sites that neither host carries are left out.
 }
 \description{
 For each transmission pair, creates a table of variant frequencies

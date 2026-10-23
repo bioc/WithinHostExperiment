@@ -31,6 +31,11 @@ hosts, in the donor alone and in the recipient alone, using the calls
 that passed QC.
 }
 \details{
+A host carries a variant at a site when its frequency there is known
+and above 0, as in \code{\link{exportPairFrequencies}}; a recorded
+frequency of 0 is a site that was assessed and found without the
+variant.
+
 A donor variant absent from the recipient means one thing when the
 recipient was sequenced deeply enough at that site to have shown it,
 and another when it was not. The donor-only count is therefore
@@ -43,9 +48,13 @@ missing at every site the recipient's caller did not report when the
 object was read from VCF files, which list only the sites with a
 call, so with such input most donor-only sites fall in the last
 group; a depth matrix from a coverage file, or a table listing every
-assessed site, is needed to tell the first two apart. A fourth
-group, \code{n_donor_only_recipient_failed_qc}, holds the sites where
-the recipient did make a call but QC removed it, for example a call
+assessed site with its depth and a frequency of 0 where the recipient
+had no alternative reads (\code{\link{readWithinHostTable}} with
+\code{format = "generic"} and \code{aaf = 0}), is needed to tell the
+first two apart. A fourth group,
+\code{n_donor_only_recipient_failed_qc}, holds the sites where the
+recipient did make a call, at a frequency above 0, but QC removed
+it, for example a call
 above \code{maxFreq} in a recipient where the variant rose towards
 fixation: such a site is not absent, so it is kept out of the three
 depth groups. Only a donor-only site at adequate depth is evidence of

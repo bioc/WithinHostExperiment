@@ -27,6 +27,17 @@ test_that("ConcordanceRule holds a positive tolerance and a logical", {
                  "flags nothing")
 })
 
+test_that("ConcordanceRule refuses freqTolerance >= 1 without requireBothDetected (was: only Inf)", {
+    ## frequencies lie in [0, 1], so no two differ by more than 1 and such
+    ## a rule flags nothing
+    expect_error(ConcordanceRule(1, FALSE), "freqTolerance >= 1")
+    expect_error(ConcordanceRule(5, FALSE), "flags nothing")
+    expect_error(ConcordanceRule(Inf, FALSE), "frequencies lie in \\[0, 1\\]")
+    ## with requireBothDetected it is replicate intersection, and kept
+    expect_s4_class(ConcordanceRule(1, TRUE), "ConcordanceRule")
+    expect_s4_class(ConcordanceRule(0.99, FALSE), "ConcordanceRule")
+})
+
 test_that("ConcordanceRule() refuses a wrong type (was: coerced to a number)", {
     ## a factor became its level code and TRUE became 1; requireBothDetected
     ## took any non-zero number as TRUE

@@ -32,7 +32,8 @@ is flagged in every sample of the group. A call is a non-missing
 flags what \code{\link{flagReplicateDiscordance}} flags with the same
 two settings. Replicate intersection, which keeps only the calls made
 in both replicates, is \code{ConcordanceRule(freqTolerance = Inf)}.
-A rule with \code{freqTolerance = Inf} and
+Frequencies lie in [0, 1], so no two differ by more than 1: a rule
+with \code{freqTolerance} of 1 or more, \code{Inf} included, and
 \code{requireBothDetected = FALSE} would flag nothing and is refused.
 }
 \section{Slots}{

@@ -37,7 +37,8 @@ NULL
 #' flags what \code{\link{flagReplicateDiscordance}} flags with the same
 #' two settings. Replicate intersection, which keeps only the calls made
 #' in both replicates, is \code{ConcordanceRule(freqTolerance = Inf)}.
-#' A rule with \code{freqTolerance = Inf} and
+#' Frequencies lie in [0, 1], so no two differ by more than 1: a rule
+#' with \code{freqTolerance} of 1 or more, \code{Inf} included, and
 #' \code{requireBothDetected = FALSE} would flag nothing and is refused.
 #'
 #' @seealso \code{\link{ConcordanceRule}} for the constructor,
@@ -79,10 +80,12 @@ setValidity("ConcordanceRule", function(object) {
             "'requireBothDetected' must be a single non-NA logical")
     }
 
-    if (length(msg) == 0L && is.infinite(tol) && !both) {
-        msg <- c(msg, paste(
-            "freqTolerance = Inf with requireBothDetected = FALSE",
-            "flags nothing; use replicateConc = NULL for no rule"))
+    ## two frequencies in [0, 1] never differ by more than 1
+    if (length(msg) == 0L && tol >= 1 && !both) {
+        msg <- c(msg, sprintf(paste(
+            "freqTolerance >= 1 (got %s) with requireBothDetected = FALSE",
+            "flags nothing, since frequencies lie in [0, 1]; use",
+            "replicateConc = NULL for no rule"), format(tol)))
     }
 
     if (length(msg) == 0L) TRUE else msg

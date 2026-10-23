@@ -20,9 +20,11 @@ NULL
 #'   for host identifier (default: \code{"host_id"}).
 #' @param timeCol Character scalar. Column name in \code{colData}
 #'   for time point (default: \code{"timepoint"}). It must hold numbers,
-#'   dates or a factor whose levels are in time order; text is read as
-#'   numbers when every value is one, and is otherwise an error, since
-#'   text such as \code{"day10"} and \code{"day2"} has no time order.
+#'   dates, date-times, time differences or a factor whose levels are in
+#'   time order; text is read as numbers when every value is one, and is
+#'   otherwise an error, since text such as \code{"day10"} and
+#'   \code{"day2"} has no time order. A blank or \code{NA} is a missing
+#'   timepoint.
 #' @param minTimepoints Integer scalar. Minimum number of distinct
 #'   timepoints at which an iSNV must be detected to be considered
 #'   persistent (default: 2). Replicate samples taken at one
@@ -208,20 +210,29 @@ flagTemporalInconsistency <- function(whe,
     whe
 }
 
-## The timepoints of colData as numbers in time order: numbers, dates and
-## factor level codes as they are, text only when every value is a number
+## The timepoints of colData as numbers in time order: numbers, dates,
+## date-times, time differences and factor level codes as they are, text
+## only when every value is a number; a blank or an all-NA column is a
+## missing timepoint
 .timeOrder <- function(x, timeCol) {
-    if (is.factor(x) || is.numeric(x) || inherits(x, "Date"))
+    if (inherits(x, "POSIXlt")) x <- as.POSIXct(x)
+    if (inherits(x, "difftime")) return(as.numeric(x, units = "secs"))
+    if (is.factor(x) || is.numeric(x) || inherits(x, c("Date", "POSIXct")))
         return(as.numeric(x))
+    ## NA alone is stored as logical
+    if (is.logical(x) && all(is.na(x))) return(rep(NA_real_, length(x)))
     if (is.character(x)) {
-        num <- suppressWarnings(as.numeric(x))
-        bad <- !is.na(x) & is.na(num)
-        if (!any(bad)) return(num)
+        x[!is.na(x) & !nzchar(trimws(x))] <- NA
+        number <- paste0("^\\s*[-+]?([0-9]+\\.?[0-9]*|\\.[0-9]+)",
+                         "([eE][-+]?[0-9]+)?\\s*$")
+        bad <- !is.na(x) & !grepl(number, x)
+        if (!any(bad)) return(as.numeric(x))
         stop("Column '", timeCol, "' holds text such as '", x[bad][1L],
              "', which has no time order. Give the timepoints as numbers, ",
              "dates or a factor with its levels in time order, for example ",
              "factor(x, levels = c(\"day2\", \"day10\")).", call. = FALSE)
     }
-    stop("Column '", timeCol, "' must hold numbers, dates or a factor, not ",
-         class(x)[1L], ".", call. = FALSE)
+    stop("Column '", timeCol, "' must hold numbers, dates, date-times, ",
+         "time differences or a factor, not ", class(x)[1L], ".",
+         call. = FALSE)
 }

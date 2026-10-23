@@ -146,6 +146,9 @@ test_that("flagTemporalInconsistency() orders timepoints or refuses text without
     ## numbers written as text, dates and factor levels are ordered
     for (times in list(c("1", "2", "3"),
                        as.Date(c("2026-01-01", "2026-01-05", "2026-01-09")),
+                       as.POSIXct(c("2026-01-01 08:00", "2026-01-05 09:00",
+                                    "2026-01-09 10:00"), tz = "UTC"),
+                       as.difftime(c(1, 5, 9), units = "days"),
                        factor(c("early", "mid", "late"),
                               levels = c("early", "mid", "late")))) {
         whe <- flagTemporalInconsistency(.make_rep_whe(freq, times = times))
@@ -157,6 +160,14 @@ test_that("flagTemporalInconsistency() orders timepoints or refuses text without
     expect_error(flagTemporalInconsistency(
         .make_rep_whe(freq, times = c("day1", "day2", "day10"))),
         "holds text such as 'day1', which has no time order")
+    ## a blank, as read.csv() gives for a missing value, and a column that
+    ## is all NA are missing timepoints (was: refused as text or logical)
+    expect_warning(flagTemporalInconsistency(
+        .make_rep_whe(freq, times = c("1", "", "3"))),
+        "1 sample\\(s\\) with NA in 'timepoint'")
+    expect_warning(flagTemporalInconsistency(
+        .make_rep_whe(freq, times = c(NA, NA, NA))),
+        "3 sample\\(s\\) with NA in 'timepoint'")
 })
 
 test_that("flagTemporalInconsistency logs the step", {

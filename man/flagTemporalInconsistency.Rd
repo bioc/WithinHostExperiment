@@ -22,9 +22,11 @@ for host identifier (default: \code{"host_id"}).}
 
 \item{timeCol}{Character scalar. Column name in \code{colData}
 for time point (default: \code{"timepoint"}). It must hold numbers,
-dates or a factor whose levels are in time order; text is read as
-numbers when every value is one, and is otherwise an error, since
-text such as \code{"day10"} and \code{"day2"} has no time order.}
+dates, date-times, time differences or a factor whose levels are in
+time order; text is read as numbers when every value is one, and is
+otherwise an error, since text such as \code{"day10"} and
+\code{"day2"} has no time order. A blank or \code{NA} is a missing
+timepoint.}
 
 \item{minTimepoints}{Integer scalar. Minimum number of distinct
 timepoints at which an iSNV must be detected to be considered

@@ -234,3 +234,14 @@ test_that("flagISNV + flagReplicateDiscordance pipeline works", {
     expect_true(nrow(passed) > 0L)
     expect_true(nrow(passed) < nrow(whe))
 })
+
+test_that("a qcPass that is not a logical matrix is refused naming an ordinary R matrix (was: silent on backends)", {
+    ## a DelayedArray or other matrix-like backend fails the same check
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(1:3, width = 1))
+    expect_error(WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1),
+                      qcPass = matrix(c(1L, 1L, 0L), ncol = 1)),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = "S1")),
+        "'qcPass' assay must be an ordinary R logical matrix")
+})

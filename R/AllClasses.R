@@ -283,6 +283,10 @@ NULL
 #'   \item{\code{qcPass}}{Logical matrix. TRUE = passed QC, FALSE = flagged.
 #'     Initialized to all TRUE; updated by \code{\link{flagISNV}}.}
 #' }
+#' Assays must be ordinary R matrices. Out-of-memory backends such as
+#' \code{DelayedArray} or \code{HDF5Array} are not supported: the validity
+#' method refuses a \code{qcPass} assay that is not a base logical matrix,
+#' and \code{\link{flagISNV}} combines assays with base R operators.
 #'
 #' @section Expected colData columns:
 #' \describe{
@@ -374,11 +378,15 @@ setValidity("WithinHostExperiment", function(object) {
         msg <- c(msg, "'altFreq' assay is required")
     }
 
-    ## Validate qcPass assay is logical if present
+    ## Validate qcPass assay is logical if present; a DelayedArray or
+    ## other backend fails is.logical() and is named in the message
     if ("qcPass" %in% anames) {
         qc <- SummarizedExperiment::assay(object, "qcPass")
         if (!is.logical(qc)) {
-            msg <- c(msg, "'qcPass' assay must be a logical matrix")
+            msg <- c(msg, paste(
+                "'qcPass' assay must be an ordinary R logical matrix;",
+                "DelayedArray and other matrix-like backends are not",
+                "supported"))
         }
     }
 

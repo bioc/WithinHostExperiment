@@ -291,9 +291,11 @@ and the fifth is ours. `n_flagged` is the count of cells that each step newly
 failed, so a step that flags nothing still records that it ran, which is the
 point of an audit log. Note that `n_passed` counts cells of the site-by-sample
 matrix, not sites: with 28 sites and 3 samples there are 84 cells, including
-those where a sample has no call. A filter cannot fail a call that is absent, so
-those cells stay passed and the totals are larger than any per-sample count of
-calls.
+those where a sample has no call. A per-sample threshold cannot fail a call that
+is absent, so those cells stay passed and the totals are larger than any
+per-sample count of calls; a replicate rule, described under replicate-aware
+quality control, is the exception, since it flags a discordant site in every
+replicate, including one with no call.
 
 ## The second added slot: qcFilters
 
@@ -351,15 +353,16 @@ applied once.
 An S4 validity method runs when an object is constructed and whenever
 `validObject()` is called on it, and refuses a malformed object. For this class
 it enforces four things: that `qcLog` has the six columns named above; that
-`qcFilters` holds only `ISNVFilter` objects; that an `altFreq` assay exists
-whenever the object has any assay at all; and that a `qcPass` assay, if present,
-is a logical matrix. The replacement forms `qcLog(x) <-` and `qcFilters(x) <-`
-assign the slot without re-checking, so a malformed object can exist until
-something looks at it, which is why the chunk below calls `validObject()` on the
-two it builds. The reason to check these invariants is that every downstream
-function assumes them, and an assumption that fails quietly fails somewhere far
-from its cause. The chunk provokes three of the four failures with `try()`, so
-that the vignette continues after each error.
+`qcFilters` holds only valid `ISNVFilter` objects; that an `altFreq` assay
+exists whenever the object has any assay at all; and that a `qcPass` assay, if
+present, is an ordinary R logical matrix rather than a `DelayedArray` or another
+backend. The replacement forms `qcLog(x) <-` and `qcFilters(x) <-` assign the
+slot without re-checking, so a malformed object can exist until something looks
+at it, which is why the chunk below calls `validObject()` on the two it builds.
+The reason to check these invariants is that every downstream function assumes
+them, and an assumption that fails quietly fails somewhere far from its cause.
+The chunk provokes three of the four failures with `try()`, so that the vignette
+continues after each error.
 
 ```{r object-validity}
 gr <- GRanges("seg", IRanges::IRanges(1:3, width = 1))
@@ -382,8 +385,10 @@ matrix of integers: `1L` and `0L` would be read as `TRUE` and `FALSE` in some
 places and as counts in others, so the class refuses the ambiguity rather than
 resolving it. The second rejects a character string where an `ISNVFilter`
 belongs, which is what stops a hand-written note from being mistaken later for a
-filter that was applied. The third rejects a log whose last four columns have
-been dropped, naming all four. The fourth invariant, the required `altFreq`
+filter that was applied; a filter saved by an earlier version of the package, or
+changed with `@<-` into an invalid one, is reported too, with a message to
+rebuild it with `ISNVFilter()`. The third rejects a log whose last four columns
+have been dropped, naming all four. The fourth invariant, the required `altFreq`
 assay, is caught by the constructor itself with a message that lists the assays
 you did supply.
 
@@ -533,29 +538,29 @@ was set aside is still readable.
 
 An `ISNVFilter` is a small object holding the thresholds, separate from the act
 of applying them, so that the same thresholds can be applied to several
-experiments and stored on each. Six thresholds are carried: `minDepth`, a floor
+experiments and stored on each. Five thresholds are carried: `minDepth`, a floor
 on read depth; `minFreq`, the **detection threshold**, the lowest allele
 frequency a call may have and be kept; `maxFreq`, above which a variant is
 treated as a consensus-level change rather than within-host variation;
-`minAltReads`, a floor on the reads supporting the alternative allele;
-`maxStrandBias`, the largest tolerated fold-difference between the strands; and
-`replicateConc`, which is not a threshold but an optional rule for technical
-replicates, described under replicate-aware quality control below. Defaults
-follow the within-host literature, and the class documentation gives the
-reasoning for each.
+`minAltReads`, a floor on the reads supporting the alternative allele; and
+`maxStrandBias`, the largest tolerated fold-difference between the strands. A
+filter may also carry `replicateConc`, an optional rule for technical replicates
+rather than a threshold, described under replicate-aware quality control below.
+Defaults follow the within-host literature, and the class documentation gives
+the reasoning for each.
 
 ```{r qc-filter}
 filt <- ISNVFilter(minDepth = 200L, minFreq = 0.03)
 filt
 ```
 
-The `show` method prints every threshold, including the four we did not set,
-which is the point of printing it: `minFreq` and `maxFreq` appear as the
-interval `[0.03, 0.5]`, so a call at 60% is excluded here as a near-fixed
-change, not retained. A threshold you did not think about is still a threshold
-that will be applied, so read this output before trusting a filtered object.
-Base and mapping quality are deliberately absent: the object holds no per-site
-quality score, so those belong in the variant caller.
+The `show` method prints every setting, including the three thresholds and the
+replicate rule we did not set, which is the point of printing it: `minFreq` and
+`maxFreq` appear as the interval `[0.03, 0.5]`, so a call at 60% is excluded
+here as a near-fixed change, not retained. A threshold you did not think about
+is still a threshold that will be applied, so read this output before trusting a
+filtered object. Base and mapping quality are deliberately absent: the object
+holds no per-site quality score, so those belong in the variant caller.
 
 ## Applying a filter
 
@@ -570,12 +575,14 @@ qcLog(whe_qc)
 ```
 
 Four steps were recorded, one per applicable threshold, with strand bias absent
-because this object has no per-strand count assays. The depth filter flagged one
-cell and the other three flagged none, so the depth floor of 200 is doing all
-the filtering here. `n_passed` settles at 39 out of 40: the matrix is 20 sites
-by 2 samples, and the 15 cells where a sample made no call are counted as
-passed, because a filter cannot fail an absent call. Do not read `n_passed` as a
-number of surviving calls; the next function reports that.
+because this object has no per-strand count assays: no import function reads
+them, so the step runs only when they are added to the object by hand. The depth
+filter flagged one cell and the other three flagged none, so the depth floor of
+200 is doing all the filtering here. `n_passed` settles at 39 out of 40: the
+matrix is 20 sites by 2 samples, and the 15 cells where a sample made no call
+are counted as passed, because a per-sample threshold cannot fail an absent
+call. Do not read `n_passed` as a number of surviving calls; the next function
+reports that.
 
 ## Summarising quality per sample
 
@@ -687,8 +694,9 @@ discordant sites.
 The same comparison can travel with the other thresholds. A `ConcordanceRule`
 holds the two settings, and an `ISNVFilter` that carries one in `replicateConc`
 applies it as the last step of `flagISNV()`. The filter, rule included, is then
-stored in `qcFilters`, so the object records every check applied to it, not only
-the per-sample thresholds.
+stored in `qcFilters`, so the stored filter records the replicate check as well
+as the per-sample thresholds, and re-applying it repeats both; checks applied by
+the other flagging functions still appear only in `qcLog`.
 
 ```{r qc-replicate-rule}
 rule <- ConcordanceRule(freqTolerance = 0.05)
@@ -701,13 +709,14 @@ qcFilters(rep_qc)[[1]]
 The four per-sample steps come first and the two replicate rows last, written as
 the separate function writes them. The depth floor flags 2 cells, one site below
 200 reads in both replicates, and the rule then flags the same 6 cells as
-before. It compares the calls as made, before any threshold, so a threshold can
-only decide whether a cell the rule flags was already flagged, and here none
-was; 24 of the 32 cells remain passed. The last line of the stored filter shows
-the rule. A rule needs replicates to compare, so `flagISNV()` stops when
-`colData` has no `replicate_group` with two or more samples, rather than return
-an object that looks checked; samples without a replicate are named in a warning
-and filtered by the thresholds alone.
+before, one of them the cell of the site rep2 did not call. It compares the
+calls as made, before any threshold, so a threshold can only decide whether a
+cell the rule flags was already flagged, and here none was; 24 of the 32 cells
+remain passed. The last line of the stored filter shows the rule. A rule needs
+replicates to compare, so `flagISNV()` stops when `colData` has no
+`replicate_group` with two or more samples, rather than return an object that
+looks checked; samples without a replicate are named in a warning and filtered
+by the thresholds alone.
 
 ## Masking primer sites
 
@@ -742,10 +751,10 @@ used by `flagISNV()` works for data with balanced strand coverage, but amplicon
 data are unbalanced by construction, and Mostefai et al. (2024) showed that
 filters ignoring that imbalance discard genuine variants. `sciStrandBias()`
 therefore normalises each site's forward-to-reverse ratio of alternative reads
-by the forward-to-reverse ratio of total coverage summed over all sites, after
-adding a pseudocount of one to each of the four counts, and reports the result
-on a base-2 logarithmic scale: zero means a site as balanced as the data as a
-whole.
+by the forward-to-reverse ratio of total coverage summed over the sites with all
+four counts, after adding a pseudocount of one to each of the four counts, and
+reports the result on a base-2 logarithmic scale: zero means a site as balanced
+as the data as a whole.
 
 ```{r qc-sci}
 sci <- sciStrandBias(
@@ -1077,10 +1086,11 @@ donor's 14 passing calls, so no call fell outside the binned range.
 `folded: TRUE` and `polarization: none` record that this spectrum carries no
 claim about ancestry, which is why the statistics needing derived-allele
 frequencies will refuse it. The threshold of 0.03 is where the first bin begins,
-`corrected: FALSE` says no ascertainment correction has been applied, and the
-median depth of 1,600 reads is stored because the binomial correction below
-needs it. With 14 variants in 10 bins most bins hold one site or none, so this
-spectrum has no shape to speak of; real analyses need hundreds of sites.
+`corrected: FALSE` says no ascertainment correction has been applied,
+`maxFreq: 0.5` records that QC removed every call above 50%, and the median
+depth of 1,600 reads is stored because the binomial correction below needs it.
+With 14 variants in 10 bins most bins hold one site or none, so this spectrum
+has no shape to speak of; real analyses need hundreds of sites.
 
 ## Correcting for what could not be seen
 
@@ -1117,9 +1127,11 @@ Asking whether two hosts, two timepoints, or the kept and discarded halves of
 one sample's calls have the same spectrum is a question about shape rather than
 totals. `compareSFS()` answers it with a chi-squared test for homogeneity on the
 raw counts in matching bins. Because the test compares counts bin by bin, the
-two spectra must share their breaks, their folding and their polarisation, and
-neither may be bias-corrected; the function stops, naming the difference, when
-any of this fails.
+two spectra must share their breaks, their folding, their polarisation and their
+QC frequency cap (`maxFreq`), and neither may be bias-corrected; the function
+stops, naming the difference, when any of this fails. So a spectrum built before
+QC can be compared with one built after it only when the filters kept
+`maxFreq = 1`.
 
 ```{r sfs-compare}
 sfs_recip <- buildSFS(whe_qc, sampleIdx = "recipient", nBins = 10L)
@@ -1151,12 +1163,15 @@ intermediate-frequency variants, with Watterson's theta, which counts
 segregating sites regardless of frequency, and normalises the difference by its
 expected standard deviation (Tajima 1989). Negative values indicate an excess of
 rare variants, as purifying selection or a recent expansion would produce;
-positive values indicate an excess of intermediate ones. **Fu's Fs** is a second
-statistic sensitive to an excess of rare alleles (Fu 1997). One assumption
-behind it is worth naming: Fs is defined on the number of distinct haplotypes,
-which per-site calls cannot supply, so `fusFs()` takes that number to be one
-more than the segregating sites. The package does not phase haplotypes, so
-nothing checks this.
+positive values indicate an excess of intermediate ones. **Fu's Fs** is defined
+as a second statistic sensitive to an excess of rare alleles (Fu 1997), but as
+computed here it adds nothing to D. Fs is defined on the number of distinct
+haplotypes, which per-site calls cannot supply, so `fusFs()` sets that number to
+one more than the number of segregating sites, the most that many sites can
+produce. The value then carries no haplotype information: it depends only on the
+number of sites, the sample size and pi, and under neutrality it lies well below
+0, about -7 for 100 sequences at theta = 5. A negative Fs here is therefore not
+evidence of expansion.
 
 `calcNeutralityTests()` computes both per sample. One detail dominates their
 interpretation: reads are not independent lineages. Deep sequencing samples a
@@ -1168,8 +1183,10 @@ reads as, at 100, following Lauring (2020) as the `tajimaD` manual page
 explains, and reports `n_sites`, the number of segregating sites each statistic
 rests on. Below three segregating sites D is a function of one or two
 frequencies rather than of a spectrum, so it is returned as `NA` with a warning.
-No genome length is needed: both statistics use the nucleotide diversity summed
-over the genome, which comes straight from the frequencies.
+Fu's Fs is likewise `NA` for a sample with no segregating site, and for one with
+as many sites as the effective sample size. No genome length is needed: both
+statistics use the nucleotide diversity summed over the genome, which comes
+straight from the frequencies.
 
 ```{r neutrality-tests}
 nt <- calcNeutralityTests(whe_qc)
@@ -1178,14 +1195,16 @@ nt
 
 The donor's D is 1.83 on 14 segregating sites and the recipient's 1.78 on 10,
 with Fu's Fs of 0.04 for the donor and 0.69 for the recipient; on so few sites
-neither value is interpretable. Always read D next to `n_sites`: a D computed
-from 10 sites is a description of 10 numbers, not a test. These fixtures are
-synthetic, and their frequencies were written by hand across the whole range
-from 4% to 45%, which is exactly what produces a positive D, so the sign here is
-a property of how the file was written. In real within-host data negative values
-are the common case, and negative D is expected both under purifying selection
-and after a bottleneck, so the statistic cannot distinguish them. Report D as a
-description of the spectrum, not as a test with a p-value.
+neither value is interpretable, and the two are positive only because pi is high
+relative to the number of sites in these hand-written fixtures. Always read D
+next to `n_sites`: a D computed from 10 sites is a description of 10 numbers,
+not a test. These fixtures are synthetic, and their frequencies were written by
+hand across the whole range from 4% to 45%, which is exactly what produces a
+positive D, so the sign here is a property of how the file was written. In real
+within-host data negative values are the common case, and negative D is expected
+both under purifying selection and after a bottleneck, so the statistic cannot
+distinguish them. Report D as a description of the spectrum, not as a test with
+a p-value.
 
 ## Statistics from a spectrum, including Fay and Wu's H
 
@@ -1199,27 +1218,34 @@ variants sit mostly at low frequency. It needs to know which allele is derived
 at each site, so `neutralityFromSFS()` stops on a folded spectrum and reports
 the polarisation it used. On an unfolded spectrum built here, that polarisation
 is `"reference"`: the reference allele stands in for the ancestral one, which
-holds only as far as the reference resembles the infecting population.
+holds only as far as the reference resembles the infecting population. The
+filter used so far, like the default, removes every call above 50%, and with it
+the high-frequency classes H weights most, so `neutralityFromSFS()` refuses a
+spectrum built under that cap. The spectrum here is built from the unfiltered
+calls, flagged with the same thresholds but `maxFreq = 1`; flagging `whe_qc`
+again would not do, since `flagISNV()` adds to the flags already set.
 
 ```{r neutrality-sfs}
-sfs_unf <- buildSFS(whe_qc, sampleIdx = "donor", nBins = 10L, fold = FALSE)
+whe_h <- flagISNV(whe,
+    ISNVFilter(minDepth = 200L, minFreq = 0.03, maxFreq = 1))
+sfs_unf <- buildSFS(whe_h, sampleIdx = "donor", nBins = 10L, fold = FALSE)
 neutralityFromSFS(sfs_unf)
 ```
 
 The list reports the ingredients as well as the results: 14 segregating sites,
-an effective sample size of 100 from the depth cap, pi of 4.3e-03, Watterson's
+an effective sample size of 100 from the depth cap, pi of 4.4e-03, Watterson's
 theta of 2.7e-03, larger than the 1.8e-03 of the diversity table because n is
-capped here, and Fay and Wu's theta_H of 2.0e-03 per site, then D of 1.66, Fs of
--0.14 and H of 2.4e-03, with `polarization` recording the assumption. Two
-cautions. First, D here is 1.66 while the object-based route above gave 1.83,
-for two reasons: this route reconstructs pi from bin midpoints rather than from
-the frequencies themselves, and it omits the n/(n-1) finite-sample correction
-that the object route applies. The two are not expected to agree to the last
-digit, and neither is more correct than the other. Second, H is positive here
-because nothing in the fixture is a high-frequency derived variant: with the
-reference treated as ancestral, no call lies above 45%, so the high-frequency
-bins that would pull theta_H above pi are empty. Nothing in these numbers is
-biology.
+capped here, and Fay and Wu's theta_H of 2.0e-03 per site, then D of 1.74, Fs of
+-0.06 and H of 2.5e-03, with `polarization` recording the assumption. Two
+cautions. First, D here is 1.74 while the object-based route above gave 1.83,
+because this route reconstructs pi from the bins, each standing for the
+derived-allele class nearest its midpoint, rather than from the frequencies
+themselves; both routes apply the n/(n-1) finite-sample correction. Second, H is
+positive here because nothing in the fixture is a high-frequency derived
+variant: with the reference treated as ancestral, no call lies above 45%, so the
+high-frequency bins that would pull theta_H above pi are empty. Under the
+default 50% cap those bins would be empty whatever the data, which is why the
+function refuses a spectrum built under it. Nothing in these numbers is biology.
 
 ## Within-host pN/pS
 
@@ -1231,7 +1257,11 @@ each count by the number of sites of its own class, counted by the method of Nei
 and Gojobori (1986), under which each codon carries three sites divided between
 the classes according to how many of its possible substitutions keep the amino
 acid. Writing n_S and n_N for the counts and S and N for the sites, the ratio is
-(n_N / N) divided by (n_S / S).
+(n_N / N) divided by (n_S / S). For every sense codon these are the sites that
+`MSA2dist::codonmat2pnps()` uses; the package counts them itself because the
+`r BiocStyle::Biocpkg("MSA2dist")` functions compare two aligned sequences,
+while the input here is a set of calls at single sites, and because it gives
+stop codons no sites.
 
 This ratio is **pN/pS**, a ratio of *polymorphism* within one host, and it is
 not the **dN/dS** of a comparison between two sequences. The distinction is not
@@ -1250,17 +1280,18 @@ pnps[, c("sample_id", "nS", "nN", "S_sites", "N_sites", "pNpS")]
 Each row here is one sample, because the fixture has a single gene; in general
 the table carries one row per sample and gene, with the per-gene counts, sites
 and ratio in six `gene_*` columns that this selection leaves out. The donor
-carries 3 synonymous and 11 nonsynonymous iSNVs, the recipient 1 and 9, with
+carries 2 synonymous and 9 nonsynonymous iSNVs, the recipient 1 and 9, with
 nonsense changes counted as nonsynonymous, and each iSNV counts once whatever
 its frequency. `S_sites` and `N_sites`, 219.3 and 725.7, are the same for both
 samples because they are a property of the coding sequence, not of the data, and
 they sum to 945, three times the 315 sense codons of this 999-base coding
 sequence; the other 18 codons are stop codons, which carry no sites of either
-class. The ratios, 1.11 and 2.72, must be read with their counts and never
-alone: the recipient's ratio rests on a single synonymous iSNV, and one more
-such call would roughly halve it. Report pN/pS with n_S and n_N always. The
-segment is synthetic, so these values carry no biological meaning; the package's
-own figures on real SARS-CoV-2 data give a pooled ratio of 0.29 from 50
+class, so the three donor iSNVs that fall in them enter neither count. The
+ratios, 1.36 and 2.72, must be read with their counts and never alone: the
+recipient's ratio rests on a single synonymous iSNV, and one more such call
+would roughly halve it. Report pN/pS with n_S and n_N always. The segment is
+synthetic, so these values carry no biological meaning; the package's own
+figures on real SARS-CoV-2 data give a pooled ratio of 0.29 from 50
 nonsynonymous and 49 synonymous calls, which is the order of magnitude a real
 within-host estimate has.
 
@@ -1392,9 +1423,10 @@ sites falls in the unknown-depth group, which is the output to attend to. These
 objects were read from VCF files, which list only the positions a caller
 reported, so the recipient's depth at the positions it did not report is simply
 not recorded, and no absence here can be distinguished from a failure to look. A
-depth matrix from a coverage file, or a table listing every assessed position,
-would move these sites into the first two groups and make the sharing rate
-interpretable. Until then, report the split, not just the total.
+depth matrix from a coverage file, or a table listing every assessed position
+with its depth and a frequency of zero where the recipient had no alternative
+reads, would move these sites into the first two groups and make the sharing
+rate interpretable. Until then, report the split, not just the total.
 
 ## A quick bottleneck estimate
 
@@ -1423,13 +1455,19 @@ than supported by the data; `quickBottleneck()` issues no warning, so check
 when the point estimate itself reaches `maxNb`. And the log-likelihood is only
 comparable between estimators run on the same sites.
 
-One further caution applies to every estimator in this section. The frequency
-table they work from records a recipient frequency of zero wherever the
-recipient made no call, so each of the nine donor-only sites that
-`calcSharedVariants()` placed in the unknown-depth group is scored here as a
-variant lost in transmission. Where the recipient was simply not sequenced
-deeply enough at those positions, that scoring pulls the estimate downwards.
-This is a synthetic pair, so 3 is not an estimate of anything.
+One further caution applies to the estimators that work from frequencies,
+`quickBottleneck()` and the `"presence_absence"` and `"wright_fisher"` methods
+of `exactBottleneck()`. The frequency table they work from records a recipient
+frequency of zero wherever the recipient made no call, so each of the nine
+donor-only sites that `calcSharedVariants()` placed in the unknown-depth group
+is scored here as a variant lost in transmission. Where the recipient was simply
+not sequenced deeply enough at those positions, that scoring pulls the estimate
+downwards. `"exact_bb"` cannot score these sites at all: it needs the
+recipient's depth at each one, so it leaves the nine out, says so in a message
+and counts them in `n_excluded` rather than `n_variants`. No estimator scores as
+a loss a recipient call at or above the threshold that quality control removed;
+such a site is left out, with a message. This is a synthetic pair, so 3 is not
+an estimate of anything.
 
 ## Estimators that model depth
 
@@ -1480,11 +1518,11 @@ The first table has three columns, position and the two frequencies, with a zero
 where the recipient made no call; a beta-binomial estimator needs no more. The
 second keeps `chrom`, `ref` and `alt` as well, so that sites can be matched
 across objects by allele rather than by position alone, and flags with `shared`
-whether both hosts carry a frequency; here `NA` marks the sites one host did not
-report, which the first table renders as zero. Note that the `ViralBottleneck`
-package (Zheng et al. 2025) builds its objects from per-base read counts through
-`CreateTransmissionObject()`, so prepare those from the `altCount` and
-`refCount` assays rather than from either of these frames.
+whether both hosts carry the allele at a frequency above zero; here `NA` marks
+the sites one host did not report, which the first table renders as zero. Note
+that the `ViralBottleneck` package (Zheng et al. 2025) builds its objects from
+per-base read counts through `CreateTransmissionObject()`, so prepare those from
+the `altCount` and `refCount` assays rather than from either of these frames.
 
 # Longitudinal data
 
@@ -1546,11 +1584,11 @@ consecutive samples, or change smoothly. A variant seen at one timepoint at 5%
 and absent at every other is more likely an artefact of library preparation or
 base calling. `flagTemporalInconsistency()` classifies each site within each
 host as persistent or transient, flags the transient ones, and records the step
-in the log. A site is persistent when it is detected at `minTimepoints`
-timepoints, optionally requiring them to be consecutive. Note what this cannot
-distinguish: a site also goes undetected on a day when its depth was too low or
-its frequency left the detection window, so a variant that goes to fixation can
-look transient.
+in the log. A site is persistent when it is detected at `minTimepoints` distinct
+timepoints, optionally requiring them to be consecutive; technical replicates
+taken at one timepoint count once. Note what this cannot distinguish: a site
+also goes undetected on a day when its depth was too low or its frequency left
+the detection window, so a variant that goes to fixation can look transient.
 
 ```{r longitudinal-temporal}
 gr_t <- GRanges("seg1", IRanges::IRanges(c(100, 200, 300), width = 1))
@@ -1615,6 +1653,10 @@ in the summary carefully: the consensus object holds `altFreq`, the mean
 frequency across callers, and `qcPass` only. Read counts, depths and any
 quality-control history are *not* carried over, so run `flagISNV()` on each
 caller's own object before taking the consensus, never on the consensus itself.
+The sequence lengths, where the inputs record them, and each sample's `colData`
+row are carried over from the first input that holds the sample, and every input
+sample keeps its column, so diversity and transmission-pair functions can run on
+the consensus; those that need read depths warn or stop, because it has none.
 
 ## Measuring agreement between callers
 
@@ -2029,10 +2071,12 @@ three segregating sites it is a function of one or two frequencies rather than
 of a spectrum and `tajimaD()` returns `NA` with a warning. A D computed from
 exactly three sites is formally defined and practically meaningless, and these
 are synthetic files besides, so no sign in this table carries any biological
-meaning. In real within-host data a negative D or Fs is often read as purifying
+meaning. In real within-host data a negative D is often read as purifying
 selection or as expansion after a bottleneck, and a positive one as balancing
-selection or population structure; either reading needs far more sites than
-these fixtures hold, and the deep-sequencing caveats above apply to all of them.
+selection or population structure, while Fs as computed here lies well below 0
+even under neutrality, so its sign carries no such reading; either reading of D
+needs far more sites than these fixtures hold, and the deep-sequencing caveats
+above apply to all of them.
 
 # Scope and limitations
 
@@ -2113,8 +2157,10 @@ ancestry; an unfolded one bins the alternative allele frequency from the
 threshold to 1 and treats the reference allele as ancestral.
 
 **Fu's Fs.** A neutrality statistic sensitive to an excess of rare alleles,
-defined on the number of distinct haplotypes, which this package takes to be one
-more than the number of segregating sites.
+defined on the number of distinct haplotypes, which this package sets to one
+more than the number of segregating sites, the infinite-sites maximum, so that
+here it lies well below 0 under neutrality and its sign is not evidence of
+expansion.
 
 **Haplotype.** The full sequence of one genome, as opposed to the per-site calls
 this package works with.
@@ -2142,7 +2188,8 @@ quality-control step; the call is retained and marked, never deleted.
 
 **Read depth.** The number of reads covering a site in a sample.
 
-**Richness.** The number of iSNV sites in a sample that passed quality control.
+**Richness.** The number of iSNV sites in a sample that passed quality control
+and are segregating, with a frequency strictly between 0 and 1.
 
 **Segregating site.** A site at which more than one allele is present in the
 sample.

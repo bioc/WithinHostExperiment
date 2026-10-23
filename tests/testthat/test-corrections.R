@@ -312,6 +312,36 @@ test_that("flagISNV applies replicateConc (was: recorded, warned, ignored)", {
                  "two or more samples")
 })
 
+test_that("a difference equal to freqTolerance passes (was: flagged by rounding)", {
+    ## sites 1 and 2 are 50 reads in 1000 apart, which the subtraction
+    ## puts just above 0.05; site 3 is 51 reads apart; site 4 is 0.375
+    ## against 0.125, exactly 0.25 apart in binary
+    freq <- cbind(r1 = c(150, 350, 100, 375) / 1000,
+                  r2 = c(200, 400, 151, 125) / 1000)
+    whe <- .whe_from_freq(freq, matrix(1000L, 4, 2),
+                          pos = c(10, 20, 30, 40),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g"), row.names = colnames(freq)))
+    qc <- function(x) unname(SummarizedExperiment::assay(x, "qcPass"))
+    both <- function(v) matrix(v, length(v), 2L)
+    by_fun <- function(tol, rbd = TRUE)
+        qc(flagReplicateDiscordance(whe, freqTolerance = tol,
+                                    requireBothDetected = rbd))
+    by_rule <- function(tol, rbd = TRUE)
+        qc(flagISNV(whe, ISNVFilter(replicateConc =
+                                        ConcordanceRule(tol, rbd))))
+    expect_identical(by_fun(0.05), both(c(TRUE, TRUE, FALSE, FALSE)))
+    expect_identical(by_rule(0.05), both(c(TRUE, TRUE, FALSE, FALSE)))
+    ## the binary-exact boundary from both sides
+    expect_identical(by_fun(0.25), both(rep(TRUE, 4)))
+    expect_identical(by_rule(0.25, FALSE), both(rep(TRUE, 4)))
+    expect_identical(by_fun(0.125), both(c(TRUE, TRUE, TRUE, FALSE)))
+    expect_identical(by_rule(0.125), both(c(TRUE, TRUE, TRUE, FALSE)))
+    expect_identical(
+        qcLog(flagReplicateDiscordance(whe, freqTolerance = 0.05))$n_flagged,
+        c(4L, 0L))
+})
+
 test_that("flagISNV() refuses a filter changed into an invalid one (was: applied it)", {
     ## identical replicates: a negative tolerance flagged every call, and a
     ## rule that flags nothing wrote rows that look like a check

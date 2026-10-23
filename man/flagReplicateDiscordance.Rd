@@ -28,7 +28,8 @@ flags them in the \code{qcPass} assay.
 \details{
 For each replicate group, the function compares \code{altFreq}
 between replicates and flags sites where the difference exceeds
-\code{freqTolerance}. Sites are flagged in ALL samples of the
+\code{freqTolerance}; a difference equal to it, to within rounding
+error, passes. Sites are flagged in ALL samples of the
 replicate group.
 
 Roder et al. (2023) reported that the choice of variant caller and

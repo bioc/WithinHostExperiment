@@ -25,7 +25,8 @@ NULL
 #' @details
 #' For each replicate group, the function compares \code{altFreq}
 #' between replicates and flags sites where the difference exceeds
-#' \code{freqTolerance}. Sites are flagged in ALL samples of the
+#' \code{freqTolerance}; a difference equal to it, to within rounding
+#' error, passes. Sites are flagged in ALL samples of the
 #' replicate group.
 #'
 #' Roder et al. (2023) reported that the choice of variant caller and
@@ -100,6 +101,11 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
     whe
 }
 
+## Rounding allowance for a difference of two frequencies: 0.20 - 0.15
+## comes out as 0.050000000000000017, which must still pass a tolerance
+## of 0.05. It is far below the 1 / depth resolution of any frequency.
+.freqEps <- sqrt(.Machine$double.eps)
+
 ## Compares every pair of samples sharing a value of 'group' and sets
 ## qcPass to FALSE, in every sample of the group, at each site that fails
 ## for any pair. A call is a non-missing frequency. Returns the updated
@@ -127,7 +133,7 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
                 both_present <- !is.na(freq_i) & !is.na(freq_j)
                 freq_diff <- abs(freq_i - freq_j)
                 discordant_freq <- both_present &
-                    freq_diff > freqTolerance
+                    freq_diff > freqTolerance + .freqEps
 
                 if (requireBothDetected) {
                     one_only <- xor(is.na(freq_i), is.na(freq_j))

@@ -41,7 +41,8 @@ with \code{freqTolerance} of 1 or more, \code{Inf} included, and
 \describe{
 \item{\code{freqTolerance}}{Numeric scalar. The largest difference in
 \code{altFreq} allowed between two replicates that both made the call
-(default: 0.05). \code{Inf} compares no frequencies.}
+(default: 0.05); a difference equal to it, to within rounding error,
+passes. \code{Inf} compares no frequencies.}
 
 \item{\code{requireBothDetected}}{Logical scalar. If \code{TRUE} (default), a
 site called in one replicate of a pair but not in the other fails.}

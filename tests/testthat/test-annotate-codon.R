@@ -284,8 +284,8 @@ test_that("annotateCodonChange reads an alternative start codon as M", {
 test_that("losing a stop codon is nonsynonymous, not nonsense", {
     skip_if_not_installed("txdbmaker")
     ## The removed in-house annotator called this change "Nonsense";
-    ## predictCoding() calls it nonsynonymous. pN/pS counts it as
-    ## nonsynonymous either way.
+    ## predictCoding() calls it nonsynonymous. pN/pS does not count it,
+    ## since a stop codon carries no sites.
     ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
     whe <- codon_whe(13, "T", "C")
     mc <- codon_mc(annotateCodonChange(whe, cds_gr(1, 15), ref))

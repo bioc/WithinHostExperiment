@@ -194,7 +194,7 @@ NULL
 #' position, is kept, and a message says how many sites this affected and
 #' at how many the two readings differ in consequence;
 #' \code{collapse = "all"} keeps both. \code{\link{pNpSWithinHost}} counts
-#' such a site by its first reading.
+#' such a site by the first of its readings in a sense codon.
 #'
 #' @param x A \code{\link{WithinHostExperiment}} with \code{ref} and
 #'   \code{alt} columns in \code{mcols(rowRanges(x))}.

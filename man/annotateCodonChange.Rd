@@ -172,7 +172,7 @@ With \code{collapse = "longest"} the first reading, at the lower CDS
 position, is kept, and a message says how many sites this affected and
 at how many the two readings differ in consequence;
 \code{collapse = "all"} keeps both. \code{\link{pNpSWithinHost}} counts
-such a site by its first reading.
+such a site by the first of its readings in a sense codon.
 }
 \examples{
 ## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA

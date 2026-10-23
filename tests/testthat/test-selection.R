@@ -129,7 +129,7 @@ test_that("an iSNV in one transcript's stop codon counts by a transcript reading
     whe <- pnps_whe(c(8, 12), c("A", "G"), c("G", "A"))
     expect_warning(res <- pNpSWithinHost(whe, cds, ref), "0 codon")
     res <- as.data.frame(res)
-    ## 12 G>A is GGG -> GGA in tx1 (synonymous) and GGC -> AGC in tx2
+    ## 12 G>A is GGG -> GGA in tx1 (synonymous) and GGC -> GAC in tx2
     expect_identical(res$nS[1], 1L)
     expect_identical(res$nN[1], 1L)
     expect_identical(res$gene, c("g1", "g2"))

@@ -180,10 +180,10 @@ NULL
 #' a sense codon, and where that transcript reads the nucleotide twice,
 #' the first of those readings in a sense codon. Each gene's counts take
 #' it by the first counted reading of that gene's own transcripts, so an
-#' iSNV in a codon two
-#' genes share counts in both genes, as the codon's sites do, but once in
-#' the total. Sites outside every coding sequence, insertions and
-#' deletions, and codons holding an ambiguous base are not counted. An
+#' iSNV in a codon two genes share counts in both genes, as the codon's
+#' sites do, but once in the total. Sites outside every coding sequence,
+#' insertions and deletions, and codons holding an ambiguous base are not
+#' counted. An
 #' iSNV is present in a sample when its frequency is above zero and, with
 #' \code{usePassedOnly = TRUE}, it passed QC; it is counted once whatever
 #' its frequency.

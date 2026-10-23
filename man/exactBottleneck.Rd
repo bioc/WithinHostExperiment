@@ -50,15 +50,16 @@ A named list with components:
     maximiser and interval of a heuristic score, and a message says
     so when the method is run.}
   \item{\code{n_variants}}{Integer. Number of donor variants used.}
-  \item{\code{n_excluded}}{Named integer. Donor variants above
+  \item{\code{n_excluded}}{Named integer. Donor variants at or above
     \code{threshold} that were left out, by reason:
-    \code{recipient_failed_qc}, sites where QC removed the
-    recipient's call, which is not an absence (see
+    \code{recipient_failed_qc}, sites where QC removed a recipient
+    call at or above \code{threshold}, which is not an absence (see
     \code{\link{asViralBottleneckInput}}), left out by every method;
     \code{unknown_depth}, sites of unknown recipient depth, which
     only \code{exact_bb} leaves out; and \code{donor_near_fixation},
-    donor variants above \code{1 - threshold}, which only
-    \code{presence_absence} leaves out.}
+    donor variants above \code{1 - threshold}, which
+    \code{presence_absence} and \code{wright_fisher} leave out, as
+    \code{\link{quickBottleneck}} does.}
   \item{\code{pair_id}}{Character. Pair identifier.}
 }
 }
@@ -82,14 +83,17 @@ Estimates transmission bottleneck size using one of three methods:
     \code{exact_bb} not at all, and loss in transmission is then
     scored only by the other estimators. Such sites are left out,
     with a message, and counted in \code{n_excluded}, not in
-    \code{n_variants}.}
+    \code{n_variants}; a bootstrap interval (\code{nboot > 0})
+    resamples only the sites used.}
   \item{\code{wright_fisher}}{Approximate score in which one
     generation of binomial drift is combined with a beta kernel of
     concentration \code{max(Nb, 2)} around the drifted frequency.
     It mixes a density for detected variants with probabilities for
     lost variants, so it is a heuristic rather than a likelihood;
     prefer \code{exact_bb} or \code{presence_absence} for
-    inference.}
+    inference. Like \code{presence_absence}, it uses the donor
+    variants with frequencies from \code{threshold} to
+    \code{1 - threshold}.}
   \item{\code{presence_absence}}{Presence-absence likelihood using
     \eqn{P(\mathrm{detect} | Nb, \nu) =
       1 - (1-\nu)^{Nb}}{P(detect|Nb,freq) = 1-(1-freq)^Nb}.

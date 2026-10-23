@@ -20,10 +20,14 @@ pairs defined in \code{colData}.}
 \value{
 A named list: Nb (MLE), ci (95\% CI), loglik,
   n_variants, n_excluded, pair_id. \code{n_excluded} is a named
-  integer, \code{recipient_failed_qc}: the donor variants above
-  \code{threshold} left out because QC removed the recipient's call
-  at the site, which is not an absence (see
-  \code{\link{asViralBottleneckInput}}).
+  integer, as from \code{\link{exactBottleneck}}, of the donor
+  variants at or above \code{threshold} left out:
+  \code{recipient_failed_qc}, sites where QC removed a recipient call
+  at or above \code{threshold}, which is not an absence (see
+  \code{\link{asViralBottleneckInput}}); \code{unknown_depth}, always 0
+  here, since this method does not use depths; and
+  \code{donor_near_fixation}, donor variants above
+  \code{1 - threshold}.
 }
 \description{
 Estimates transmission bottleneck size using the approximate
@@ -34,6 +38,14 @@ or other approaches (presence-absence, KL divergence,
 Wright-Fisher), use the \pkg{ViralBottleneck} package
 (Zheng et al. 2025, \emph{Virus Evolution} 11:veaf071)
 via \code{\link{asViralBottleneckInput}}.
+}
+\details{
+As in the published method, the donor variants used have frequencies
+from \code{threshold} to \code{1 - threshold}; those above are left
+out, with a message, since a donor variant at frequency 1 that the
+recipient lacks has probability 0 under every \code{Nb}. The function
+stops with an error when the log-likelihood is not finite at any
+\code{Nb} of the grid, where it would otherwise return \code{Nb = 1}.
 }
 \examples{
 vcf1 <- system.file("extdata", "test_donor.vcf",

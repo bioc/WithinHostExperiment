@@ -270,12 +270,35 @@ test_that("presence_absence leaves out a donor variant above 1 - threshold (was:
                  two[c("Nb", "ci", "loglik", "n_variants")])
     expect_identical(pa$n_excluded[["donor_near_fixation"]], 1L)
     expect_identical(two$n_excluded[["donor_near_fixation"]], 0L)
-    ## wright_fisher keeps the fixed site, whose score is -Inf at every
-    ## Nb, and stops rather than return Nb = 1
-    expect_error(suppressMessages(
-        exactBottleneck(pair(3L), pairId = "p", maxNb = 50L,
-                        method = "wright_fisher")),
-        "not finite at any Nb from 1 to 50")
+    ## wright_fisher and quickBottleneck(), which also work from
+    ## frequencies, leave it out the same way (was: Nb = 1 at -Inf, or
+    ## an error)
+    ## the heuristic-score message is let through to suppressMessages()
+    suppressMessages(expect_message(
+        wf <- exactBottleneck(pair(3L), pairId = "p", maxNb = 50L,
+                              method = "wright_fisher"),
+        "1 donor variant site\\(s\\) above 1 - threshold"))
+    wf2 <- suppressMessages(exactBottleneck(pair(2L), pairId = "p",
+                                            maxNb = 50L,
+                                            method = "wright_fisher"))
+    expect_equal(wf[c("Nb", "ci", "loglik", "n_variants")],
+                 wf2[c("Nb", "ci", "loglik", "n_variants")])
+    expect_identical(wf$n_excluded[["donor_near_fixation"]], 1L)
+    expect_message(q <- quickBottleneck(pair(3L), pairId = "p", maxNb = 50L),
+                   "1 donor variant site\\(s\\) above 1 - threshold")
+    q2 <- quickBottleneck(pair(2L), pairId = "p", maxNb = 50L)
+    expect_true(is.finite(q$loglik))
+    expect_equal(q[c("Nb", "ci", "loglik", "n_variants")],
+                 q2[c("Nb", "ci", "loglik", "n_variants")])
+    expect_identical(names(q$n_excluded), names(pa$n_excluded))
+    expect_identical(q$n_excluded[["donor_near_fixation"]], 1L)
+})
+
+test_that("a log-likelihood not finite at any Nb is an error (was: Nb = 1)", {
+    expect_error(WithinHostExperiment:::.checkFiniteLogLik(
+        c(-Inf, -Inf, NaN), 3L, "p"), "not finite at any Nb from 1 to 3")
+    expect_true(WithinHostExperiment:::.checkFiniteLogLik(c(-Inf, -2), 2L,
+                                                          "p"))
 })
 
 test_that("a recipient call below threshold that QC removed stays an absence (was: left out)", {

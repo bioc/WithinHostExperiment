@@ -26,14 +26,17 @@ NULL
 #'     \code{exact_bb} not at all, and loss in transmission is then
 #'     scored only by the other estimators. Such sites are left out,
 #'     with a message, and counted in \code{n_excluded}, not in
-#'     \code{n_variants}.}
+#'     \code{n_variants}; a bootstrap interval (\code{nboot > 0})
+#'     resamples only the sites used.}
 #'   \item{\code{wright_fisher}}{Approximate score in which one
 #'     generation of binomial drift is combined with a beta kernel of
 #'     concentration \code{max(Nb, 2)} around the drifted frequency.
 #'     It mixes a density for detected variants with probabilities for
 #'     lost variants, so it is a heuristic rather than a likelihood;
 #'     prefer \code{exact_bb} or \code{presence_absence} for
-#'     inference.}
+#'     inference. Like \code{presence_absence}, it uses the donor
+#'     variants with frequencies from \code{threshold} to
+#'     \code{1 - threshold}.}
 #'   \item{\code{presence_absence}}{Presence-absence likelihood using
 #'     \eqn{P(\mathrm{detect} | Nb, \nu) =
 #'       1 - (1-\nu)^{Nb}}{P(detect|Nb,freq) = 1-(1-freq)^Nb}.
@@ -78,15 +81,16 @@ NULL
 #'     maximiser and interval of a heuristic score, and a message says
 #'     so when the method is run.}
 #'   \item{\code{n_variants}}{Integer. Number of donor variants used.}
-#'   \item{\code{n_excluded}}{Named integer. Donor variants above
+#'   \item{\code{n_excluded}}{Named integer. Donor variants at or above
 #'     \code{threshold} that were left out, by reason:
-#'     \code{recipient_failed_qc}, sites where QC removed the
-#'     recipient's call, which is not an absence (see
+#'     \code{recipient_failed_qc}, sites where QC removed a recipient
+#'     call at or above \code{threshold}, which is not an absence (see
 #'     \code{\link{asViralBottleneckInput}}), left out by every method;
 #'     \code{unknown_depth}, sites of unknown recipient depth, which
 #'     only \code{exact_bb} leaves out; and \code{donor_near_fixation},
-#'     donor variants above \code{1 - threshold}, which only
-#'     \code{presence_absence} leaves out.}
+#'     donor variants above \code{1 - threshold}, which
+#'     \code{presence_absence} and \code{wright_fisher} leave out, as
+#'     \code{\link{quickBottleneck}} does.}
 #'   \item{\code{pair_id}}{Character. Pair identifier.}
 #' }
 #'
@@ -213,8 +217,10 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 .wrightFisherEstimate <- function(whe, pairId, maxNb, nboot,
                                   threshold) {
     input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
-    vb_input <- input$table
-    n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc)
+    kept <- .dropNearFixed(input$table, threshold, "wright_fisher")
+    vb_input <- kept$table
+    n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc,
+                             donor_near_fixation = kept$n_near)
     if (nrow(vb_input) == 0L)
         return(.emptyResult(pairId, "wright_fisher", n_excluded))
 
@@ -280,19 +286,10 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 .presenceAbsenceEstimate <- function(whe, pairId, maxNb, nboot,
                                      threshold) {
     input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
-    vb_input <- input$table
-    ## as in the published method, donor variants above 1 - threshold
-    ## are not used: one at frequency 1 that the recipient lacks has
-    ## probability 0 under every Nb
-    near_fixed <- vb_input$donor_freq > 1 - threshold
-    n_near <- sum(near_fixed)
-    if (n_near > 0L)
-        message("presence_absence uses donor variants from threshold to ",
-                "1 - threshold: ", n_near, " donor variant site(s) above ",
-                "1 - threshold (", 1 - threshold, ") were left out.")
-    vb_input <- vb_input[!near_fixed, , drop = FALSE]
+    kept <- .dropNearFixed(input$table, threshold, "presence_absence")
+    vb_input <- kept$table
     n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc,
-                             donor_near_fixation = n_near)
+                             donor_near_fixation = kept$n_near)
     if (nrow(vb_input) == 0L)
         return(.emptyResult(pairId, "presence_absence", n_excluded))
 
@@ -360,8 +357,8 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     ## so that sites are matched by row, not by position, which is
     ## ambiguous for segmented genomes and multi-allelic sites
     idx <- cbind(input$sites$row_index, input$sites$recipient_col)
-    r_alt   <- as.integer(as.matrix(assay(whe, "altCount"))[idx])
-    r_depth <- as.integer(as.matrix(assay(whe, "totalDepth"))[idx])
+    r_alt   <- as.integer(assay(whe, "altCount")[idx])
+    r_depth <- as.integer(assay(whe, "totalDepth")[idx])
     d_freqs <- as.numeric(d_freqs)
 
     ## A site of unknown recipient depth adds the same constant to the
@@ -395,12 +392,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 #' @noRd
 .finalizeMLE <- function(ll_vals, maxNb, nboot, n_var, pairId,
                           method, n_excluded, ...) {
-    if (!any(is.finite(ll_vals)))
-        stop("The log-likelihood is not finite at any Nb from 1 to ", maxNb,
-             " for pair '", pairId, "', so there is no estimate: some ",
-             "donor variant has probability 0 under every bottleneck ",
-             "size, as one at frequency 1 that the recipient lacks has.",
-             call. = FALSE)
+    .checkFiniteLogLik(ll_vals, maxNb, pairId)
     mle_idx <- which.max(ll_vals)
     nb_mle  <- mle_idx
     max_ll  <- ll_vals[mle_idx]

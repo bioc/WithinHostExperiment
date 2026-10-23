@@ -23,12 +23,24 @@ NULL
 #'   (default: 200); a single whole number of at least 1.
 #' @param threshold Numeric. Variant calling threshold (default: 0.03).
 #'
+#' @details
+#' As in the published method, the donor variants used have frequencies
+#' from \code{threshold} to \code{1 - threshold}; those above are left
+#' out, with a message, since a donor variant at frequency 1 that the
+#' recipient lacks has probability 0 under every \code{Nb}. The function
+#' stops with an error when the log-likelihood is not finite at any
+#' \code{Nb} of the grid, where it would otherwise return \code{Nb = 1}.
+#'
 #' @return A named list: Nb (MLE), ci (95\% CI), loglik,
 #'   n_variants, n_excluded, pair_id. \code{n_excluded} is a named
-#'   integer, \code{recipient_failed_qc}: the donor variants above
-#'   \code{threshold} left out because QC removed the recipient's call
-#'   at the site, which is not an absence (see
-#'   \code{\link{asViralBottleneckInput}}).
+#'   integer, as from \code{\link{exactBottleneck}}, of the donor
+#'   variants at or above \code{threshold} left out:
+#'   \code{recipient_failed_qc}, sites where QC removed a recipient call
+#'   at or above \code{threshold}, which is not an absence (see
+#'   \code{\link{asViralBottleneckInput}}); \code{unknown_depth}, always 0
+#'   here, since this method does not use depths; and
+#'   \code{donor_near_fixation}, donor variants above
+#'   \code{1 - threshold}.
 #'
 #' @references
 #' Sobel Leonard A et al. (2017). Transmission Bottleneck Size
@@ -56,8 +68,10 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
 
     ## Get donor-recipient frequencies
     input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
-    vb_input <- input$table
-    n_excluded <- c(recipient_failed_qc = input$n_failed_qc)
+    kept <- .dropNearFixed(input$table, threshold, "quickBottleneck()")
+    vb_input <- kept$table
+    n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc,
+                             donor_near_fixation = kept$n_near)
     if (nrow(vb_input) == 0L) {
         .emptyMessage(pairId, n_excluded)
         return(list(Nb = NA_real_, ci = c(NA_real_, NA_real_),
@@ -76,6 +90,7 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
         }, numeric(1))
         sum(site_lls)
     }, numeric(1))
+    .checkFiniteLogLik(ll_vals, maxNb, pairId)
 
     mle_idx <- which.max(ll_vals)
     nb_mle  <- mle_idx
@@ -95,6 +110,31 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
         n_excluded = n_excluded,
         pair_id    = pairId
     )
+}
+
+## As in the published estimators that work from frequencies, use the
+## donor variants from threshold to 1 - threshold: one at frequency 1 that
+## the recipient lacks has probability 0 under every Nb
+.dropNearFixed <- function(vb_input, threshold, what) {
+    near_fixed <- vb_input$donor_freq > 1 - threshold
+    n_near <- sum(near_fixed)
+    if (n_near > 0L)
+        message(what, " uses donor variants from threshold to ",
+                "1 - threshold: ", n_near, " donor variant site(s) above ",
+                "1 - threshold (", 1 - threshold, ") were left out.")
+    list(table = vb_input[!near_fixed, , drop = FALSE], n_near = n_near)
+}
+
+## Stop when no Nb of the grid has a finite log-likelihood, where
+## which.max() would return Nb = 1
+.checkFiniteLogLik <- function(ll_vals, maxNb, pairId) {
+    if (!any(is.finite(ll_vals)))
+        stop("The log-likelihood is not finite at any Nb from 1 to ", maxNb,
+             " for pair '", pairId, "', so there is no estimate: some ",
+             "donor variant has probability 0 under every bottleneck ",
+             "size, as one at frequency 1 that the recipient lacks has.",
+             call. = FALSE)
+    invisible(TRUE)
 }
 
 ## Say that a pair has no donor variant to estimate from
@@ -136,7 +176,8 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
 ## maxNb as a single whole number of at least 1, or an error
 .checkMaxNb <- function(maxNb) {
     ok <- is.numeric(maxNb) && length(maxNb) == 1L && is.finite(maxNb) &&
-        maxNb >= 1 && maxNb == round(maxNb)
+        maxNb >= 1 && maxNb == round(maxNb) &&
+        maxNb <= .Machine$integer.max
     if (!ok)
         stop("'maxNb' must be a positive integer, got ",
              paste(format(maxNb), collapse = ", "), ".")

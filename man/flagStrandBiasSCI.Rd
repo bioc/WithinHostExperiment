@@ -32,6 +32,11 @@ normalises by the global strand coverage ratio (see
 \code{\link{sciStrandBias}}). This is preferred for amplicon-based sequencing
 where forward and reverse strand coverage is inherently
 unbalanced.
+
+The global strand ratio is computed for each sample over the
+sites that sample called, that is, the sites where its four count
+assays are not \code{NA}. Sites the sample did not call keep their
+\code{qcPass} value.
 }
 \examples{
 library(SummarizedExperiment)

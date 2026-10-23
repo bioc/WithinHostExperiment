@@ -21,7 +21,8 @@ NULL
 #'
 #' @param fwd_alt Numeric vector. Forward-strand alternative allele
 #'   read counts. All four count vectors must be numeric and hold
-#'   non-negative, finite values.
+#'   non-negative, finite values or \code{NA}; \code{NA} marks a
+#'   site with no call (see Details).
 #' @param rev_alt Numeric vector. Reverse-strand alternative allele
 #'   read counts.
 #' @param fwd_total Numeric vector. Forward-strand total read counts.
@@ -42,6 +43,11 @@ NULL
 #' the sums of forward and reverse total counts across all sites.
 #' A pseudocount of 1 is added to strand counts to avoid division
 #' by zero.
+#'
+#' A site where any of the four counts is \code{NA}, as in a sample
+#' that made no call there, scores \code{NA} and is left out of the
+#' sums, so the global ratio is taken over the sites with all four
+#' counts.
 #'
 #' @references
 #' Mostefai F et al. (2024). Refining SARS-CoV-2 intra-host
@@ -79,9 +85,16 @@ sciStrandBias <- function(fwd_alt, rev_alt, fwd_total, rev_total) {
     fwd_total_s <- fwd_total + 1
     rev_total_s <- rev_total + 1
 
+    ## The global ratio is taken over the sites with all four counts, so
+    ## that a site with no call does not void every score
+    complete <- !is.na(fwd_alt) & !is.na(rev_alt) &
+        !is.na(fwd_total) & !is.na(rev_total)
     observed_ratio <- fwd_alt_s / rev_alt_s
-    global_ratio   <- sum(fwd_total_s) / sum(rev_total_s)
-    log2(observed_ratio / global_ratio)
+    global_ratio   <- sum(fwd_total_s[complete]) /
+        sum(rev_total_s[complete])
+    sci <- log2(observed_ratio / global_ratio)
+    sci[!complete] <- NA_real_
+    sci
 }
 
 
@@ -113,6 +126,11 @@ sciStrandBias <- function(fwd_alt, rev_alt, fwd_total, rev_total) {
 #' \code{\link{sciStrandBias}}). This is preferred for amplicon-based sequencing
 #' where forward and reverse strand coverage is inherently
 #' unbalanced.
+#'
+#' The global strand ratio is computed for each sample over the
+#' sites that sample called, that is, the sites where its four count
+#' assays are not \code{NA}. Sites the sample did not call keep their
+#' \code{qcPass} value.
 #'
 #' @references
 #' Mostefai F et al. (2024). Refining SARS-CoV-2 intra-host

@@ -9,7 +9,8 @@ sciStrandBias(fwd_alt, rev_alt, fwd_total, rev_total)
 \arguments{
 \item{fwd_alt}{Numeric vector. Forward-strand alternative allele
 read counts. All four count vectors must be numeric and hold
-non-negative, finite values.}
+non-negative, finite values or \code{NA}; \code{NA} marks a
+site with no call (see Details).}
 
 \item{rev_alt}{Numeric vector. Reverse-strand alternative allele
 read counts.}
@@ -42,6 +43,11 @@ where \eqn{F_{\mathrm{total}}} and \eqn{R_{\mathrm{total}}} are
 the sums of forward and reverse total counts across all sites.
 A pseudocount of 1 is added to strand counts to avoid division
 by zero.
+
+A site where any of the four counts is \code{NA}, as in a sample
+that made no call there, scores \code{NA} and is left out of the
+sums, so the global ratio is taken over the sites with all four
+counts.
 }
 \examples{
 sci <- sciStrandBias(

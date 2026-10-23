@@ -93,6 +93,48 @@ test_that("flagStrandBiasSCI flags biased sites and updates qcLog", {
     expect_true("strand_bias_sci_filter" %in% log$step)
 })
 
+test_that("sciStrandBias() takes the global ratio over sites with all four counts (was: all NA)", {
+    fa <- c(100, 50, NA, 30)
+    ra <- c(1, 50, 20, 28)
+    ft <- c(500, 500, NA, 900)
+    rt <- c(500, 500, 400, 100)
+    sci <- sciStrandBias(fa, ra, ft, rt)
+    ok <- c(1L, 2L, 4L)
+    expect_true(is.na(sci[3]))
+    expect_equal(sci[ok], sciStrandBias(fa[ok], ra[ok], ft[ok], rt[ok]))
+    expect_true(all(is.na(sciStrandBias(NA_real_, 1, 2, 3))))
+})
+
+test_that("flagStrandBiasSCI() checks samples that have absent calls (was: flagged nothing)", {
+    n <- 6L
+    gr <- GRanges("seg", IRanges::IRanges(start = seq_len(n), width = 1))
+    fa <- matrix(c(200L, 50L, 48L, 52L, 47L, 51L,
+                   200L, 50L, NA, 52L, NA, 51L), ncol = 2)
+    ra <- matrix(c(2L, 50L, 50L, 49L, 50L, 50L,
+                   2L, 50L, NA, 49L, NA, 50L), ncol = 2)
+    ft <- matrix(500L, nrow = n, ncol = 2)
+    ft[c(3, 5), 2] <- NA
+    rt <- ft
+    qc <- matrix(TRUE, nrow = n, ncol = 2)
+    qc[c(3, 5), 2] <- NA
+    whe <- WithinHostExperiment(
+        rowRanges = gr,
+        assays = list(
+            altFreq = matrix(0.1, nrow = n, ncol = 2),
+            qcPass = qc,
+            fwdAltCount = fa, revAltCount = ra,
+            fwdTotalCount = ft, revTotalCount = rt),
+        colData = DataFrame(sample_id = c("s1", "s2")))
+    res <- flagStrandBiasSCI(whe, maxSCI = 1.5)
+    q <- assay(res, "qcPass")
+    expect_identical(unname(q[1, ]), c(FALSE, FALSE))
+    expect_true(all(q[-1, 1]))
+    expect_identical(unname(q[c(2, 4, 6), 2]), c(TRUE, TRUE, TRUE))
+    expect_true(all(is.na(q[c(3, 5), 2])))
+    log <- qcLog(res)
+    expect_identical(log$n_flagged[log$step == "strand_bias_sci_filter"], 2L)
+})
+
 test_that("flagStrandBiasSCI errors on missing assays", {
     gr <- GRanges("seg", IRanges::IRanges(start = 1:2, width = 1))
     assays <- list(

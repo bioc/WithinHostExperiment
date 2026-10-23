@@ -15,7 +15,8 @@ pairs defined in \code{colData}.}
 \item{maxNb}{Integer. Maximum bottleneck size to evaluate
 (default: 200); a single whole number of at least 1.}
 
-\item{threshold}{Numeric. Variant calling threshold (default: 0.03).}
+\item{threshold}{Numeric. Variant calling threshold (default: 0.03), a
+single number above 0 and below 0.5.}
 }
 \value{
 A named list: Nb (MLE), ci (95\% CI), loglik,

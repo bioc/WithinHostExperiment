@@ -21,7 +21,8 @@ NULL
 #' @param pairId Character. Which pair to estimate.
 #' @param maxNb Integer. Maximum bottleneck size to evaluate
 #'   (default: 200); a single whole number of at least 1.
-#' @param threshold Numeric. Variant calling threshold (default: 0.03).
+#' @param threshold Numeric. Variant calling threshold (default: 0.03), a
+#'   single number above 0 and below 0.5.
 #'
 #' @details
 #' As in the published method, the donor variants used have frequencies
@@ -65,6 +66,7 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
     maxNb <- .checkMaxNb(maxNb)
+    threshold <- .checkThreshold(threshold)
 
     ## Get donor-recipient frequencies
     input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
@@ -171,6 +173,19 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
         }
     }
     .logSumExp(log_probs)
+}
+
+## threshold as a single number above 0 and below 0.5, or an error: at 0
+## every recipient frequency counts as present, and from 0.5 the window
+## from threshold to 1 - threshold holds no donor variant
+.checkThreshold <- function(threshold) {
+    ok <- is.numeric(threshold) && length(threshold) == 1L &&
+        is.finite(threshold) && threshold > 0 && threshold < 0.5
+    if (!ok)
+        stop("'threshold' must be a single number above 0 and below 0.5, ",
+             "got ", paste(format(threshold), collapse = ", "), ".",
+             call. = FALSE)
+    threshold
 }
 
 ## maxNb as a single whole number of at least 1, or an error

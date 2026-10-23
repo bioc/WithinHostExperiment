@@ -60,7 +60,7 @@ test_that("exactBottleneck rejects invalid inputs", {
     expect_error(exactBottleneck(whe, pairId = "p1", maxNb = 0L),
                  "must be a positive integer")
     expect_error(exactBottleneck(whe, pairId = "p1", threshold = -0.1),
-                 "must be between 0 and 1")
+                 "must be a single number above 0 and below 0.5")
     expect_error(exactBottleneck(whe, pairId = "p1", method = "bogus"),
                  "arg")
 })

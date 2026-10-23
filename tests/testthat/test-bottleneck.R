@@ -37,6 +37,17 @@ test_that(".logSumExp is numerically stable", {
     expect_true(result > -1000)
 })
 
+test_that("quickBottleneck() and exactBottleneck() check threshold (was: base-R errors, or no window at all)", {
+    whe <- .make_pair_whe()
+    for (bad in list(0, -0.1, 0.5, 0.7, NA, c(0.03, 0.05), "0.03")) {
+        expect_error(quickBottleneck(whe, pairId = "p1", threshold = bad),
+                     "'threshold' must be a single number above 0 and below 0.5")
+        expect_error(exactBottleneck(whe, pairId = "p1", threshold = bad,
+                                     method = "presence_absence"),
+                     "'threshold' must be a single number above 0 and below 0.5")
+    }
+})
+
 test_that("quickBottleneck() refuses a maxNb below 1 or outside the integer range (was: Nb of length 0, truncation, text and logical accepted)", {
     whe <- .make_pair_whe()
     for (bad in list(0L, -3, 2.5, NA, c(10L, 20L), "50", TRUE, 3e9, Inf)) {

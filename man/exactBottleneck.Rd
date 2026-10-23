@@ -31,7 +31,10 @@ interval). Bootstrapping resamples variant sites and uses the
 random number generator, so set a seed for reproducible
 intervals.}
 
-\item{threshold}{Numeric. Variant calling threshold (default: 0.03).}
+\item{threshold}{Numeric. Variant calling threshold (default: 0.03), a
+single number above 0 and below 0.5: at 0 every recipient frequency
+counts as present, and from 0.5 no donor variant lies between
+\code{threshold} and \code{1 - threshold}.}
 }
 \value{
 A named list with components:

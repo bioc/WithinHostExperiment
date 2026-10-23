@@ -63,7 +63,10 @@ NULL
 #'   interval). Bootstrapping resamples variant sites and uses the
 #'   random number generator, so set a seed for reproducible
 #'   intervals.
-#' @param threshold Numeric. Variant calling threshold (default: 0.03).
+#' @param threshold Numeric. Variant calling threshold (default: 0.03), a
+#'   single number above 0 and below 0.5: at 0 every recipient frequency
+#'   counts as present, and from 0.5 no donor variant lies between
+#'   \code{threshold} and \code{1 - threshold}.
 #'
 #' @return A named list with components:
 #' \describe{
@@ -123,8 +126,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     method <- match.arg(method)
     maxNb  <- .checkMaxNb(maxNb)
     nboot  <- as.integer(nboot)
-    if (threshold < 0 || threshold > 1)
-        stop("'threshold' must be between 0 and 1, got ", threshold, ".")
+    threshold <- .checkThreshold(threshold)
 
     if (method == "wright_fisher")
         message("method = \"wright_fisher\" is a heuristic score, not a ",

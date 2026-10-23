@@ -17,10 +17,11 @@ buildSFS(
 \arguments{
 \item{whe}{A \code{\link{WithinHostExperiment}}.}
 
-\item{sampleIdx}{Integer or character. Which sample (column) to
-use. Default: 1.}
+\item{sampleIdx}{Integer or character. The one sample (column) to
+use, by position or by a column name that occurs once. Default: 1.}
 
-\item{nBins}{Integer. Number of frequency bins (default: 20).}
+\item{nBins}{Integer. Number of frequency bins, a whole number of at
+least 1 (default: 20).}
 
 \item{fold}{Logical. If \code{TRUE}, fold the SFS to minor
 allele frequency (0 to 0.5), giving \code{polarization = "none"}.
@@ -32,7 +33,8 @@ treating the reference allele as ancestral
 variants. Default: \code{TRUE}.}
 
 \item{threshold}{Numeric. Detection threshold (default: 0.03).
-The first bin starts at this value, not 0.}
+The first bin starts at this value, not 0. It must be at least 0
+and below the top of the spectrum: 0.5 when folded, 1 otherwise.}
 
 \item{genomeLength}{Integer (optional). The genome length that the
 per-site statistics of \code{\link{neutralityFromSFS}} divide by. By

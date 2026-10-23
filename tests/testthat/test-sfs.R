@@ -66,6 +66,34 @@ test_that("buildSFS() folds a sample with no call to an empty spectrum (was: 'x'
     expect_identical(sfs_list$a@counts, c(1L, 0L, 1L, 0L, 0L))
 })
 
+test_that("buildSFS() names the argument it cannot use (was: errors from hist() or a pooled spectrum)", {
+    data(example_whe)
+    expect_error(buildSFS(example_whe, sampleIdx = "nope"),
+                 "'sampleIdx'.*nope.*donor, recipient, independent")
+    ## two samples used to be pooled into one spectrum without a word
+    expect_error(buildSFS(example_whe, sampleIdx = 1:2), "'sampleIdx'")
+    expect_error(buildSFS(example_whe, sampleIdx = 4L), "'sampleIdx'")
+    expect_error(buildSFS(example_whe, sampleIdx = 1.5), "'sampleIdx'")
+    expect_error(buildSFS(example_whe, sampleIdx = NA), "'sampleIdx'")
+    expect_identical(buildSFS(example_whe, sampleIdx = "recipient"),
+                     buildSFS(example_whe, sampleIdx = 2L))
+    expect_identical(buildSFS(example_whe, sampleIdx = 2),
+                     buildSFS(example_whe, sampleIdx = 2L))
+    expect_error(buildSFS(example_whe, nBins = 0L), "'nBins'")
+    expect_error(buildSFS(example_whe, nBins = 2.5), "'nBins'")
+    expect_error(buildSFS(example_whe, nBins = c(5L, 10L)), "'nBins'")
+    expect_error(buildSFS(example_whe, threshold = -1), "'threshold'")
+    expect_error(buildSFS(example_whe, threshold = 0.7),
+                 "'threshold'.*0.5")
+    expect_error(buildSFS(example_whe, threshold = 1, fold = FALSE),
+                 "'threshold'")
+    expect_error(buildSFS(example_whe, threshold = NA_real_), "'threshold'")
+    expect_s4_class(buildSFS(example_whe, threshold = 0.7, fold = FALSE),
+                    "WithinHostSFS")
+    expect_s4_class(buildSFS(example_whe, threshold = 0, nBins = 10),
+                    "WithinHostSFS")
+})
+
 test_that("buildSFSList returns one SFS per sample", {
     data(example_whe)
     sfs_list <- buildSFSList(example_whe, genomeLength = 1000L)

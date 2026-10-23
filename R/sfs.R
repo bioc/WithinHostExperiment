@@ -150,6 +150,28 @@ setMethod("show", "WithinHostSFS", function(object) {
 # buildSFS -- construct from WithinHostExperiment
 # ============================================================
 
+## The one column a spectrum is built from: a sample named exactly once
+## among the column names, or a position within them. Anything else,
+## including several samples at once, is an error that lists the samples.
+.sfsSampleColumn <- function(sampleIdx, samples, n) {
+    if (length(sampleIdx) == 1L && !is.na(sampleIdx)) {
+        if (is.character(sampleIdx)) {
+            hit <- which(samples == sampleIdx)
+            if (length(hit) == 1L) return(hit)
+        } else if (is.numeric(sampleIdx) && sampleIdx == round(sampleIdx) &&
+                   sampleIdx >= 1 && sampleIdx <= n) {
+            return(as.integer(sampleIdx))
+        }
+    }
+    shown <- if (length(sampleIdx) == 1L) paste0(" (got ", sampleIdx, ")")
+             else paste0(" (got ", length(sampleIdx), " values)")
+    stop("'sampleIdx' must give one sample, by a name that occurs once ",
+         "among the column names or by a position from 1 to ", n, shown,
+         ". Samples: ",
+         if (length(samples)) paste(samples, collapse = ", ") else "unnamed",
+         ".", call. = FALSE)
+}
+
 #' Build a site frequency spectrum from a WithinHostExperiment
 #'
 #' Constructs a \code{\link{WithinHostSFS}} object from the allele
@@ -157,9 +179,10 @@ setMethod("show", "WithinHostSFS", function(object) {
 #' built per sample.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
-#' @param sampleIdx Integer or character. Which sample (column) to
-#'   use. Default: 1.
-#' @param nBins Integer. Number of frequency bins (default: 20).
+#' @param sampleIdx Integer or character. The one sample (column) to
+#'   use, by position or by a column name that occurs once. Default: 1.
+#' @param nBins Integer. Number of frequency bins, a whole number of at
+#'   least 1 (default: 20).
 #' @param fold Logical. If \code{TRUE}, fold the SFS to minor
 #'   allele frequency (0 to 0.5), giving \code{polarization = "none"}.
 #'   If \code{FALSE}, bin the alternative allele frequency from 0 to 1,
@@ -168,7 +191,8 @@ setMethod("show", "WithinHostSFS", function(object) {
 #' @param usePassedOnly Logical. If \code{TRUE}, only use QC-passed
 #'   variants. Default: \code{TRUE}.
 #' @param threshold Numeric. Detection threshold (default: 0.03).
-#'   The first bin starts at this value, not 0.
+#'   The first bin starts at this value, not 0. It must be at least 0
+#'   and below the top of the spectrum: 0.5 when folded, 1 otherwise.
 #' @param genomeLength Integer (optional). The genome length that the
 #'   per-site statistics of \code{\link{neutralityFromSFS}} divide by. By
 #'   default it is read from \code{seqlengths(rowRanges(whe))}, summed
@@ -194,8 +218,19 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         stop("'whe' must be a WithinHostExperiment object.")
 
     freq_mat <- assay(whe, "altFreq")
-    if (is.character(sampleIdx))
-        sampleIdx <- match(sampleIdx, colnames(freq_mat))
+    sampleIdx <- .sfsSampleColumn(sampleIdx, colnames(freq_mat),
+                                  ncol(freq_mat))
+    if (!is.numeric(nBins) || length(nBins) != 1L || !is.finite(nBins) ||
+        nBins < 1 || nBins != round(nBins))
+        stop("'nBins' must be a single whole number of at least 1.",
+             call. = FALSE)
+    top <- if (fold) 0.5 else 1
+    if (!is.numeric(threshold) || length(threshold) != 1L ||
+        !is.finite(threshold) || threshold < 0 || threshold >= top)
+        stop("'threshold' must be a single number from 0 up to, but not ",
+             "including, ", top, ", the top of ",
+             if (fold) "a folded" else "an unfolded", " spectrum.",
+             call. = FALSE)
     freq <- freq_mat[, sampleIdx]
 
     ## Apply QC

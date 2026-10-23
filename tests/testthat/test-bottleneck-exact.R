@@ -22,7 +22,7 @@ test_that("exactBottleneck presence_absence returns valid result", {
                            method = "presence_absence")
     expect_true(is.list(res))
     expect_named(res, c("Nb", "ci", "loglik", "method",
-                        "n_variants", "pair_id"))
+                        "n_variants", "n_excluded", "pair_id"))
     expect_equal(res$method, "presence_absence")
     expect_true(is.finite(res$Nb))
     expect_true(res$Nb >= 1)
@@ -142,8 +142,52 @@ test_that("exactBottleneck handles no shared variants gracefully", {
                            method = "presence_absence")
     expect_true(is.list(res))
     expect_named(res, c("Nb", "ci", "loglik", "method",
-                        "n_variants", "pair_id"))
+                        "n_variants", "n_excluded", "pair_id"))
     expect_equal(res$method, "presence_absence")
+})
+
+test_that("exact_bb leaves out donor variants of unknown recipient depth (was: counted in n_variants)", {
+    ## three donor variants: two with recipient read counts, and one at a
+    ## site where the recipient's depth is not recorded
+    pair <- function(n) {
+        gr <- GenomicRanges::GRanges("seg",
+                                     IRanges::IRanges(1:3 * 10, width = 1))
+        S4Vectors::mcols(gr)$ref <- "A"
+        S4Vectors::mcols(gr)$alt <- "G"
+        whe <- WithinHostExperiment(
+            assays = list(
+                altFreq = cbind(d = c(0.3, 0.2, 0.25), r = c(0.8, 0.05, NA)),
+                altCount = cbind(d = c(300L, 200L, 250L),
+                                 r = c(800L, 50L, NA)),
+                totalDepth = cbind(d = rep(1000L, 3),
+                                   r = c(1000L, 1000L, NA))),
+            rowRanges = gr,
+            colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+                role = c("donor", "recipient"), pair_id = c("p", "p"),
+                row.names = c("d", "r")))
+        whe[seq_len(n), ]
+    }
+    expect_message(all3 <- exactBottleneck(pair(3L), pairId = "p",
+                                           maxNb = 30L, method = "exact_bb"),
+                   "1 donor variant site\\(s\\) whose recipient depth")
+    expect_no_message(known <- exactBottleneck(pair(2L), pairId = "p",
+                                               maxNb = 30L,
+                                               method = "exact_bb"))
+    expect_identical(all3$n_variants, 2L)
+    expect_identical(all3$n_excluded[["unknown_depth"]], 1L)
+    expect_identical(known$n_excluded[["unknown_depth"]], 0L)
+    expect_equal(all3[c("Nb", "ci", "loglik")], known[c("Nb", "ci", "loglik")])
+    ## the read-from-VCF pair: ten of its 15 donor variants are sites the
+    ## recipient's file does not list
+    vcf <- suppressMessages(exactBottleneck(.make_pair_whe(), pairId = "p1",
+                                            maxNb = 200L, method = "exact_bb"))
+    expect_identical(vcf$n_variants, 5L)
+    expect_identical(vcf$n_excluded[["unknown_depth"]], 10L)
+    ## the other estimators need no depth and leave nothing out for it
+    pa <- exactBottleneck(.make_pair_whe(), pairId = "p1", maxNb = 50L,
+                          method = "presence_absence")
+    expect_identical(pa$n_variants, 15L)
+    expect_identical(pa$n_excluded[["unknown_depth"]], 0L)
 })
 
 test_that("exactBottleneck says that wright_fisher is a heuristic", {

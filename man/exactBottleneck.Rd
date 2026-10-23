@@ -50,6 +50,10 @@ A named list with components:
     maximiser and interval of a heuristic score, and a message says
     so when the method is run.}
   \item{\code{n_variants}}{Integer. Number of donor variants used.}
+  \item{\code{n_excluded}}{Named integer. Donor variants above
+    \code{threshold} that were left out, by reason:
+    \code{unknown_depth}, sites of unknown recipient depth, which
+    only \code{exact_bb} leaves out.}
   \item{\code{pair_id}}{Character. Pair identifier.}
 }
 }
@@ -64,7 +68,16 @@ Estimates transmission bottleneck size using one of three methods:
     or none of the transmitted virions carry the variant, the
     recipient read counts are modelled with a fixed sequencing
     error probability of \code{threshold / 2}, and the recipient
-    detection threshold is not integrated out.}
+    detection threshold is not integrated out. The likelihood needs
+    the recipient's read depth at each donor variant, so it cannot
+    use a site where that depth is unknown: such a site would add
+    the same constant at every \code{Nb}. This includes every site
+    that the recipient's VCF file does not list, so with objects read
+    from VCF files a donor variant the recipient lacks usually enters
+    \code{exact_bb} not at all, and loss in transmission is then
+    scored only by the other estimators. Such sites are left out,
+    with a message, and counted in \code{n_excluded}, not in
+    \code{n_variants}.}
   \item{\code{wright_fisher}}{Approximate score in which one
     generation of binomial drift is combined with a beta kernel of
     concentration \code{max(Nb, 2)} around the drifted frequency.

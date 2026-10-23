@@ -11,8 +11,9 @@ neutralityFromSFS(sfs, n = NULL)
 
 \item{n}{Integer. Effective sample size for neutrality tests.
 For deep sequencing data, do \strong{not} use raw depth.
-Default: \code{min(100, meanDepth)} as recommended in the
-\code{\link{tajimaD}} documentation.}
+Default: \code{min(100, meanDepth)}, where the spectrum's
+\code{meanDepth} slot holds the median depth across sites, as
+recommended in the \code{\link{tajimaD}} documentation.}
 }
 \value{
 A named list with components:

@@ -279,7 +279,7 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
     cd <- colData(whe)
     sid <- as.character(cd$sample_id[sampleIdx])
 
-    ## Mean depth
+    ## Median depth across sites, stored in the meanDepth slot
     md <- if ("totalDepth" %in% assayNames(whe)) {
         median(assay(whe, "totalDepth")[, sampleIdx], na.rm = TRUE)
     } else {
@@ -508,8 +508,9 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' @param sfs A \code{\link{WithinHostSFS}} object.
 #' @param n Integer. Effective sample size for neutrality tests.
 #'   For deep sequencing data, do \strong{not} use raw depth.
-#'   Default: \code{min(100, meanDepth)} as recommended in the
-#'   \code{\link{tajimaD}} documentation.
+#'   Default: \code{min(100, meanDepth)}, where the spectrum's
+#'   \code{meanDepth} slot holds the median depth across sites, as
+#'   recommended in the \code{\link{tajimaD}} documentation.
 #'
 #' @return A named list with components:
 #'   \describe{

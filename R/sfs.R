@@ -214,8 +214,10 @@ setMethod("show", "WithinHostSFS", function(object) {
 #'   then records the smallest \code{maxFreq} among the filters applied
 #'   with \code{\link{flagISNV}}, above which no call can appear; with
 #'   the default \code{\link{ISNVFilter}} that is 0.5, so an unfolded
-#'   spectrum is empty above 0.5. Flag with \code{maxFreq = 1} to keep
-#'   the high-frequency classes.
+#'   spectrum is empty above 0.5. To keep the high-frequency classes, flag
+#'   the unfiltered object with \code{maxFreq = 1}: \code{flagISNV()} adds
+#'   to the flags already set, so it cannot restore calls that an earlier
+#'   filter with a lower \code{maxFreq} removed.
 #' @param threshold Numeric. Detection threshold (default: 0.03).
 #'   The first bin starts at this value, not 0. It must be at least 0
 #'   and below the top of the spectrum: 0.5 when folded, 1 otherwise.
@@ -493,7 +495,11 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' the count of sites with \eqn{i} derived alleles. Each bin stands for
 #' the class \eqn{i} nearest its midpoint, \code{round(mid * n)}, held
 #' within 1 to \eqn{n - 1}. On matching classes both estimators have the
-#' same expectation under neutrality, so H is centred on 0, and
+#' same expectation under neutrality, so H is centred on 0 when every
+#' class from 1 to \eqn{n - 1} is observed and each bin holds one class;
+#' the detection threshold, which removes the lowest classes, and wider
+#' bins move it (with the default threshold of 0.03 and \eqn{n = 100},
+#' leaving out classes 1 and 2 shifts it by about \eqn{-0.04\theta}), and
 #' \eqn{\hat{\pi}} carries the \eqn{n/(n-1)} correction that
 #' \code{\link{calcNeutralityTests}} applies. A negative H indicates an
 #' excess of high-frequency variants.
@@ -502,9 +508,10 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' uninterpretable when QC has removed them. The function therefore stops
 #' on a spectrum whose \code{maxFreq} slot is below 1, as it is after
 #' \code{\link{flagISNV}} with the default \code{\link{ISNVFilter}},
-#' which drops every call above 0.5: H would then be positive whatever
-#' the data. Flag the object with \code{ISNVFilter(maxFreq = 1)} before
-#' \code{buildSFS(fold = FALSE)}.
+#' which drops every call above 0.5: H could not then reveal an excess of
+#' high-frequency variants, whatever the data. Flag the unfiltered object,
+#' before any filter with a lower \code{maxFreq}, with
+#' \code{ISNVFilter(maxFreq = 1)}, then \code{buildSFS(fold = FALSE)}.
 #'
 #' The per-site values need the spectrum's genome length, which
 #' \code{\link{buildSFS}} takes from the object; a spectrum without one
@@ -568,7 +575,9 @@ neutralityFromSFS <- function(sfs, n = NULL) {
              "most, and those were removed by QC: every call above ",
              "maxFreq = ", sfs@maxFreq, " was dropped before this spectrum ",
              "was built, so the classes are empty by construction and H ",
-             "would be positive whatever the data. Flag the object with ",
+             "could not reveal an excess of high-frequency variants ",
+             "whatever the data. Flag the unfiltered object, before any ",
+             "filter with a lower maxFreq, with ",
              "flagISNV(x, ISNVFilter(..., maxFreq = 1)) and rebuild the ",
              "spectrum with buildSFS(fold = FALSE), or use ",
              "calcNeutralityTests() for Tajima's D and Fu's Fs.",
@@ -598,7 +607,8 @@ neutralityFromSFS <- function(sfs, n = NULL) {
     ## Fay and Wu's estimators on those same classes:
     ## theta_pi = sum 2 i (n - i) xi_i / (n (n - 1)), which carries the
     ## n/(n-1) correction, and theta_H = sum 2 i^2 xi_i / (n (n - 1)), so
-    ## that H = theta_pi - theta_H has expectation 0 under neutrality
+    ## that H = theta_pi - theta_H has expectation 0 under neutrality on a
+    ## complete spectrum of one class per bin
     breaks <- sfs@breaks
     mids <- (breaks[-length(breaks)] + breaks[-1L]) / 2
     counts <- sfs@counts
@@ -656,7 +666,9 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #'
 #' Computes summary statistics and a chi-squared test for
 #' homogeneity between two \code{\link{WithinHostSFS}} objects
-#' (e.g., before vs. after QC, or two timepoints).
+#' (e.g., two hosts or two timepoints). A spectrum built before QC can be
+#' compared with one built after it only when every filter applied used
+#' \code{maxFreq = 1}; otherwise their caps differ and the function stops.
 #'
 #' The test compares raw variant counts in matching bins, so the two
 #' spectra must share their breaks, their folding, their polarisation

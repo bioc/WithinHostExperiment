@@ -34,8 +34,10 @@ variants. Default: \code{TRUE}. The spectrum's \code{maxFreq} slot
 then records the smallest \code{maxFreq} among the filters applied
 with \code{\link{flagISNV}}, above which no call can appear; with
 the default \code{\link{ISNVFilter}} that is 0.5, so an unfolded
-spectrum is empty above 0.5. Flag with \code{maxFreq = 1} to keep
-the high-frequency classes.}
+spectrum is empty above 0.5. To keep the high-frequency classes, flag
+the unfiltered object with \code{maxFreq = 1}: \code{flagISNV()} adds
+to the flags already set, so it cannot restore calls that an earlier
+filter with a lower \code{maxFreq} removed.}
 
 \item{threshold}{Numeric. Detection threshold (default: 0.03).
 The first bin starts at this value, not 0. It must be at least 0

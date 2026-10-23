@@ -221,6 +221,13 @@ test_that("neutralityFromSFS() refuses an unfolded spectrum QC capped below 1 (w
     expect_identical(buildSFS(twice, genomeLength = 1000L)@maxFreq, 0.4)
     expect_identical(buildSFS(twice, usePassedOnly = FALSE,
                               genomeLength = 1000L)@maxFreq, 1)
+    ## flagISNV() adds to earlier flags, so flagging the capped object
+    ## again with maxFreq = 1 does not restore the removed calls, and the
+    ## message says to start from the unfiltered object
+    again <- flagISNV(capped, ISNVFilter(minDepth = 100L, maxFreq = 1))
+    sfs <- buildSFS(again, fold = FALSE, nBins = 10L, genomeLength = 1000L)
+    expect_identical(sfs@maxFreq, 0.5)
+    expect_error(neutralityFromSFS(sfs), "Flag the unfiltered object")
 })
 
 test_that("buildSFS() names fold and a cap of 0 (was: a base-R or validity error)", {

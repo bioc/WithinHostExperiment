@@ -68,7 +68,11 @@ are Fay and Wu's estimators on the same classes, and \eqn{\xi_i} is
 the count of sites with \eqn{i} derived alleles. Each bin stands for
 the class \eqn{i} nearest its midpoint, \code{round(mid * n)}, held
 within 1 to \eqn{n - 1}. On matching classes both estimators have the
-same expectation under neutrality, so H is centred on 0, and
+same expectation under neutrality, so H is centred on 0 when every
+class from 1 to \eqn{n - 1} is observed and each bin holds one class;
+the detection threshold, which removes the lowest classes, and wider
+bins move it (with the default threshold of 0.03 and \eqn{n = 100},
+leaving out classes 1 and 2 shifts it by about \eqn{-0.04\theta}), and
 \eqn{\hat{\pi}} carries the \eqn{n/(n-1)} correction that
 \code{\link{calcNeutralityTests}} applies. A negative H indicates an
 excess of high-frequency variants.
@@ -77,9 +81,10 @@ Because H weights the high-frequency classes most, it is
 uninterpretable when QC has removed them. The function therefore stops
 on a spectrum whose \code{maxFreq} slot is below 1, as it is after
 \code{\link{flagISNV}} with the default \code{\link{ISNVFilter}},
-which drops every call above 0.5: H would then be positive whatever
-the data. Flag the object with \code{ISNVFilter(maxFreq = 1)} before
-\code{buildSFS(fold = FALSE)}.
+which drops every call above 0.5: H could not then reveal an excess of
+high-frequency variants, whatever the data. Flag the unfiltered object,
+before any filter with a lower \code{maxFreq}, with
+\code{ISNVFilter(maxFreq = 1)}, then \code{buildSFS(fold = FALSE)}.
 
 The per-site values need the spectrum's genome length, which
 \code{\link{buildSFS}} takes from the object; a spectrum without one

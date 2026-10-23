@@ -55,7 +55,8 @@ fixed threshold calibrates it.
 The probability is computed exactly, for every \code{n}, from Ewens'
 sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
 P(K = k) = |s(n, k)| theta^k / theta_(n)}, with the unsigned Stirling
-numbers of the first kind built in log space.
+numbers of the first kind built in log space. \eqn{S'} is held below
+\code{1 - .Machine$double.eps}, so the value cannot exceed about 36.
 }
 \examples{
 fusFs(S = 10, n = 100, theta_pi = 5)

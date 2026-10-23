@@ -37,7 +37,9 @@ A named list with components:
 \description{
 Computes summary statistics and a chi-squared test for
 homogeneity between two \code{\link{WithinHostSFS}} objects
-(e.g., before vs. after QC, or two timepoints).
+(e.g., two hosts or two timepoints). A spectrum built before QC can be
+compared with one built after it only when every filter applied used
+\code{maxFreq = 1}; otherwise their caps differ and the function stops.
 }
 \details{
 The test compares raw variant counts in matching bins, so the two

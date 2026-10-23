@@ -199,7 +199,8 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
 #' The probability is computed exactly, for every \code{n}, from Ewens'
 #' sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
 #' P(K = k) = |s(n, k)| theta^k / theta_(n)}, with the unsigned Stirling
-#' numbers of the first kind built in log space.
+#' numbers of the first kind built in log space. \eqn{S'} is held below
+#' \code{1 - .Machine$double.eps}, so the value cannot exceed about 36.
 #'
 #' @param S Integer scalar. Number of segregating sites; the haplotype
 #'   count is taken to be \eqn{S + 1} (see Details).

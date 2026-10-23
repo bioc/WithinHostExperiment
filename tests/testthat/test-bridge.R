@@ -187,6 +187,14 @@ test_that("a pair that carries no allele gives empty results (was: an error)", {
     expect_true(is.na(q$Nb))
 })
 
+test_that("plotPairScatter() draws a recorded recipient 0 as donor-only (was: Shared, then Other)", {
+    p <- plotPairScatter(.pair_from_tables(), pairId = "p")
+    cats <- table(p$data$category)
+    expect_identical(as.integer(cats[c("Shared", "Donor only",
+                                       "Recipient only", "Other")]),
+                     c(1L, 2L, 1L, 0L))
+})
+
 test_that("exportPairFrequencies errors without pairs", {
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")

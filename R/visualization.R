@@ -300,13 +300,14 @@ plotPairScatter <- function(whe, pairId, threshold = 0.03) {
     d_freq <- ifelse(is.na(pf$donor_freq), 0, pf$donor_freq)
     r_freq <- ifelse(is.na(pf$recipient_freq), 0,
                      pf$recipient_freq)
+    ## a host carries the allele where its frequency is known and above
+    ## 0, as in exportPairFrequencies()
+    d_pres <- .carries(pf$donor_freq)
+    r_pres <- .carries(pf$recipient_freq)
     category <- ifelse(
         pf$shared, "Shared",
-        ifelse(!is.na(pf$donor_freq) & is.na(pf$recipient_freq),
-               "Donor only",
-               ifelse(is.na(pf$donor_freq) &
-                          !is.na(pf$recipient_freq),
-                      "Recipient only", "Other")))
+        ifelse(d_pres & !r_pres, "Donor only",
+               ifelse(r_pres & !d_pres, "Recipient only", "Other")))
 
     plot_df <- data.frame(
         donor = d_freq, recipient = r_freq,

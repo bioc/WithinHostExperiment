@@ -190,6 +190,59 @@ test_that("exact_bb leaves out donor variants of unknown recipient depth (was: c
     expect_identical(pa$n_excluded[["unknown_depth"]], 0L)
 })
 
+test_that("a recipient call removed by QC is left out of every estimator (was: scored as lost)", {
+    ## four donor variants; the recipient carries the first at 70%, the
+    ## second at 97%, which maxFreq = 0.95 removes, lacks the third at
+    ## depth 1000 and carries the fourth at 5%
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(1:4 * 10, width = 1))
+    S4Vectors::mcols(gr)$ref <- "A"
+    S4Vectors::mcols(gr)$alt <- "G"
+    r_freq <- c(0.7, 0.97, NA, 0.05)
+    whe <- WithinHostExperiment(
+        assays = list(
+            altFreq = cbind(d = c(0.3, 0.4, 0.25, 0.2), r = r_freq),
+            altCount = cbind(d = c(300L, 400L, 250L, 200L),
+                             r = c(700L, 970L, 0L, 50L)),
+            totalDepth = cbind(d = rep(1000L, 4), r = rep(1000L, 4))),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+            role = c("donor", "recipient"), pair_id = c("p", "p"),
+            row.names = c("d", "r")))
+    whe <- flagISNV(whe, ISNVFilter(maxFreq = 0.95))
+    expect_identical(calcSharedVariants(whe, pairId = "p")$
+                         n_donor_only_recipient_failed_qc, 1L)
+    left_out <- "1 donor variant site\\(s\\) where QC removed the recipient"
+    expect_message(vb <- asViralBottleneckInput(whe, pairId = "p"), left_out)
+    expect_identical(vb$pos, c(10L, 30L, 40L))
+    ## without the QC mask the call is used as it was made
+    expect_no_message(raw <- asViralBottleneckInput(whe, pairId = "p",
+                                                    usePassedOnly = FALSE))
+    expect_identical(raw$recipient_freq, c(0.7, 0.97, 0, 0.05))
+    ## the exported table keeps its columns
+    expect_identical(colnames(exportPairFrequencies(whe, pairId = "p")),
+                     c("chrom", "position", "ref", "alt", "donor_freq",
+                       "recipient_freq", "shared", "pair_id"))
+    ## each estimator gives what it gives on the pair without that site
+    without <- whe[-2L, ]
+    expect_message(q <- quickBottleneck(whe, pairId = "p", maxNb = 50L),
+                   left_out)
+    expect_equal(q[c("Nb", "ci", "loglik", "n_variants")],
+                 quickBottleneck(without, pairId = "p",
+                                 maxNb = 50L)[c("Nb", "ci", "loglik",
+                                                "n_variants")])
+    expect_identical(q$n_excluded[["recipient_failed_qc"]], 1L)
+    for (m in c("presence_absence", "exact_bb")) {
+        expect_message(e <- exactBottleneck(whe, pairId = "p", maxNb = 50L,
+                                            method = m), left_out)
+        expect_equal(e[c("Nb", "ci", "loglik", "n_variants")],
+                     exactBottleneck(without, pairId = "p", maxNb = 50L,
+                                     method = m)[c("Nb", "ci", "loglik",
+                                                   "n_variants")])
+        expect_identical(e$n_variants, 3L)
+        expect_identical(e$n_excluded[["recipient_failed_qc"]], 1L)
+    }
+})
+
 test_that("exactBottleneck says that wright_fisher is a heuristic", {
     vcf1 <- system.file("extdata", "test_donor.vcf",
         package = "WithinHostExperiment")

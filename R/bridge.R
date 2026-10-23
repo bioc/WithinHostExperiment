@@ -45,6 +45,14 @@ NULL
 #' exportPairFrequencies(whe)
 exportPairFrequencies <- function(whe, pairId = NULL,
                                   usePassedOnly = TRUE) {
+    pf <- .pairTable(whe, pairId, usePassedOnly)
+    pf[, setdiff(colnames(pf), c("row_index", "recipient_col")),
+       drop = FALSE]
+}
+
+## The table of exportPairFrequencies(), with the row of the object and
+## the recipient's column that each line comes from
+.pairTable <- function(whe, pairId, usePassedOnly) {
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
     pairs <- transmissionPairs(whe)
@@ -102,7 +110,9 @@ exportPairFrequencies <- function(whe, pairId = NULL,
             donor_freq     = d_freq[has_data],
             recipient_freq = r_freq[has_data],
             shared         = (d_pres & r_pres)[has_data],
-            pair_id        = as.character(pairs$pair_id[p])
+            pair_id        = as.character(pairs$pair_id[p]),
+            row_index      = unname(which(has_data)),
+            recipient_col  = rep(r_col, sum(has_data))
         )
     })
 
@@ -129,6 +139,19 @@ exportPairFrequencies <- function(whe, pairId = NULL,
 #'   assays (\code{altCount}, \code{refCount}).
 #'
 #' @details
+#' One row is written for each donor variant at or above
+#' \code{threshold}. Where the recipient has no call, its frequency is
+#' written as 0, which an estimator reads as a variant lost in
+#' transmission. A recipient call that QC removed is not such an
+#' absence: the call may have been removed for lying above
+#' \code{maxFreq}, as when the variant rose towards fixation in the
+#' recipient. With \code{usePassedOnly = TRUE}, a donor variant at a
+#' site where the recipient made a call, at a frequency above 0, that
+#' failed QC is therefore left out, and a message gives the number of
+#' such sites, as counted by \code{n_donor_only_recipient_failed_qc} in
+#' \code{\link{calcSharedVariants}}. \code{\link{quickBottleneck}} and
+#' \code{\link{exactBottleneck}} use the same donor variants.
+#'
 #' For comprehensive bottleneck analysis with multiple methods
 #' (presence-absence, KL divergence, binomial, beta-binomial
 #' approximate/exact, and Wright-Fisher), use the
@@ -151,22 +174,48 @@ exportPairFrequencies <- function(whe, pairId = NULL,
 #' asViralBottleneckInput(whe, pairId = "p1")
 asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
                                    usePassedOnly = TRUE) {
-    pf <- exportPairFrequencies(whe, pairId = pairId,
-                                usePassedOnly = usePassedOnly)
+    .bottleneckInput(whe, pairId, threshold, usePassedOnly)$table
+}
+
+## The donor variants a bottleneck estimate uses: the table of
+## asViralBottleneckInput(), the lines of .pairTable() it comes from,
+## and the number of sites left out because QC removed the recipient's
+## call there
+.bottleneckInput <- function(whe, pairId, threshold,
+                             usePassedOnly = TRUE) {
+    pf <- .pairTable(whe, pairId, usePassedOnly)
 
     ## Filter to donor variants above threshold
     donor_above <- !is.na(pf$donor_freq) & pf$donor_freq >= threshold
     pf <- pf[donor_above, , drop = FALSE]
 
-    ## Replace NA recipient freq with 0
+    ## A recipient call that QC removed is not an absence
+    failed <- logical(nrow(pf))
+    if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
+        r_raw <- as.matrix(assay(whe, "altFreq"))[
+            cbind(pf$row_index, pf$recipient_col)]
+        failed <- is.na(pf$recipient_freq) & .carries(r_raw)
+    }
+    n_failed <- sum(failed)
+    if (n_failed > 0L)
+        message(n_failed, " donor variant site(s) where QC removed the ",
+                "recipient's call were left out: such a site is not an ",
+                "absence.")
+    pf <- pf[!failed, , drop = FALSE]
+
+    ## Elsewhere a recipient without a call is written as 0
     recip_freq <- pf$recipient_freq
     recip_freq[is.na(recip_freq)] <- 0
 
-    data.frame(
-        pos            = pf$position,
-        donor_freq     = pf$donor_freq,
-        recipient_freq = recip_freq,
-        stringsAsFactors = FALSE
+    list(
+        table = data.frame(
+            pos            = pf$position,
+            donor_freq     = pf$donor_freq,
+            recipient_freq = recip_freq,
+            stringsAsFactors = FALSE
+        ),
+        sites = pf,
+        n_failed_qc = n_failed
     )
 }
 

@@ -71,7 +71,10 @@ NULL
 #'   \item{\code{n_variants}}{Integer. Number of donor variants used.}
 #'   \item{\code{n_excluded}}{Named integer. Donor variants above
 #'     \code{threshold} that were left out, by reason:
-#'     \code{unknown_depth}, sites of unknown recipient depth, which
+#'     \code{recipient_failed_qc}, sites where QC removed the
+#'     recipient's call, which is not an absence (see
+#'     \code{\link{asViralBottleneckInput}}), left out by every method;
+#'     and \code{unknown_depth}, sites of unknown recipient depth, which
 #'     only \code{exact_bb} leaves out.}
 #'   \item{\code{pair_id}}{Character. Pair identifier.}
 #' }
@@ -130,7 +133,8 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 .exactBBEstimate <- function(whe, pairId, maxNb, nboot, threshold) {
     pair_data <- .extractPairData(whe, pairId, threshold,
                                   need_counts = TRUE)
-    n_excluded <- .nExcluded(unknown_depth = pair_data$n_unknown_depth)
+    n_excluded <- .nExcluded(recipient_failed_qc = pair_data$n_failed_qc,
+                             unknown_depth = pair_data$n_unknown_depth)
     if (pair_data$n == 0L)
         return(.emptyResult(pairId, "exact_bb", n_excluded))
 
@@ -197,9 +201,9 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 #' @keywords internal
 .wrightFisherEstimate <- function(whe, pairId, maxNb, nboot,
                                   threshold) {
-    vb_input <- asViralBottleneckInput(whe, pairId = pairId,
-                                       threshold = threshold)
-    n_excluded <- .nExcluded()
+    input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
+    vb_input <- input$table
+    n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc)
     if (nrow(vb_input) == 0L)
         return(.emptyResult(pairId, "wright_fisher", n_excluded))
 
@@ -264,9 +268,9 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 #' @keywords internal
 .presenceAbsenceEstimate <- function(whe, pairId, maxNb, nboot,
                                      threshold) {
-    vb_input <- asViralBottleneckInput(whe, pairId = pairId,
-                                       threshold = threshold)
-    n_excluded <- .nExcluded()
+    input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
+    vb_input <- input$table
+    n_excluded <- .nExcluded(recipient_failed_qc = input$n_failed_qc)
     if (nrow(vb_input) == 0L)
         return(.emptyResult(pairId, "presence_absence", n_excluded))
 
@@ -309,10 +313,11 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 #' @noRd
 .extractPairData <- function(whe, pairId, threshold,
                              need_counts = FALSE) {
-    vb_input <- asViralBottleneckInput(whe, pairId = pairId,
-                                       threshold = threshold)
+    input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
+    vb_input <- input$table
     if (nrow(vb_input) == 0L)
-        return(list(n = 0L, n_unknown_depth = 0L))
+        return(list(n = 0L, n_failed_qc = input$n_failed_qc,
+                    n_unknown_depth = 0L))
 
     d_freqs <- vb_input$donor_freq
     n_var   <- length(d_freqs)
@@ -320,7 +325,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     if (!need_counts) {
         r_freqs <- vb_input$recipient_freq
         return(list(donor_freq = d_freqs, recipient_freq = r_freqs,
-                    n = n_var))
+                    n = n_var, n_failed_qc = input$n_failed_qc))
     }
 
     ## Need per-site read counts for exact method
@@ -329,43 +334,13 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
         stop("Method 'exact_bb' requires 'altCount' and 'totalDepth' ",
              "assays in the WithinHostExperiment object.")
 
-    pairs   <- transmissionPairs(whe)
-    pair_row <- pairs[pairs$pair_id == pairId, , drop = FALSE]
-    if (nrow(pair_row) == 0L) stop("Pair '", pairId, "' not found.")
-
-    sids    <- as.character(colData(whe)$sample_id)
-    r_col   <- match(as.character(pair_row$recipient[1L]), sids)
-
-    alt_mat   <- assay(whe, "altCount")
-    depth_mat <- assay(whe, "totalDepth")
-
-    ## Re-derive the same donor variants with their chromosome and allele,
-    ## so that rows are matched exactly; matching on position alone is
-    ## wrong for segmented genomes
-    pf <- exportPairFrequencies(whe, pairId = pairId)
-    pf <- pf[!is.na(pf$donor_freq) & pf$donor_freq >= threshold, ,
-             drop = FALSE]
-    rr  <- rowRanges(whe)
-    row_alt <- if ("alt" %in% colnames(S4Vectors::mcols(rr))) {
-        as.character(S4Vectors::mcols(rr)$alt)
-    } else {
-        rep(NA_character_, length(rr))
-    }
-    row_keys <- paste(as.character(GenomeInfoDb::seqnames(rr)),
-                      GenomicRanges::start(rr), row_alt, sep = ":")
-    site_keys <- paste(as.character(pf$chrom), pf$position,
-                       as.character(pf$alt), sep = ":")
-    row_idx <- match(site_keys, row_keys)
-    matched <- !is.na(row_idx)
-    if (any(!matched))
-        warning(sum(!matched), " donor variant site(s) could not be ",
-                "matched to rows of the object and were dropped.",
-                call. = FALSE)
-    row_idx <- row_idx[matched]
-
-    r_alt   <- as.integer(alt_mat[row_idx, r_col])
-    r_depth <- as.integer(depth_mat[row_idx, r_col])
-    d_freqs <- as.numeric(pf$donor_freq[matched])
+    ## The recipient's counts at the rows the donor variants come from,
+    ## so that sites are matched by row, not by position, which is
+    ## ambiguous for segmented genomes and multi-allelic sites
+    idx <- cbind(input$sites$row_index, input$sites$recipient_col)
+    r_alt   <- as.integer(as.matrix(assay(whe, "altCount"))[idx])
+    r_depth <- as.integer(as.matrix(assay(whe, "totalDepth"))[idx])
+    d_freqs <- as.numeric(d_freqs)
 
     ## A site of unknown recipient depth adds the same constant to the
     ## log-likelihood at every Nb, so it is left out and reported
@@ -389,6 +364,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
          recipient_alt   = r_alt,
          recipient_depth = r_depth,
          n               = length(d_freqs),
+         n_failed_qc     = input$n_failed_qc,
          n_unknown_depth = n_unknown)
 }
 
@@ -426,8 +402,9 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 }
 
 ## Donor variants above threshold left out of an estimate, by reason
-.nExcluded <- function(unknown_depth = 0L) {
-    c(unknown_depth = as.integer(unknown_depth))
+.nExcluded <- function(recipient_failed_qc = 0L, unknown_depth = 0L) {
+    c(recipient_failed_qc = as.integer(recipient_failed_qc),
+      unknown_depth = as.integer(unknown_depth))
 }
 
 #' Bootstrap confidence interval by resampling variant sites
@@ -464,13 +441,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
 #' @keywords internal
 #' @noRd
 .emptyResult <- function(pairId, method, n_excluded) {
-    if (sum(n_excluded) > 0L) {
-        message("No donor variant above threshold is left for pair '",
-                pairId, "' once those left out are set aside.")
-    } else {
-        message("No donor variants above threshold for pair '",
-                pairId, "'.")
-    }
+    .emptyMessage(pairId, n_excluded)
     list(
         Nb         = NA_real_,
         ci         = c(NA_real_, NA_real_),

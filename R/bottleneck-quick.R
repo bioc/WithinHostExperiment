@@ -24,7 +24,11 @@ NULL
 #' @param threshold Numeric. Variant calling threshold (default: 0.03).
 #'
 #' @return A named list: Nb (MLE), ci (95\% CI), loglik,
-#'   n_variants, pair_id.
+#'   n_variants, n_excluded, pair_id. \code{n_excluded} is a named
+#'   integer, \code{recipient_failed_qc}: the donor variants above
+#'   \code{threshold} left out because QC removed the recipient's call
+#'   at the site, which is not an absence (see
+#'   \code{\link{asViralBottleneckInput}}).
 #'
 #' @references
 #' Sobel Leonard A et al. (2017). Transmission Bottleneck Size
@@ -51,13 +55,14 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
     maxNb <- .checkMaxNb(maxNb)
 
     ## Get donor-recipient frequencies
-    vb_input <- asViralBottleneckInput(whe, pairId = pairId,
-                                       threshold = threshold)
+    input <- .bottleneckInput(whe, pairId = pairId, threshold = threshold)
+    vb_input <- input$table
+    n_excluded <- c(recipient_failed_qc = input$n_failed_qc)
     if (nrow(vb_input) == 0L) {
-        message("No donor variants above threshold for pair '",
-                pairId, "'")
+        .emptyMessage(pairId, n_excluded)
         return(list(Nb = NA_real_, ci = c(NA_real_, NA_real_),
-                    loglik = NA_real_, n_variants = 0L, pair_id = pairId))
+                    loglik = NA_real_, n_variants = 0L,
+                    n_excluded = n_excluded, pair_id = pairId))
     }
 
     d_freqs <- vb_input$donor_freq
@@ -87,8 +92,20 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
         ci         = c(as.numeric(ci_lo), as.numeric(ci_hi)),
         loglik     = max_ll,
         n_variants = nrow(vb_input),
+        n_excluded = n_excluded,
         pair_id    = pairId
     )
+}
+
+## Say that a pair has no donor variant to estimate from
+.emptyMessage <- function(pairId, n_excluded) {
+    if (sum(n_excluded) > 0L) {
+        message("No donor variant above threshold is left for pair '",
+                pairId, "' once those left out are set aside.")
+    } else {
+        message("No donor variants above threshold for pair '",
+                pairId, "'.")
+    }
 }
 
 #' @keywords internal

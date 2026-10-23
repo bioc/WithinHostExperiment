@@ -19,7 +19,11 @@ pairs defined in \code{colData}.}
 }
 \value{
 A named list: Nb (MLE), ci (95\% CI), loglik,
-  n_variants, pair_id.
+  n_variants, n_excluded, pair_id. \code{n_excluded} is a named
+  integer, \code{recipient_failed_qc}: the donor variants above
+  \code{threshold} left out because QC removed the recipient's call
+  at the site, which is not an absence (see
+  \code{\link{asViralBottleneckInput}}).
 }
 \description{
 Estimates transmission bottleneck size using the approximate

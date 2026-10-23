@@ -32,6 +32,19 @@ Converts a \code{\link{WithinHostExperiment}} to the input format
 expected by the \pkg{ViralBottleneck} package.
 }
 \details{
+One row is written for each donor variant at or above
+\code{threshold}. Where the recipient has no call, its frequency is
+written as 0, which an estimator reads as a variant lost in
+transmission. A recipient call that QC removed is not such an
+absence: the call may have been removed for lying above
+\code{maxFreq}, as when the variant rose towards fixation in the
+recipient. With \code{usePassedOnly = TRUE}, a donor variant at a
+site where the recipient made a call, at a frequency above 0, that
+failed QC is therefore left out, and a message gives the number of
+such sites, as counted by \code{n_donor_only_recipient_failed_qc} in
+\code{\link{calcSharedVariants}}. \code{\link{quickBottleneck}} and
+\code{\link{exactBottleneck}} use the same donor variants.
+
 For comprehensive bottleneck analysis with multiple methods
 (presence-absence, KL divergence, binomial, beta-binomial
 approximate/exact, and Wright-Fisher), use the

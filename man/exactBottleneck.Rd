@@ -52,7 +52,10 @@ A named list with components:
   \item{\code{n_variants}}{Integer. Number of donor variants used.}
   \item{\code{n_excluded}}{Named integer. Donor variants above
     \code{threshold} that were left out, by reason:
-    \code{unknown_depth}, sites of unknown recipient depth, which
+    \code{recipient_failed_qc}, sites where QC removed the
+    recipient's call, which is not an absence (see
+    \code{\link{asViralBottleneckInput}}), left out by every method;
+    and \code{unknown_depth}, sites of unknown recipient depth, which
     only \code{exact_bb} leaves out.}
   \item{\code{pair_id}}{Character. Pair identifier.}
 }

@@ -20,18 +20,29 @@ to pass (default: 0.05).}
 }
 \value{
 A \code{\link{WithinHostExperiment}} containing only
-  consensus sites. \code{mcols(rowRanges)} includes:
+  consensus sites, with a column for every sample of the inputs.
+  \code{mcols(rowRanges)} includes:
   \describe{
     \item{n_callers}{Number of callers detecting the site; a caller
       that lists the same site and allele twice counts once.}
     \item{caller_names}{Comma-separated caller names.}
     \item{freq_spread}{Range of allele frequencies across callers.}
   }
+  Where a site passes in more than one sample, these three columns
+  describe one of those samples, not all of them.
+
   The \code{altFreq} assay contains the mean frequency across
-  callers for each consensus site. It is the only assay of the
-  result: read counts, depths and \code{qcPass} are not carried
-  over, so run \code{\link{flagISNV}} on the individual callers'
-  objects rather than on the consensus.
+  callers for each consensus site and \code{NA} where the site did
+  not pass in that sample, so a sample with no consensus site is a
+  column of \code{NA}. The constructor adds a \code{qcPass} assay that
+  is \code{TRUE} throughout. Read counts, depths and the QC history
+  are not carried over, so run \code{\link{flagISNV}} on the
+  individual callers' objects rather than on the consensus.
+
+  The \code{seqinfo()} of the result merges those of the inputs; a
+  sequence whose length differs between inputs is an error. Each
+  sample's \code{colData} row comes from the first input that holds
+  the sample, so host, role and transmission-pair columns carry over.
 }
 \description{
 Takes a named list of \code{\link{WithinHostExperiment}} objects

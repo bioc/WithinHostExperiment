@@ -4,7 +4,7 @@
 #' @include methods.R
 #' @importFrom SummarizedExperiment assay assayNames colData rowRanges
 #' @importFrom GenomicRanges GRanges start findOverlaps
-#' @importFrom GenomeInfoDb seqnames
+#' @importFrom GenomeInfoDb seqnames seqinfo
 #' @importFrom IRanges IRanges
 #' @importFrom S4Vectors DataFrame mcols mcols<-
 #' @importFrom methods is new
@@ -37,18 +37,29 @@ NULL
 #'   to pass (default: 0.05).
 #'
 #' @return A \code{\link{WithinHostExperiment}} containing only
-#'   consensus sites. \code{mcols(rowRanges)} includes:
+#'   consensus sites, with a column for every sample of the inputs.
+#'   \code{mcols(rowRanges)} includes:
 #'   \describe{
 #'     \item{n_callers}{Number of callers detecting the site; a caller
 #'       that lists the same site and allele twice counts once.}
 #'     \item{caller_names}{Comma-separated caller names.}
 #'     \item{freq_spread}{Range of allele frequencies across callers.}
 #'   }
+#'   Where a site passes in more than one sample, these three columns
+#'   describe one of those samples, not all of them.
+#'
 #'   The \code{altFreq} assay contains the mean frequency across
-#'   callers for each consensus site. It is the only assay of the
-#'   result: read counts, depths and \code{qcPass} are not carried
-#'   over, so run \code{\link{flagISNV}} on the individual callers'
-#'   objects rather than on the consensus.
+#'   callers for each consensus site and \code{NA} where the site did
+#'   not pass in that sample, so a sample with no consensus site is a
+#'   column of \code{NA}. The constructor adds a \code{qcPass} assay that
+#'   is \code{TRUE} throughout. Read counts, depths and the QC history
+#'   are not carried over, so run \code{\link{flagISNV}} on the
+#'   individual callers' objects rather than on the consensus.
+#'
+#'   The \code{seqinfo()} of the result merges those of the inputs; a
+#'   sequence whose length differs between inputs is an error. Each
+#'   sample's \code{colData} row comes from the first input that holds
+#'   the sample, so host, role and transmission-pair columns carry over.
 #'
 #' @references
 #' Roder AE et al. (2023). Optimized quantification of intra-host
@@ -127,12 +138,13 @@ consensusISNV <- function(whe_list, min_callers = 2L,
     names_kept <- .callerNames(rec[once], calls$caller[once], kept,
                                caller_names)
 
-    ## Each kept record by its first call; sites and samples in the
-    ## order they are first seen among the kept records
+    ## Each kept record by its first call; sites in the order they are
+    ## first seen among the kept records, and every sample of the inputs
     first <- which(!duplicated(rec))[kept]
     site <- .firstSeenGroup(calls$chrom[first], calls$pos[first],
                             calls$alt[first])
-    all_samples <- unique(calls$sample_id[first])
+    input_ids <- lapply(whe_list, .consensusSampleIds)
+    all_samples <- unique(unlist(input_ids, use.names = FALSE))
     freq_mat <- matrix(NA_real_, nrow = max(site),
                        ncol = length(all_samples),
                        dimnames = list(NULL, all_samples))
@@ -145,14 +157,15 @@ consensusISNV <- function(whe_list, min_callers = 2L,
     last <- integer(max(site))
     last[site] <- seq_along(site)
     gr <- GRanges(seqnames = calls$chrom[at],
-                  ranges = IRanges(calls$pos[at], width = 1L))
+                  ranges = IRanges(calls$pos[at], width = 1L),
+                  seqinfo = .mergeSeqinfo(whe_list))
     mcols(gr)$ref <- calls$ref[first][last]
     mcols(gr)$alt <- calls$alt[first][last]
     mcols(gr)$n_callers <- n_callers[kept][last]
     mcols(gr)$caller_names <- names_kept[last]
     mcols(gr)$freq_spread <- spread[kept][last]
 
-    cd <- DataFrame(sample_id = all_samples)
+    cd <- .consensusColData(whe_list, input_ids, all_samples)
 
     WithinHostExperiment(
         assays = list(altFreq = freq_mat),
@@ -167,8 +180,7 @@ consensusISNV <- function(whe_list, min_callers = 2L,
     rr <- rowRanges(w)
     mc <- mcols(rr)
     fm <- as.matrix(assay(w, "altFreq"))
-    sample_ids <- colnames(fm)
-    if (is.null(sample_ids)) sample_ids <- paste0("S", seq_len(ncol(fm)))
+    sample_ids <- .consensusSampleIds(w)
     allele <- function(col) {
         if (col %in% colnames(mc)) as.character(mc[[col]])
         else rep(NA_character_, length(rr))
@@ -183,6 +195,58 @@ consensusISNV <- function(whe_list, min_callers = 2L,
                caller = rep(ci, length(i)),
                freq = fm[hit],
                stringsAsFactors = FALSE)
+}
+
+## Sample identifiers of one caller's object: its column names, or S1,
+## S2, ... when it has none.
+.consensusSampleIds <- function(w) {
+    ids <- colnames(w)
+    if (is.null(ids)) paste0("S", seq_len(ncol(w))) else ids
+}
+
+## The inputs' seqinfo merged into one. A sequence whose length or
+## genome differs between inputs is an error; inputs that list
+## different sequences are combined without the merge's warning.
+.mergeSeqinfo <- function(whe_list) {
+    infos <- lapply(whe_list, seqinfo)
+    tryCatch(
+        withCallingHandlers(
+            Reduce(merge, infos),
+            warning = function(w) {
+                if (grepl("sequence levels", conditionMessage(w)))
+                    invokeRestart("muffleWarning")
+            }),
+        error = function(e) {
+            stop("The objects in 'whe_list' disagree on their sequences: ",
+                 conditionMessage(e), call. = FALSE)
+        })
+}
+
+## colData for the consensus: each sample's row from the first input
+## that holds the sample, with the columns of those inputs combined and
+## NA where an input lacks a column. 'ids' lists each input's samples.
+.consensusColData <- function(whe_list, ids, samples) {
+    src <- integer(length(samples))
+    row <- integer(length(samples))
+    for (i in rev(seq_along(whe_list))) {
+        m <- match(samples, ids[[i]])
+        src[!is.na(m)] <- i
+        row[!is.na(m)] <- m[!is.na(m)]
+    }
+    used <- unique(src)
+    cds <- lapply(whe_list[used], colData)
+    cols <- unique(unlist(lapply(cds, colnames), use.names = FALSE))
+    pieces <- lapply(seq_along(used), function(k) {
+        piece <- cds[[k]][row[src == used[k]], , drop = FALSE]
+        for (col in setdiff(cols, colnames(piece))) piece[[col]] <- NA
+        piece[, cols, drop = FALSE]
+    })
+    out <- do.call(rbind, unname(pieces))
+    placed <- unlist(lapply(used, function(i) which(src == i)))
+    out <- out[order(placed), , drop = FALSE]
+    out$sample_id <- samples
+    rownames(out) <- samples
+    out
 }
 
 ## Number the distinct combinations of the vectors in '...' (all of one

@@ -57,8 +57,10 @@ test_that("consensusISNV works with three callers and min_callers = 3", {
     if (is.null(colnames(freq)))
         colnames(freq) <- paste0("s", seq_len(ncol(freq)))
     gr <- GenomicRanges::GRanges(seqnames, IRanges::IRanges(pos, width = 1L))
-    if (!is.null(seqinfo)) GenomeInfoDb::seqinfo(gr) <- seqinfo[
-        GenomeInfoDb::seqlevels(gr)]
+    if (!is.null(seqinfo)) {
+        GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::seqlevels(seqinfo)
+        GenomeInfoDb::seqinfo(gr) <- seqinfo
+    }
     S4Vectors::mcols(gr)$ref <- ref
     S4Vectors::mcols(gr)$alt <- alt
     if (is.null(colData))
@@ -133,6 +135,60 @@ test_that("consensusISNV() handles 2,000 sites in 20 samples from two callers", 
     expect_identical(dim(cons), c(n, 20L))
     expect_equal(unname(SummarizedExperiment::assay(cons, "altFreq")),
                  unname(freq) + 0.005)
+})
+
+test_that("consensusISNV() keeps the inputs' seqinfo (was: seqlengths dropped)", {
+    si <- GenomeInfoDb::Seqinfo(c("seg1", "seg2"), c(1000L, 800L),
+                                genome = "toy")
+    a <- .caller_whe("seg1", c(10, 20), c("T", "G"), c(0.10, 0.20),
+                     seqinfo = si)
+    b <- .caller_whe("seg1", c(20, 10), c("G", "T"), c(0.21, 0.11),
+                     seqinfo = si)
+    cons <- consensusISNV(list(a = a, b = b))
+    ## seg2 holds no consensus site but keeps its length
+    expect_identical(GenomeInfoDb::seqinfo(cons), si)
+    ## an input without lengths leaves the other input's lengths in place
+    b0 <- .caller_whe("seg1", c(20, 10), c("G", "T"), c(0.21, 0.11))
+    expect_identical(GenomeInfoDb::seqlengths(
+        consensusISNV(list(a = a, b = b0)))[["seg1"]], 1000L)
+    ## lengths that disagree stop the consensus
+    b2 <- .caller_whe("seg1", c(20, 10), c("G", "T"), c(0.21, 0.11),
+                      seqinfo = GenomeInfoDb::Seqinfo("seg1", 999L))
+    expect_error(consensusISNV(list(a = a, b = b2)),
+                 "disagree on their sequences.*seg1")
+})
+
+test_that("consensusISNV() keeps colData and every sample (was: sample_id only)", {
+    data(example_whe, package = "WithinHostExperiment")
+    cons <- consensusISNV(list(a = example_whe, b = example_whe))
+    expect_identical(as.data.frame(SummarizedExperiment::colData(cons)),
+                     as.data.frame(SummarizedExperiment::colData(example_whe)))
+    expect_identical(transmissionPairs(cons), transmissionPairs(example_whe))
+    expect_identical(GenomeInfoDb::seqlengths(cons),
+                     GenomeInfoDb::seqlengths(example_whe))
+
+    ## s2 has no consensus site and stays as an empty column; s3 is
+    ## known to the second caller only and takes its row from there
+    cd_a <- S4Vectors::DataFrame(sample_id = c("s1", "s2"),
+                                 host_id = c("h1", "h2"))
+    cd_b <- S4Vectors::DataFrame(sample_id = c("s3", "s1"),
+                                 host_id = c("h3", "h1-b"),
+                                 role = c("recipient", "donor"))
+    a <- .caller_whe("seg", c(10, 20), c("T", "G"),
+                     cbind(s1 = c(0.10, 0.20), s2 = c(NA, 0.90)),
+                     colData = cd_a)
+    b <- .caller_whe("seg", c(10, 20), c("T", "G"),
+                     cbind(s3 = c(0.50, NA), s1 = c(0.11, 0.21)),
+                     colData = cd_b)
+    cons <- consensusISNV(list(a = a, b = b))
+    expect_identical(colnames(cons), c("s1", "s2", "s3"))
+    cd <- SummarizedExperiment::colData(cons)
+    expect_identical(cd$sample_id, c("s1", "s2", "s3"))
+    expect_identical(cd$host_id, c("h1", "h2", "h3"))
+    expect_identical(cd$role, c(NA, NA, "recipient"))
+    expect_identical(unname(SummarizedExperiment::assay(cons, "altFreq")),
+                     cbind(c(mean(c(0.10, 0.11)), mean(c(0.20, 0.21))),
+                           NA_real_, NA_real_))
 })
 
 test_that("calcCallerConcordance returns correct pairwise stats from VCFs", {

@@ -20,7 +20,7 @@ pairs defined in \code{colData}.}
 \item{pairId}{Character. Which pair to estimate.}
 
 \item{maxNb}{Integer. Maximum bottleneck size to evaluate
-(default: 500).}
+(default: 500); a single whole number of at least 1.}
 
 \item{method}{Character. One of \code{"exact_bb"},
 \code{"wright_fisher"}, or \code{"presence_absence"}.}

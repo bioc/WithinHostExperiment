@@ -20,7 +20,7 @@ NULL
 #'   pairs defined in \code{colData}.
 #' @param pairId Character. Which pair to estimate.
 #' @param maxNb Integer. Maximum bottleneck size to evaluate
-#'   (default: 200).
+#'   (default: 200); a single whole number of at least 1.
 #' @param threshold Numeric. Variant calling threshold (default: 0.03).
 #'
 #' @return A named list: Nb (MLE), ci (95\% CI), loglik,
@@ -48,6 +48,7 @@ NULL
 quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
+    maxNb <- .checkMaxNb(maxNb)
 
     ## Get donor-recipient frequencies
     vb_input <- asViralBottleneckInput(whe, pairId = pairId,
@@ -113,6 +114,16 @@ quickBottleneck <- function(whe, pairId, maxNb = 200L, threshold = 0.03) {
         }
     }
     .logSumExp(log_probs)
+}
+
+## maxNb as a single whole number of at least 1, or an error
+.checkMaxNb <- function(maxNb) {
+    ok <- is.numeric(maxNb) && length(maxNb) == 1L && is.finite(maxNb) &&
+        maxNb >= 1 && maxNb == round(maxNb)
+    if (!ok)
+        stop("'maxNb' must be a positive integer, got ",
+             paste(format(maxNb), collapse = ", "), ".")
+    as.integer(maxNb)
 }
 
 #' @keywords internal

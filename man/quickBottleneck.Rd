@@ -13,7 +13,7 @@ pairs defined in \code{colData}.}
 \item{pairId}{Character. Which pair to estimate.}
 
 \item{maxNb}{Integer. Maximum bottleneck size to evaluate
-(default: 200).}
+(default: 200); a single whole number of at least 1.}
 
 \item{threshold}{Numeric. Variant calling threshold (default: 0.03).}
 }

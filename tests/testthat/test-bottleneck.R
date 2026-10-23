@@ -37,6 +37,20 @@ test_that(".logSumExp is numerically stable", {
     expect_true(result > -1000)
 })
 
+test_that("quickBottleneck() refuses a maxNb below 1 (was: Nb of length 0 and two warnings)", {
+    whe <- .make_pair_whe()
+    for (bad in list(0L, -3, 2.5, NA, c(10L, 20L), "50")) {
+        expect_error(quickBottleneck(whe, pairId = "p1", maxNb = bad),
+                     "'maxNb' must be a positive integer")
+        expect_error(exactBottleneck(whe, pairId = "p1", maxNb = bad,
+                                     method = "presence_absence"),
+                     "'maxNb' must be a positive integer")
+    }
+    ## a whole number given as a double is accepted by both
+    expect_identical(quickBottleneck(whe, pairId = "p1", maxNb = 50)$Nb,
+                     quickBottleneck(whe, pairId = "p1", maxNb = 50L)$Nb)
+})
+
 test_that("quickBottleneck handles no shared variants gracefully", {
     vcf  <- system.file("extdata", "test_donor.vcf",
                         package = "WithinHostExperiment")

@@ -34,7 +34,7 @@ NULL
 #'   pairs defined in \code{colData}.
 #' @param pairId Character. Which pair to estimate.
 #' @param maxNb Integer. Maximum bottleneck size to evaluate
-#'   (default: 500).
+#'   (default: 500); a single whole number of at least 1.
 #' @param method Character. One of \code{"exact_bb"},
 #'   \code{"wright_fisher"}, or \code{"presence_absence"}.
 #' @param nboot Integer. Number of bootstrap replicates for
@@ -90,10 +90,8 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
     method <- match.arg(method)
-    maxNb  <- as.integer(maxNb)
+    maxNb  <- .checkMaxNb(maxNb)
     nboot  <- as.integer(nboot)
-    if (maxNb < 1L)
-        stop("'maxNb' must be a positive integer, got ", maxNb, ".")
     if (threshold < 0 || threshold > 1)
         stop("'threshold' must be between 0 and 1, got ", threshold, ".")
 

@@ -342,6 +342,30 @@ test_that("a difference equal to freqTolerance passes (was: flagged by rounding)
         c(4L, 0L))
 })
 
+test_that("the replicate step counts flags past an NA in qcPass (was: n_flagged NA)", {
+    ## site 1 is discordant; x's qcPass there is NA and stays NA, and y's
+    ## call is the one cell newly flagged
+    freq <- cbind(x = c(0.1, 0.1), y = c(0.4, 0.1))
+    whe <- .whe_from_freq(freq, matrix(1000L, 2, 2), pos = c(10, 20),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g"), row.names = colnames(freq)))
+    qc0 <- SummarizedExperiment::assay(whe, "qcPass")
+    qc0[1, "x"] <- NA
+    SummarizedExperiment::assay(whe, "qcPass") <- qc0
+    want_qc <- matrix(c(NA, TRUE, FALSE, TRUE), 2L,
+                      dimnames = dimnames(freq))
+    tol_row <- function(x) {
+        log <- qcLog(x)
+        log[log$parameter == "freqTolerance", "n_flagged"]
+    }
+    by_fun <- flagReplicateDiscordance(whe, freqTolerance = 0.05)
+    by_rule <- flagISNV(whe, ISNVFilter(replicateConc = ConcordanceRule()))
+    expect_identical(SummarizedExperiment::assay(by_fun, "qcPass"), want_qc)
+    expect_identical(SummarizedExperiment::assay(by_rule, "qcPass"), want_qc)
+    expect_identical(tol_row(by_fun), 1L)
+    expect_identical(tol_row(by_rule), 1L)
+})
+
 test_that("flagISNV() refuses a filter changed into an invalid one (was: applied it)", {
     ## identical replicates: a negative tolerance flagged every call, and a
     ## rule that flags nothing wrote rows that look like a check

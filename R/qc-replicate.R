@@ -144,7 +144,9 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
 
                 if (any(discordant)) {
                     for (k in grp_idx) {
-                        newly_flagged <- discordant & qc[, k]
+                        ## an NA in qcPass stays NA and is not counted
+                        newly_flagged <- discordant & !is.na(qc[, k]) &
+                            qc[, k]
                         qc[newly_flagged, k] <- FALSE
                         total_flagged <- total_flagged +
                             sum(newly_flagged)

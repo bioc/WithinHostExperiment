@@ -41,6 +41,10 @@ NULL
 #'     filter holds a \code{\link{ConcordanceRule}}
 #' }
 #'
+#' The filter is checked with \code{validObject()} first, so a threshold
+#' or a rule changed with \code{@<-} into one its class refuses is an
+#' error rather than a step applied.
+#'
 #' Base and mapping quality are not filtered here: the object holds no
 #' per-site quality, so those thresholds belong in the variant caller.
 #'
@@ -80,6 +84,9 @@ setMethod("flagISNV", "WithinHostExperiment",
     if (!is(filter, "ISNVFilter"))
         stop("'filter' must be an ISNVFilter object. ",
              "Create one with ISNVFilter().")
+    ## a slot changed with @<- after construction, or a filter saved by an
+    ## earlier version, is checked here rather than applied
+    validObject(filter)
 
     if (!"qcPass" %in% assayNames(whe)) {
         stop("WithinHostExperiment must have a 'qcPass' assay")

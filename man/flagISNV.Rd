@@ -48,6 +48,10 @@ Filtering steps are applied in order:
     filter holds a \code{\link{ConcordanceRule}}
 }
 
+The filter is checked with \code{validObject()} first, so a threshold
+or a rule changed with \code{@<-} into one its class refuses is an
+error rather than a step applied.
+
 Base and mapping quality are not filtered here: the object holds no
 per-site quality, so those thresholds belong in the variant caller.
 

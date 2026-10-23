@@ -312,6 +312,24 @@ test_that("flagISNV applies replicateConc (was: recorded, warned, ignored)", {
                  "two or more samples")
 })
 
+test_that("flagISNV() refuses a filter changed into an invalid one (was: applied it)", {
+    ## identical replicates: a negative tolerance flagged every call, and a
+    ## rule that flags nothing wrote rows that look like a check
+    freq <- cbind(r1 = c(0.10, 0.20), r2 = c(0.10, 0.20))
+    whe <- .whe_from_freq(freq, matrix(1000L, 2, 2), pos = c(10, 20),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g"), row.names = colnames(freq)))
+    f <- ISNVFilter(replicateConc = ConcordanceRule())
+    f@replicateConc@freqTolerance <- -1
+    expect_error(flagISNV(whe, f), "'freqTolerance' must be positive")
+    f <- ISNVFilter(replicateConc = ConcordanceRule(Inf, TRUE))
+    f@replicateConc@requireBothDetected <- FALSE
+    expect_error(flagISNV(whe, f), "flags nothing")
+    f <- ISNVFilter()
+    f@minDepth <- -5L
+    expect_error(flagISNV(whe, f), "'minDepth' must be non-negative")
+})
+
 test_that("the constructor needs altFreq", {
     gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(10, width = 1))
     expect_error(WithinHostExperiment(

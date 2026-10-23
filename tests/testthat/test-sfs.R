@@ -94,6 +94,17 @@ test_that("buildSFS() names the argument it cannot use (was: errors from hist() 
                     "WithinHostSFS")
 })
 
+test_that("buildSFS() leaves out sites at frequency 0 or 1 (was: a fixed site in the top unfolded bin)", {
+    whe <- .two_sample_whe(a = c(0.1, 0.6, 1, 1, 0),
+                           b = c(0.2, NA, NA, NA, NA))
+    unf <- buildSFS(whe, sampleIdx = "a", nBins = 5L, fold = FALSE)
+    expect_identical(unf@nSites, 2L)
+    expect_identical(unf@counts, c(1L, 0L, 1L, 0L, 0L))
+    ## from a threshold of 0, neither a 0 nor a 1 folded to 0 is counted
+    fol <- buildSFS(whe, sampleIdx = "a", nBins = 5L, threshold = 0)
+    expect_identical(fol@nSites, 2L)
+})
+
 test_that("buildSFSList returns one SFS per sample", {
     data(example_whe)
     sfs_list <- buildSFSList(example_whe, genomeLength = 1000L)

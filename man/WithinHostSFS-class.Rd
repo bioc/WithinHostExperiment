@@ -55,7 +55,8 @@ frequencies, such as Fay and Wu's H, refuse \code{"none"}.}
 
 \item{\code{nSites}}{Integer scalar. Number of variant sites counted in
 the spectrum, that is, with a frequency between the lowest and the
-highest break.}
+highest break; \code{\link{buildSFS}} counts only segregating sites,
+whose frequency lies strictly between 0 and 1.}
 
 \item{\code{meanDepth}}{Numeric scalar. Typical sequencing depth;
 \code{\link{buildSFS}} stores the median depth across sites.}

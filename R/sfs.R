@@ -51,7 +51,8 @@ NULL
 #' @slot genomeLength Integer scalar. Reference genome length.
 #' @slot nSites Integer scalar. Number of variant sites counted in
 #'   the spectrum, that is, with a frequency between the lowest and the
-#'   highest break.
+#'   highest break; \code{\link{buildSFS}} counts only segregating sites,
+#'   whose frequency lies strictly between 0 and 1.
 #' @slot meanDepth Numeric scalar. Typical sequencing depth;
 #'   \code{\link{buildSFS}} stores the median depth across sites.
 #' @slot threshold Numeric scalar. Detection threshold applied
@@ -176,7 +177,11 @@ setMethod("show", "WithinHostSFS", function(object) {
 #'
 #' Constructs a \code{\link{WithinHostSFS}} object from the allele
 #' frequencies in a \code{\link{WithinHostExperiment}}. One SFS is
-#' built per sample.
+#' built per sample. Only segregating sites enter it, those whose
+#' frequency lies strictly between 0 and 1, as in
+#' \code{\link{calcNeutralityTests}}: a frequency of 1, a fixed difference
+#' from the reference, would otherwise fill the top bin of an unfolded
+#' spectrum.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #' @param sampleIdx Integer or character. The one sample (column) to
@@ -238,7 +243,9 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
         qc <- assay(whe, "qcPass")[, sampleIdx]
         freq[!qc] <- NA
     }
-    freq <- freq[!is.na(freq)]
+    ## only segregating sites, 0 < f < 1, as in calcNeutralityTests(): a
+    ## fixed site would otherwise fill the top bin of an unfolded spectrum
+    freq <- freq[!is.na(freq) & freq > 0 & freq < 1]
 
     ## Get sample metadata
     cd <- colData(whe)

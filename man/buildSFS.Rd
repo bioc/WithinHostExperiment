@@ -49,7 +49,11 @@ A \code{\link{WithinHostSFS}} object.
 \description{
 Constructs a \code{\link{WithinHostSFS}} object from the allele
 frequencies in a \code{\link{WithinHostExperiment}}. One SFS is
-built per sample.
+built per sample. Only segregating sites enter it, those whose
+frequency lies strictly between 0 and 1, as in
+\code{\link{calcNeutralityTests}}: a frequency of 1, a fixed difference
+from the reference, would otherwise fill the top bin of an unfolded
+spectrum.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",

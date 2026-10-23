@@ -26,7 +26,12 @@ A named list with components:
     \item{theta_W}{Watterson's theta per site.}
     \item{theta_H}{Fay and Wu's theta_H per site.}
     \item{tajimaD}{Tajima's D.}
-    \item{fusFs}{Fu's Fs.}
+    \item{fusFs}{Fu's Fs, with the number of haplotypes set to
+      \eqn{S + 1}, the infinite-sites maximum. As \code{\link{fusFs}}
+      explains, it then carries no haplotype information, depends only
+      on \eqn{S}, \eqn{n} and \eqn{\hat{\pi}}, and lies well below 0
+      under neutrality, so a negative value is not evidence of
+      expansion.}
     \item{fayWuH}{Fay and Wu's H.}
     \item{sfs_corrected}{Whether the input SFS was bias-corrected.}
     \item{polarization}{The input's polarisation, \code{"reference"}

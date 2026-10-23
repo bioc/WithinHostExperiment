@@ -7,8 +7,8 @@
 fusFs(S, n, theta_pi)
 }
 \arguments{
-\item{S}{Integer scalar. Number of segregating sites (alleles
-minus 1).}
+\item{S}{Integer scalar. Number of segregating sites; the haplotype
+count is taken to be \eqn{S + 1} (see Details).}
 
 \item{n}{Numeric scalar. Sample size. As in \code{\link{tajimaD}},
 do \strong{not} use raw read depth: use an effective sample size
@@ -28,16 +28,30 @@ Numeric scalar. Fu's Fs, or \code{NA} with a warning in three
 \description{
 Computes Fu's Fs (Fu 1997), a test of neutrality based on the
 probability of observing at least the observed number of
-alleles given the estimate of theta from nucleotide diversity.
+haplotypes given the estimate of theta from nucleotide diversity.
 Under the infinite-sites model:
 \deqn{F_s = \ln\!\left(\frac{S'}{1 - S'}\right)}
 where \eqn{S'} is the probability of observing a number of
-alleles greater than or equal to the observed value, given
-\eqn{\theta = \hat{\pi}}. A large negative Fs indicates an
-excess of alleles (rare variants), consistent with population
-expansion or genetic hitchhiking.
+haplotypes greater than or equal to the observed value, given
+\eqn{\theta = \hat{\pi}}.
 }
 \details{
+\strong{The haplotype count is not observed.} Per-site calls cannot
+say how many distinct haplotypes a sample holds, so the function sets
+that number to \eqn{S + 1}. Under infinite sites without
+recombination this is the largest number of haplotypes \eqn{S}
+segregating sites can produce, and it is usually far above the number
+present. The value therefore carries no haplotype information: it
+depends only on \eqn{S}, \eqn{n} and \code{theta_pi}, the summaries
+Tajima's D already contrasts, and under neutrality it lies well below
+0. With \eqn{n = 100} and \eqn{S} and \code{theta_pi} at their neutral
+expectations, it is -1.46 at \eqn{\theta = 2} (\eqn{S = 10}), -7.00 at
+\eqn{\theta = 5} (\eqn{S = 26}) and -25.0 at \eqn{\theta = 10}
+(\eqn{S = 52}), where the expected numbers of haplotypes are 8.4,
+15.7 and 24.4 rather than 11, 27 and 53. A negative value is
+therefore not evidence of population expansion or hitchhiking, and no
+fixed threshold calibrates it.
+
 The probability is computed exactly, for every \code{n}, from Ewens'
 sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
 P(K = k) = |s(n, k)| theta^k / theta_(n)}, with the unsigned Stirling

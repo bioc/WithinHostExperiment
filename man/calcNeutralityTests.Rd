@@ -58,6 +58,13 @@ No genome length is needed. Both statistics depend on the nucleotide
 diversity summed over the genome, \eqn{\hat{\pi} L}, which is computed
 directly from the frequencies, so a per-site value would only be
 multiplied back by the length it was divided by.
+
+Fu's Fs sets the number of haplotypes to \code{n_sites + 1}, the
+infinite-sites maximum, as \code{\link{fusFs}} explains. It therefore
+carries no haplotype information, depends only on \code{n_sites}, the
+effective sample size and \eqn{\hat{\pi} L}, and lies well below 0
+under neutrality (about -7 at \eqn{\theta = 5} with \eqn{n = 100});
+a negative value is not evidence of expansion.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",

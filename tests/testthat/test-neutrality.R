@@ -124,6 +124,16 @@ test_that("fusFs() is exact above n = 500, so it is continuous there (was: a nor
     expect_equal(fusFs(10, 100, 5), ewens_fs(10, 100, 5), tolerance = 1e-6)
 })
 
+test_that("fusFs() lies well below 0 at the neutral expectation, the values its help page gives", {
+    ## the haplotype count is S + 1, the infinite-sites maximum, so the
+    ## value sits far from 0 even when S and theta_pi agree with neutrality
+    a1 <- sum(1 / seq_len(99))
+    expect_identical(round(c(2, 5, 10) * a1), c(10, 26, 52))
+    expect_equal(fusFs(10, 100, 2), -1.463007, tolerance = 1e-6)
+    expect_equal(fusFs(26, 100, 5), -6.998362, tolerance = 1e-6)
+    expect_equal(fusFs(52, 100, 10), -25.01018, tolerance = 1e-6)
+})
+
 test_that("tajimaD validates inputs", {
     expect_error(tajimaD(S = -1, n = 10, pi_hat = 0.001,
         genomeLength = 1000), "non-negative")

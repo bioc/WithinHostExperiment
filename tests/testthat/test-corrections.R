@@ -312,6 +312,76 @@ test_that("flagISNV applies replicateConc (was: recorded, warned, ignored)", {
                  "two or more samples")
 })
 
+test_that("flagISNV() applies both settings of the rule, to the calls as made", {
+    ## site 1 differs by 8 points, site 2 is called in r1 only, at site 3
+    ## r2 fails minFreq but agrees within 0.1, site 4 differs by 15 points,
+    ## site 5 agrees, and at site 6 r2 fails minFreq and differs by 18
+    ## points. Each expectation fails if flagISNV() ignored the rule's
+    ## tolerance, ignored requireBothDetected or compared the calls left
+    ## after the thresholds.
+    freq <- cbind(r1 = c(0.30, 0.20, 0.040, 0.35, 0.10, 0.20),
+                  r2 = c(0.22, NA, 0.025, 0.20, 0.10, 0.02))
+    whe <- .whe_from_freq(freq, matrix(1000L, 6, 2),
+                          pos = c(10, 20, 30, 40, 50, 60),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g"), row.names = colnames(freq)))
+    qc <- function(x) SummarizedExperiment::assay(x, "qcPass")
+    cols <- c("step", "parameter", "value", "n_flagged", "n_passed")
+    log_of <- function(x) as.data.frame(qcLog(x))[, cols]
+    plain <- flagISNV(whe, ISNVFilter())
+
+    lenient <- flagISNV(whe, ISNVFilter(replicateConc =
+                                            ConcordanceRule(0.1, FALSE)))
+    expect_identical(unname(qc(lenient)[, "r1"]),
+                     c(TRUE, TRUE, TRUE, FALSE, TRUE, FALSE))
+    expect_identical(unname(qc(lenient)[, "r2"]),
+                     c(TRUE, TRUE, FALSE, FALSE, TRUE, FALSE))
+    want <- flagReplicateDiscordance(plain, freqTolerance = 0.1,
+                                     requireBothDetected = FALSE)
+    expect_identical(qc(lenient), qc(want))
+    expect_identical(log_of(lenient), log_of(want))
+    expect_identical(tail(qcLog(lenient)$value, 2), c("0.1", "FALSE"))
+    expect_identical(tail(qcLog(lenient)$n_flagged, 2), c(3L, 0L))
+
+    strict <- flagISNV(whe, ISNVFilter(replicateConc =
+                                           ConcordanceRule(0.1, TRUE)))
+    expect_identical(unname(qc(strict)[, "r1"]),
+                     c(TRUE, FALSE, TRUE, FALSE, TRUE, FALSE))
+    expect_identical(unname(qc(strict)[, "r2"]),
+                     c(TRUE, FALSE, FALSE, FALSE, TRUE, FALSE))
+    expect_identical(qc(strict), qc(flagReplicateDiscordance(plain,
+        freqTolerance = 0.1, requireBothDetected = TRUE)))
+
+    ## replicate intersection through flagISNV(): only site 2 is flagged
+    inter <- flagISNV(whe, ISNVFilter(replicateConc =
+                                          ConcordanceRule(Inf)))
+    expect_identical(unname(qc(inter)[, "r1"]),
+                     c(TRUE, FALSE, TRUE, TRUE, TRUE, TRUE))
+    expect_identical(unname(qc(inter)[, "r2"]),
+                     c(TRUE, FALSE, FALSE, TRUE, TRUE, FALSE))
+    expect_identical(tail(qcLog(inter)$value, 2), c("Inf", "TRUE"))
+})
+
+test_that("a site failing for one pair of three replicates is flagged in all three", {
+    ## only r1 and r3 differ by more than 0.05 at site 1; group h agrees
+    freq <- cbind(r1 = c(0.30, 0.10), r2 = c(0.26, 0.10),
+                  r3 = c(0.22, 0.10), h1 = c(0.30, 0.10),
+                  h2 = c(0.30, 0.10))
+    whe <- .whe_from_freq(freq, matrix(1000L, 2, 5), pos = c(10, 20),
+        colData = S4Vectors::DataFrame(sample_id = colnames(freq),
+            replicate_group = c("g", "g", "g", "h", "h"),
+            row.names = colnames(freq)))
+    want <- matrix(c(rep(c(FALSE, TRUE), 3), rep(TRUE, 4)), 2L,
+                   dimnames = dimnames(freq))
+    by_fun <- flagReplicateDiscordance(whe, freqTolerance = 0.05)
+    by_rule <- flagISNV(whe, ISNVFilter(replicateConc =
+                                            ConcordanceRule(0.05)))
+    expect_identical(SummarizedExperiment::assay(by_fun, "qcPass"), want)
+    expect_identical(SummarizedExperiment::assay(by_rule, "qcPass"), want)
+    expect_identical(tail(qcLog(by_fun)$n_flagged, 2), c(3L, 0L))
+    expect_identical(tail(qcLog(by_rule)$n_flagged, 2), c(3L, 0L))
+})
+
 test_that("a difference equal to freqTolerance passes (was: flagged by rounding)", {
     ## sites 1 and 2 are 50 reads in 1000 apart, which the subtraction
     ## puts just above 0.05; site 3 is 51 reads apart; site 4 is 0.375

@@ -20,16 +20,19 @@ NULL
 #'   for host identifier (default: \code{"host_id"}).
 #' @param timeCol Character scalar. Column name in \code{colData}
 #'   for time point (default: \code{"timepoint"}).
-#' @param minTimepoints Integer scalar. Minimum number of timepoints
-#'   at which an iSNV must be detected to be considered persistent
-#'   (default: 2).
+#' @param minTimepoints Integer scalar. Minimum number of distinct
+#'   timepoints at which an iSNV must be detected to be considered
+#'   persistent (default: 2). Replicate samples taken at one
+#'   timepoint count as one timepoint.
 #' @param minConsecutive Integer scalar. Minimum number of
-#'   \strong{consecutive} timepoints required. If \code{NULL}
+#'   \strong{consecutive} timepoints required, counted over the
+#'   distinct timepoints at which the host was sampled. If \code{NULL}
 #'   (default), any \code{minTimepoints} detections suffice
 #'   regardless of consecutiveness. Set to 2 or 3 for stricter
 #'   filtering.
 #' @param usePassedOnly Logical. If \code{TRUE} (default), only
-#'   consider QC-passed entries.
+#'   consider QC-passed entries; a cell whose \code{qcPass} is
+#'   \code{NA} counts as not passed.
 #'
 #' @return A \code{\link{WithinHostExperiment}} with updated
 #'   \code{qcPass} assay and a new column \code{temporal_class} in
@@ -41,7 +44,17 @@ NULL
 #'   it was detected, and \code{NA} where it was never detected.
 #'
 #' @details
-#' This check applies only where a host was sampled more than once.
+#' This check applies only where a host was sampled at more than one
+#' timepoint. Detections are counted per distinct timepoint: a site
+#' called in any sample taken at a timepoint, including any of its
+#' technical replicates, is detected at that timepoint, so replicates
+#' alone cannot make a site persistent. A host sampled at a single
+#' timepoint, however many replicates it has, is not classified.
+#' Samples whose timepoint is \code{NA} are not counted, with a
+#' warning, but are flagged with the rest of their host. Transient
+#' sites are flagged by setting \code{qcPass} to \code{FALSE} where
+#' it was \code{TRUE}; \code{NA} cells are left as they are.
+#'
 #' The biological rationale:
 #' genuine within-host variants arise from viral replication and
 #' should persist (or change smoothly) across consecutive
@@ -102,9 +115,16 @@ flagTemporalInconsistency <- function(whe,
     hosts <- as.character(cd[[hostCol]])
     times <- as.numeric(cd[[timeCol]])
     n_sites <- nrow(freq_mat)
-    n_samples <- ncol(freq_mat)
 
-    ## For each site and host, count how many timepoints it is detected
+    no_time <- !is.na(hosts) & is.na(times)
+    if (any(no_time))
+        warning(sum(no_time), " sample(s) with NA in '", timeCol,
+                "' are not counted towards persistence.")
+
+    ## A cell is a detection when it has a frequency and passed QC; an
+    ## NA qcPass cell counts as not passed
+    det_mat <- !is.na(freq_mat) & !is.na(qc_mat) & qc_mat
+
     total_flagged <- 0L
 
     ## Group by host
@@ -114,62 +134,49 @@ flagTemporalInconsistency <- function(whe,
                             dimnames = list(NULL, unique_hosts))
 
     for (h in unique_hosts) {
-        h_idx <- which(hosts == h)
-        if (length(h_idx) < 2L) next
+        h_idx <- which(hosts == h & !is.na(times))
+        h_times <- sort(unique(times[h_idx]))
+        if (length(h_times) < 2L) next
 
-        ## Sort by timepoint
-        h_order <- h_idx[order(times[h_idx])]
+        ## Collapse replicate samples to distinct timepoints, in time
+        ## order: a site is detected at a timepoint if it is detected in
+        ## any sample taken then
+        det_t <- matrix(vapply(h_times, function(t) {
+            cols <- h_idx[times[h_idx] == t]
+            rowSums(det_mat[, cols, drop = FALSE]) > 0
+        }, logical(n_sites)), nrow = n_sites)
 
-        for (i in seq_len(n_sites)) {
-            ## Get detection status at each timepoint (QC-aware)
-            detected <- vapply(h_order, function(j) {
-                !is.na(freq_mat[i, j]) && qc_mat[i, j]
-            }, logical(1))
+        n_detected <- rowSums(det_t)
+        is_persistent <- n_detected >= minTimepoints
 
-            n_detected <- sum(detected)
-
-            if (n_detected == 0L) {
-                next  # not present in this host
+        if (!is.null(minConsecutive)) {
+            ## Longest run of consecutive timepoints with a detection
+            run <- max_run <- integer(n_sites)
+            for (k in seq_along(h_times)) {
+                run <- ifelse(det_t[, k], run + 1L, 0L)
+                max_run <- pmax(max_run, run)
             }
-
-            ## Check consecutive requirement
-            is_persistent <- n_detected >= minTimepoints
-
-            if (is_persistent && !is.null(minConsecutive)) {
-                ## Check for a run of minConsecutive TRUE values
-                max_run <- 0L
-                current_run <- 0L
-                for (d in detected) {
-                    if (d) {
-                        current_run <- current_run + 1L
-                        if (current_run > max_run)
-                            max_run <- current_run
-                    } else {
-                        current_run <- 0L
-                    }
-                }
-                is_persistent <- max_run >= minConsecutive
-            }
-
-            class_by_host[i, h] <- if (is_persistent) {
-                "persistent"
-            } else {
-                "transient"
-            }
+            is_persistent <- is_persistent & max_run >= minConsecutive
         }
+
+        present <- n_detected > 0
+        class_by_host[present, h] <- ifelse(is_persistent[present],
+                                            "persistent", "transient")
     }
 
     ## Flag transient iSNVs in the samples of the host where they are
     ## transient; a site can be transient in one host and persistent in
-    ## another
+    ## another. Cells with an NA qcPass keep it.
     qc <- assay(whe, "qcPass")
     for (h in unique_hosts) {
         transient_rows <- which(class_by_host[, h] == "transient")
         if (!length(transient_rows)) next
         host_cols <- which(hosts == h & !is.na(hosts))
-        newly_flagged <- qc[transient_rows, host_cols, drop = FALSE]
-        qc[transient_rows, host_cols] <- FALSE
-        total_flagged <- total_flagged + sum(newly_flagged)
+        cells <- qc[transient_rows, host_cols, drop = FALSE]
+        passed <- !is.na(cells) & cells
+        cells[passed] <- FALSE
+        qc[transient_rows, host_cols] <- cells
+        total_flagged <- total_flagged + sum(passed)
     }
     assay(whe, "qcPass") <- qc
 

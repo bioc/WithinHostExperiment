@@ -23,18 +23,21 @@ for host identifier (default: \code{"host_id"}).}
 \item{timeCol}{Character scalar. Column name in \code{colData}
 for time point (default: \code{"timepoint"}).}
 
-\item{minTimepoints}{Integer scalar. Minimum number of timepoints
-at which an iSNV must be detected to be considered persistent
-(default: 2).}
+\item{minTimepoints}{Integer scalar. Minimum number of distinct
+timepoints at which an iSNV must be detected to be considered
+persistent (default: 2). Replicate samples taken at one
+timepoint count as one timepoint.}
 
 \item{minConsecutive}{Integer scalar. Minimum number of
-\strong{consecutive} timepoints required. If \code{NULL}
+\strong{consecutive} timepoints required, counted over the
+distinct timepoints at which the host was sampled. If \code{NULL}
 (default), any \code{minTimepoints} detections suffice
 regardless of consecutiveness. Set to 2 or 3 for stricter
 filtering.}
 
 \item{usePassedOnly}{Logical. If \code{TRUE} (default), only
-consider QC-passed entries.}
+consider QC-passed entries; a cell whose \code{qcPass} is
+\code{NA} counts as not passed.}
 }
 \value{
 A \code{\link{WithinHostExperiment}} with updated
@@ -54,7 +57,17 @@ Transient iSNVs are more likely to be sequencing artefacts;
 persistent ones are more likely genuine within-host variants.
 }
 \details{
-This check applies only where a host was sampled more than once.
+This check applies only where a host was sampled at more than one
+timepoint. Detections are counted per distinct timepoint: a site
+called in any sample taken at a timepoint, including any of its
+technical replicates, is detected at that timepoint, so replicates
+alone cannot make a site persistent. A host sampled at a single
+timepoint, however many replicates it has, is not classified.
+Samples whose timepoint is \code{NA} are not counted, with a
+warning, but are flagged with the rest of their host. Transient
+sites are flagged by setting \code{qcPass} to \code{FALSE} where
+it was \code{TRUE}; \code{NA} cells are left as they are.
+
 The biological rationale:
 genuine within-host variants arise from viral replication and
 should persist (or change smoothly) across consecutive

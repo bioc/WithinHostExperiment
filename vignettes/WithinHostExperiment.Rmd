@@ -293,9 +293,10 @@ point of an audit log. Note that `n_passed` counts cells of the site-by-sample
 matrix, not sites: with 28 sites and 3 samples there are 84 cells, including
 those where a sample has no call. A per-sample threshold cannot fail a call that
 is absent, so those cells stay passed and the totals are larger than any
-per-sample count of calls; a replicate rule, described under replicate-aware
-quality control, is the exception, since it flags a discordant site in every
-replicate, including one with no call.
+per-sample count of calls. The site-level steps described later are different: a
+replicate rule, primer masking and the temporal flag each flag a site in every
+relevant sample (every replicate, every sample, or every sample of the host),
+including those with no call.
 
 ## The second added slot: qcFilters
 
@@ -725,8 +726,8 @@ begins inside a primer carries the primer's bases rather than the template's. A
 **primer site** is therefore a region where an apparent variant may be an
 artefact of the protocol, and it is masked rather than interpreted.
 `flagPrimerSites()` takes the primer coordinates as a `GRanges`, which is what
-`rtracklayer::import.bed()` returns for a BED file, and flags every call inside
-them.
+`rtracklayer::import.bed()` returns for a BED file, and flags every site inside
+them, in every sample.
 
 ```{r qc-primer}
 primers <- GRanges("test_segment",
@@ -1169,9 +1170,10 @@ computed here it adds nothing to D. Fs is defined on the number of distinct
 haplotypes, which per-site calls cannot supply, so `fusFs()` sets that number to
 one more than the number of segregating sites, the most that many sites can
 produce. The value then carries no haplotype information: it depends only on the
-number of sites, the sample size and pi, and under neutrality it lies well below
-0, about -7 for 100 sequences at theta = 5. A negative Fs here is therefore not
-evidence of expansion.
+number of sites, the sample size and pi, and under neutrality it is pushed below
+0, increasingly so as theta grows: for 100 sequences it is about -0.4 at theta =
+1, -1.5 at theta = 2 and -7 at theta = 5, and at very small theta it can be
+positive. A negative Fs here is therefore not evidence of expansion.
 
 `calcNeutralityTests()` computes both per sample. One detail dominates their
 interpretation: reads are not independent lineages. Deep sequencing samples a
@@ -1184,9 +1186,10 @@ explains, and reports `n_sites`, the number of segregating sites each statistic
 rests on. Below three segregating sites D is a function of one or two
 frequencies rather than of a spectrum, so it is returned as `NA` with a warning.
 Fu's Fs is likewise `NA` for a sample with no segregating site, and for one with
-as many sites as the effective sample size. No genome length is needed: both
-statistics use the nucleotide diversity summed over the genome, which comes
-straight from the frequencies.
+at least as many sites as the effective sample size (100 or more sites once the
+depth cap applies). No genome length is needed: both statistics use the
+nucleotide diversity summed over the genome, which comes straight from the
+frequencies.
 
 ```{r neutrality-tests}
 nt <- calcNeutralityTests(whe_qc)
@@ -1404,7 +1407,7 @@ from the recipient is evidence of loss in transmission only where the recipient
 was sequenced deeply enough at that site to have shown it, so the count is split
 three ways by the recipient's depth: adequate, low, or unknown. A fourth group
 holds the sites where the recipient did make a call but quality control removed
-it, which are not absences at all.
+it, a call above 0, which `calcSharedVariants()` does not count as an absence.
 
 ```{r transmission-shared}
 sv <- calcSharedVariants(whe_qc, pairId = "pair_1")
@@ -1653,10 +1656,11 @@ in the summary carefully: the consensus object holds `altFreq`, the mean
 frequency across callers, and `qcPass` only. Read counts, depths and any
 quality-control history are *not* carried over, so run `flagISNV()` on each
 caller's own object before taking the consensus, never on the consensus itself.
-The sequence lengths, where the inputs record them, and each sample's `colData`
-row are carried over from the first input that holds the sample, and every input
-sample keeps its column, so diversity and transmission-pair functions can run on
-the consensus; those that need read depths warn or stop, because it has none.
+The sequence lengths recorded by the inputs are merged, and the call stops if
+two inputs give one sequence different lengths. Each sample's `colData` row is
+taken from the first input that holds the sample, and every input sample keeps
+its column, so diversity and transmission-pair functions can run on the
+consensus; those that need read depths warn or stop, because it has none.
 
 ## Measuring agreement between callers
 
@@ -2073,10 +2077,10 @@ exactly three sites is formally defined and practically meaningless, and these
 are synthetic files besides, so no sign in this table carries any biological
 meaning. In real within-host data a negative D is often read as purifying
 selection or as expansion after a bottleneck, and a positive one as balancing
-selection or population structure, while Fs as computed here lies well below 0
-even under neutrality, so its sign carries no such reading; either reading of D
-needs far more sites than these fixtures hold, and the deep-sequencing caveats
-above apply to all of them.
+selection or population structure, while Fs as computed here is pushed below 0
+even under neutrality, so a negative value carries no such reading; either
+reading of D needs far more sites than these fixtures hold, and the
+deep-sequencing caveats above apply to all of them.
 
 # Scope and limitations
 
@@ -2159,8 +2163,8 @@ threshold to 1 and treats the reference allele as ancestral.
 **Fu's Fs.** A neutrality statistic sensitive to an excess of rare alleles,
 defined on the number of distinct haplotypes, which this package sets to one
 more than the number of segregating sites, the infinite-sites maximum, so that
-here it lies well below 0 under neutrality and its sign is not evidence of
-expansion.
+here it is pushed below 0 under neutrality, increasingly so as theta grows, and
+a negative value is not evidence of expansion.
 
 **Haplotype.** The full sequence of one genome, as opposed to the per-site calls
 this package works with.

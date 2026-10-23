@@ -57,6 +57,21 @@ NULL
                numeric(1)))
 }
 
+## Allele frequencies for the index functions: numbers in [0, 1], with NA
+## allowed (an all-NA logical vector counts as numeric). Text is an error
+## rather than being coerced to NA, and so is a value outside the range.
+.checkFreq <- function(freq) {
+    if (!is.numeric(freq) && !(is.logical(freq) && all(is.na(freq))))
+        stop("'freq' must be a numeric vector of allele frequencies.",
+             call. = FALSE)
+    bad <- !is.na(freq) & (freq < 0 | freq > 1)
+    if (any(bad))
+        stop("'freq' must lie between 0 and 1; ", sum(bad),
+             " value(s) do not, the first being ", freq[bad][1L], ".",
+             call. = FALSE)
+    as.numeric(freq)
+}
+
 # ============================================================
 # Standalone math functions (exported, work on plain vectors)
 # ============================================================
@@ -73,7 +88,8 @@ NULL
 #' diversity.
 #'
 #' @param freq Numeric vector. Alternative allele frequencies
-#'   (values in (0, 1); 0, 1, and NA are excluded).
+#'   between 0 and 1; anything else is an error. Values of 0 and 1,
+#'   which carry no diversity, and NA are excluded.
 #'
 #' @return Numeric scalar. Shannon entropy.
 #'
@@ -87,7 +103,7 @@ NULL
 #' shannonISNV(c(0.05, 0.15, 0.30, 0.45))
 #' shannonISNV(0.5) # log(2)
 shannonISNV <- function(freq) {
-    freq <- as.numeric(freq)
+    freq <- .checkFreq(freq)
     freq <- freq[!is.na(freq) & freq > 0 & freq < 1]
     if (length(freq) == 0L) return(0)
     -sum(freq * log(freq) + (1 - freq) * log(1 - freq))
@@ -109,7 +125,8 @@ shannonISNV <- function(freq) {
 #' \code{meanDepth} is not provided, the uncorrected estimator
 #' is returned (equivalent to infinite sample size).
 #'
-#' @param freq Numeric vector. Alternative allele frequencies.
+#' @param freq Numeric vector. Alternative allele frequencies, between 0
+#'   and 1; anything else is an error. NA values are dropped.
 #' @param genomeLength Integer scalar. Reference genome length in bp.
 #' @param meanDepth Numeric scalar (optional). Mean read depth for
 #'   finite-sample correction. If \code{NULL}, no correction is
@@ -131,8 +148,7 @@ shannonISNV <- function(freq) {
 #' piISNV(c(0.1, 0.3, 0.5), genomeLength = 13588)
 #' piISNV(c(0.1, 0.3, 0.5), genomeLength = 13588, meanDepth = 1000)
 piISNV <- function(freq, genomeLength, meanDepth = NULL) {
-    if (!is.numeric(freq))
-        stop("'freq' must be a numeric vector.")
+    freq <- .checkFreq(freq)
     if (!is.numeric(genomeLength) || length(genomeLength) != 1L ||
         genomeLength <= 0)
         stop("'genomeLength' must be a single positive number.")
@@ -216,7 +232,8 @@ wattersonISNV <- function(nSites, genomeLength, meanDepth) {
 #' greater diversity.
 #'
 #' @param freq Numeric vector. Alternative allele frequencies
-#'   (values in (0, 1); 0, 1, and NA are excluded).
+#'   between 0 and 1; anything else is an error. Values of 0 and 1,
+#'   which carry no diversity, and NA are excluded.
 #'
 #' @return Numeric scalar. Simpson diversity index.
 #'
@@ -225,7 +242,7 @@ wattersonISNV <- function(nSites, genomeLength, meanDepth) {
 #' simpsonISNV(c(0.05, 0.15, 0.30, 0.45))
 #' simpsonISNV(0.5) # maximum per-site diversity = 0.5
 simpsonISNV <- function(freq) {
-    freq <- as.numeric(freq)
+    freq <- .checkFreq(freq)
     freq <- freq[!is.na(freq) & freq > 0 & freq < 1]
     if (length(freq) == 0L) return(0)
     sum(1 - freq^2 - (1 - freq)^2)

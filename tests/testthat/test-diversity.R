@@ -28,6 +28,21 @@ test_that("piISNV rejects a mean depth that rounds to one", {
     expect_error(piISNV(0.5, 1000, meanDepth = 1), "greater than 1|> 1")
 })
 
+test_that("piISNV(), shannonISNV() and simpsonISNV() refuse frequencies outside [0, 1] (was: a negative pi, values dropped)", {
+    expect_error(piISNV(c(0.1, 2), 1000), "'freq'.*between 0 and 1")
+    expect_error(shannonISNV(c(0.1, 1.5)), "'freq'.*between 0 and 1")
+    expect_error(simpsonISNV(c(-0.1, 0.2)), "'freq'.*between 0 and 1")
+    ## text was coerced to NA and gave 0 with only a coercion warning
+    expect_error(shannonISNV("a"), "'freq' must be a numeric")
+    expect_error(simpsonISNV("0.2"), "'freq' must be a numeric")
+    expect_error(piISNV("0.2", 1000), "'freq' must be a numeric")
+    ## 0, 1 and NA are still accepted, and 0 and 1 still add nothing
+    expect_equal(shannonISNV(c(0, 0.5, 1, NA)), log(2))
+    expect_equal(simpsonISNV(c(0, 0.5, 1, NA)), 0.5)
+    expect_equal(piISNV(c(0, 0.5, 1, NA), 1000), 0.0005)
+    expect_equal(shannonISNV(NA), 0)
+})
+
 test_that("piISNV rejects invalid genomeLength", {
     expect_error(piISNV(0.5, -1))
     expect_error(piISNV(0.5, 0))

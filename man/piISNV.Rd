@@ -7,7 +7,8 @@
 piISNV(freq, genomeLength, meanDepth = NULL)
 }
 \arguments{
-\item{freq}{Numeric vector. Alternative allele frequencies.}
+\item{freq}{Numeric vector. Alternative allele frequencies, between 0
+and 1; anything else is an error. NA values are dropped.}
 
 \item{genomeLength}{Integer scalar. Reference genome length in bp.}
 

@@ -8,7 +8,8 @@ simpsonISNV(freq)
 }
 \arguments{
 \item{freq}{Numeric vector. Alternative allele frequencies
-(values in (0, 1); 0, 1, and NA are excluded).}
+between 0 and 1; anything else is an error. Values of 0 and 1,
+which carry no diversity, and NA are excluded.}
 }
 \value{
 Numeric scalar. Simpson diversity index.

@@ -143,7 +143,8 @@ detectCrossContamination <- function(whe,
         if (!is.character(runCol) || length(runCol) != 1L ||
             is.na(runCol))
             stop("'runCol' must be NULL or a single column name of ",
-                 "colData(whe).")
+                 "colData(whe). Available columns: ",
+                 paste(colnames(cd), collapse = ", "))
         if (!runCol %in% colnames(cd))
             stop("Column '", runCol, "' not found in colData. ",
                  "Available columns: ",

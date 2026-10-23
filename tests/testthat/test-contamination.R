@@ -86,6 +86,8 @@ test_that("detectCrossContamination() refuses a runCol that is not one column na
     for (bad in list(1, c("run", "sample_id"), NA_character_, TRUE)) {
         expect_error(detectCrossContamination(whe, runCol = bad),
                      "'runCol' must be NULL or a single column name")
+        expect_error(detectCrossContamination(whe, runCol = bad),
+                     "Available columns: sample_id")
     }
 })
 

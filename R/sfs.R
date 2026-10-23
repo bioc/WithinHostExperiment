@@ -587,7 +587,9 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #' hold. Bins where both spectra are
 #' empty are dropped, and when only two bins remain
 #' \code{\link[stats]{chisq.test}} applies Yates' continuity
-#' correction. The chi-squared approximation is unreliable
+#' correction. No test is run, and the statistic, p-value and
+#' diagnostics are all \code{NA}, when either spectrum is empty or fewer
+#' than two bins hold variants. The chi-squared approximation is unreliable
 #' when an expected count falls below 5; instead of a warning, that
 #' condition is reported in \code{chisq_approx_ok}, and the p-value
 #' should then be read with caution.
@@ -598,12 +600,14 @@ neutralityFromSFS <- function(sfs, n = NULL) {
 #'
 #' @return A named list with components:
 #'   \describe{
-#'     \item{chisq_stat}{Chi-squared statistic.}
-#'     \item{chisq_p}{Chi-squared p-value.}
-#'     \item{df}{Degrees of freedom.}
-#'     \item{min_expected}{Smallest expected count under homogeneity,
-#'       or \code{NA} when fewer than two bins remain and no test is
+#'     \item{chisq_stat}{Chi-squared statistic, \code{NA} when no test
+#'       is run.}
+#'     \item{chisq_p}{Chi-squared p-value, \code{NA} when no test is
 #'       run.}
+#'     \item{df}{Degrees of freedom, \code{NA} when no test is run.}
+#'     \item{min_expected}{Smallest expected count under homogeneity,
+#'       or \code{NA} when either spectrum is empty or fewer than two
+#'       bins remain, and no test is run.}
 #'     \item{chisq_approx_ok}{\code{TRUE} when every expected count
 #'       is at least 5, the condition under which
 #'       \code{\link[stats]{chisq.test}} does not warn; \code{NA}
@@ -651,9 +655,11 @@ compareSFS <- function(sfs1, sfs2) {
     n1 <- sum(c1)
     n2 <- sum(c2)
 
-    ## Remove bins where both are zero
+    ## Remove bins where both are zero. An empty spectrum carries no
+    ## shape to compare, and its row of expected counts would be all zero,
+    ## so it takes the same no-test path as fewer than two bins.
     keep <- (c1 + c2) > 0
-    if (sum(keep) < 2L) {
+    if (n1 == 0L || n2 == 0L || sum(keep) < 2L) {
         return(list(chisq_stat = NA_real_, chisq_p = NA_real_,
                     df = NA_integer_, min_expected = NA_real_,
                     chisq_approx_ok = NA, n1 = n1, n2 = n2,

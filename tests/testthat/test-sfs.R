@@ -193,6 +193,26 @@ test_that("compareSFS returns NA diagnostics when fewer than two bins remain", {
     expect_true(is.na(res$chisq_approx_ok))
 })
 
+test_that("compareSFS() runs no test when a spectrum is empty (was: NaN on positive df)", {
+    sfs1 <- .sfs_with_counts(c(3, 2, 2, 1))
+    sfs2 <- .sfs_with_counts(c(0, 0, 0, 0))
+    expect_no_warning(res <- compareSFS(sfs1, sfs2))
+    expect_identical(res$chisq_stat, NA_real_)
+    expect_identical(res$chisq_p, NA_real_)
+    expect_identical(res$df, NA_integer_)
+    expect_identical(res$min_expected, NA_real_)
+    expect_identical(res$chisq_approx_ok, NA)
+    expect_equal(c(res$n1, res$n2), c(8, 0))
+    expect_equal(res$proportions2, rep(0, 4))
+    expect_identical(compareSFS(sfs2, sfs1)$df, NA_integer_)
+    ## the same through buildSFS(): every call of b lies below threshold
+    whe <- .two_sample_whe(a = c(0.1, 0.2, 0.3), b = c(0.01, 0.02, NA))
+    res <- compareSFS(buildSFS(whe, sampleIdx = "a", nBins = 4L),
+                      buildSFS(whe, sampleIdx = "b", nBins = 4L))
+    expect_identical(res$chisq_p, NA_real_)
+    expect_identical(res$chisq_approx_ok, NA)
+})
+
 test_that("compareSFS rejects mismatched bins", {
     whe <- .make_whe()
     sfs1 <- buildSFS(whe, nBins = 10, genomeLength = 1000L)

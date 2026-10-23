@@ -269,9 +269,19 @@ test_that("FILTER, strand counts and indels are handled as the man page says", {
     expect_false("fwdAltCount" %in% SummarizedExperiment::assayNames(whe))
     expect_false("strand_bias_filter" %in% qcLog(whe)$step)
     expect_error(flagStrandBiasSCI(whe), "fwdAltCount")
-    ## the documented FILTER recipe drops the rejected record
+    ## the documented FILTER recipe drops the rejected record, through a
+    ## file, which keeps colData and the caller, and through as()
     vcf <- VariantAnnotation::readVcf(f)
     keep <- VariantAnnotation::filt(vcf) %in% c("PASS", ".")
+    passed <- tempfile(fileext = ".vcf")
+    VariantAnnotation::writeVcf(vcf[keep, ], passed)
+    kept <- readWithinHost(passed, colData = S4Vectors::DataFrame(
+        sample_id = "d"), caller = "lofreq")
+    expect_identical(BiocGenerics::start(SummarizedExperiment::rowRanges(
+        kept)), c(45L, 300L, 400L))
+    expect_identical(colnames(kept), "d")
+    expect_equal(unname(SummarizedExperiment::assay(kept, "altFreq")[, 1]),
+                 c(0.35, 0.1, 0.1))
     expect_identical(BiocGenerics::start(SummarizedExperiment::rowRanges(
         as(vcf[keep, ], "WithinHostExperiment"))), c(45L, 300L, 400L))
     ## and the documented subset keeps substitutions only

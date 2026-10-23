@@ -105,16 +105,22 @@ NULL
 #' \strong{What is not read.} The \code{FILTER} column is not read, so a
 #' record the caller rejected (LoFreq's \code{sb_fdr} or
 #' \code{min_snvqual}, for instance) is imported as a call, and
-#' \code{\link{flagISNV}} judges it by depth and frequency alone. To drop
-#' such records, read the file with \code{readVcf()}, keep those whose
-#' \code{FILTER} is \code{PASS} or \code{.}, and convert the object:
+#' \code{\link{flagISNV}} judges it by its depth, frequency and read-count
+#' thresholds alone. To drop such records, read the file with
+#' \code{readVcf()}, keep those whose \code{FILTER} is \code{PASS} or
+#' \code{.}, write them to a file and import that:
 #' \preformatted{
 #' vcf <- VariantAnnotation::readVcf(path)
 #' keep <- VariantAnnotation::filt(vcf) \%in\% c("PASS", ".")
-#' whe <- as(vcf[keep, ], "WithinHostExperiment")
+#' passed <- tempfile(fileext = ".vcf")
+#' VariantAnnotation::writeVcf(vcf[keep, ], passed)
+#' whe <- readWithinHost(passed, colData, caller = "lofreq")
 #' }
-#' The object then takes its sample names from the VCF (\code{"sample1"}
-#' when it has no sample column), not from \code{colData}.
+#' This keeps every argument of \code{readWithinHost()}. Converting the
+#' subset directly, with \code{as(vcf[keep, ], "WithinHostExperiment")},
+#' also works, but the caller is then taken from the \code{##source}
+#' header line (the generic layout when it names none), the sample names
+#' from the VCF, and no \code{genome} can be given.
 #'
 #' Per-strand counts, such as LoFreq's \code{DP4} or Freebayes's
 #' \code{SAF} and \code{SAR}, are not imported. The strand-bias step of

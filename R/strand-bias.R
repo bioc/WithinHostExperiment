@@ -20,7 +20,8 @@ NULL
 #' variants; their own metric is a per-strand binomial likelihood.
 #'
 #' @param fwd_alt Numeric vector. Forward-strand alternative allele
-#'   read counts.
+#'   read counts. All four count vectors must be numeric and hold
+#'   non-negative, finite values.
 #' @param rev_alt Numeric vector. Reverse-strand alternative allele
 #'   read counts.
 #' @param fwd_total Numeric vector. Forward-strand total read counts.
@@ -62,6 +63,15 @@ sciStrandBias <- function(fwd_alt, rev_alt, fwd_total, rev_total) {
         length(fwd_alt) != length(fwd_total) ||
         length(fwd_alt) != length(rev_total))
         stop("All input vectors must have the same length.")
+    counts <- list(fwd_alt = fwd_alt, rev_alt = rev_alt,
+                   fwd_total = fwd_total, rev_total = rev_total)
+    for (nm in names(counts)) {
+        x <- counts[[nm]]
+        if (!is.numeric(x))
+            stop("'", nm, "' must be numeric.")
+        if (any(is.nan(x) | (!is.na(x) & (is.infinite(x) | x < 0))))
+            stop("'", nm, "' must hold non-negative, finite counts.")
+    }
 
     ## Pseudocount to avoid division by zero
     fwd_alt_s  <- fwd_alt + 1

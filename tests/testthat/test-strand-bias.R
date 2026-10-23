@@ -53,6 +53,22 @@ test_that("sciStrandBias detects strong forward bias", {
     expect_true(abs(sci[2]) < 0.5)
 })
 
+test_that("sciStrandBias() refuses negative counts (was: -Inf)", {
+    expect_error(sciStrandBias(-1, 2, 3, 4),
+                 "'fwd_alt' must hold non-negative, finite counts")
+    expect_error(sciStrandBias(1, 2, 3, c(-4)),
+                 "'rev_total' must hold non-negative, finite counts")
+})
+
+test_that("sciStrandBias() refuses non-finite and non-numeric counts", {
+    expect_error(sciStrandBias(Inf, 2, 3, 4), "'fwd_alt'.*finite")
+    expect_error(sciStrandBias(1, NaN, 3, 4), "'rev_alt'.*finite")
+    expect_error(sciStrandBias(1, 2, "3", 4),
+                 "'fwd_total' must be numeric")
+    expect_error(sciStrandBias(TRUE, 2, 3, 4),
+                 "'fwd_alt' must be numeric")
+})
+
 # ============================================================
 # flagStrandBiasSCI tests
 # ============================================================

@@ -8,7 +8,8 @@ sciStrandBias(fwd_alt, rev_alt, fwd_total, rev_total)
 }
 \arguments{
 \item{fwd_alt}{Numeric vector. Forward-strand alternative allele
-read counts.}
+read counts. All four count vectors must be numeric and hold
+non-negative, finite values.}
 
 \item{rev_alt}{Numeric vector. Reverse-strand alternative allele
 read counts.}

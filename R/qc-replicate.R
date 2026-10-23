@@ -85,11 +85,34 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
         return(whe)
     }
 
+    res <- .flagDiscordantReplicates(cd$replicate_group, freq_mat, qc,
+                                     freqTolerance, requireBothDetected)
+    qc <- res$qc
+
+    assay(whe, "qcPass") <- qc
+    whe <- .addQcStep(whe, "replicate_discordance", "freqTolerance",
+                      freqTolerance, res$n_flagged,
+                      sum(qc, na.rm = TRUE))
+    whe <- .addQcStep(whe, "replicate_discordance",
+                      "requireBothDetected",
+                      requireBothDetected, 0L,
+                      sum(qc, na.rm = TRUE))
+    whe
+}
+
+## Compares every pair of samples sharing a value of 'group' and sets
+## qcPass to FALSE, in every sample of the group, at each site that fails
+## for any pair. A call is a non-missing frequency. Returns the updated
+## qcPass matrix and the number of cells newly flagged. Shared by
+## flagReplicateDiscordance() and the ConcordanceRule step of flagISNV().
+.flagDiscordantReplicates <- function(group, freq_mat, qc, freqTolerance,
+                                      requireBothDetected) {
+    group <- as.character(group)
+    groups <- unique(group[!is.na(group)])
     total_flagged <- 0L
 
     for (grp in groups) {
-        grp_idx <- which(cd$replicate_group == grp &
-                             !is.na(cd$replicate_group))
+        grp_idx <- which(group == grp & !is.na(group))
         if (length(grp_idx) < 2L) next
 
         n_reps <- length(grp_idx)
@@ -125,13 +148,5 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
         }
     }
 
-    assay(whe, "qcPass") <- qc
-    whe <- .addQcStep(whe, "replicate_discordance", "freqTolerance",
-                      freqTolerance, total_flagged,
-                      sum(qc, na.rm = TRUE))
-    whe <- .addQcStep(whe, "replicate_discordance",
-                      "requireBothDetected",
-                      requireBothDetected, 0L,
-                      sum(qc, na.rm = TRUE))
-    whe
+    list(qc = qc, n_flagged = total_flagged)
 }

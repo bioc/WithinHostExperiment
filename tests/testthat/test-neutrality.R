@@ -90,9 +90,18 @@ test_that("tajimaD gives NA below three segregating sites (was: 0 at S = 0)", {
     expect_true(is.finite(D3))
 })
 
-test_that("fusFs returns 0 when S is 0", {
-    result <- fusFs(S = 0, n = 100, theta_pi = 5)
-    expect_equal(result, 0)
+test_that("fusFs() returns NA with a warning at S = 0 and at theta_pi = 0 (was: 0)", {
+    ## at S = 0, S' = P(K >= 1) = 1 and Fs = log(S' / (1 - S')) is infinite
+    expect_warning(res <- fusFs(S = 0, n = 100, theta_pi = 5),
+                   "no segregating site")
+    expect_identical(res, NA_real_)
+    ## with sites but no diversity there is no theta to condition on
+    expect_warning(res <- fusFs(S = 3, n = 100, theta_pi = 0),
+                   "theta_pi = 0")
+    expect_identical(res, NA_real_)
+    expect_warning(res <- fusFs(S = 0, n = 100, theta_pi = 0),
+                   "no segregating site")
+    expect_identical(res, NA_real_)
 })
 
 test_that("tajimaD validates inputs", {
@@ -183,10 +192,36 @@ test_that("calcNeutralityTests() counts only 0 < f < 1 as segregating (was: abse
     expect_equal(res$fusFs, three$fusFs)
     ## a sample with no polymorphism at all has no segregating site
     ## (was: n_sites 4 and D = -1.98)
-    expect_warning(none <- calcNeutralityTests(.fixed_site_whe(c(0, 1, 1, 1))),
-                   "fewer than three")
+    expect_warning(expect_warning(
+        none <- calcNeutralityTests(.fixed_site_whe(c(0, 1, 1, 1))),
+        "fewer than three"), "no segregating site")
     expect_identical(none$n_sites, 0L)
     expect_true(is.na(none$tajimaD))
+    expect_true(is.na(none$fusFs))
+})
+
+test_that("calcNeutralityTests() gives one warning per cause of NA (was: per-sample warnings, and Fs = 0 at S = 0)", {
+    ## s1: five sites; s2: none; s3: four sites at a depth of 3, so n = 3;
+    ## s4: 100 sites at depth 1000, so S + 1 exceeds n = 100
+    whe <- .neutrality_whe(c(5, 0, 4, 100))
+    depth <- SummarizedExperiment::assay(whe, "totalDepth")
+    depth[, 3] <- 3L
+    SummarizedExperiment::assay(whe, "totalDepth") <- depth
+    msgs <- character()
+    res <- withCallingHandlers(calcNeutralityTests(whe),
+        warning = function(w) {
+            msgs <<- c(msgs, conditionMessage(w))
+            invokeRestart("muffleWarning")
+        })
+    expect_length(msgs, 4L)
+    expect_match(msgs[1], "Tajima's D is NA for 1 of 4 .*fewer than three")
+    expect_match(msgs[2], "Tajima's D is NA for 1 of 4 .*below four")
+    expect_match(msgs[3], "Fu's Fs is NA for 1 of 4 .*no segregating site")
+    expect_match(msgs[4],
+                 "Fu's Fs is NA for 2 of 4 .*not below the effective sample")
+    expect_identical(is.na(res$tajimaD), c(FALSE, TRUE, TRUE, FALSE))
+    expect_identical(is.na(res$fusFs), c(FALSE, TRUE, TRUE, TRUE))
+    expect_identical(res$n_sites, c(5L, 0L, 4L, 100L))
 })
 
 test_that("n_sites counts only the QC-passed sites it used", {

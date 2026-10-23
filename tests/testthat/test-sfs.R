@@ -148,10 +148,13 @@ test_that("neutralityFromSFS handles empty SFS", {
         folded = FALSE, polarization = "reference", sampleId = "empty",
         genomeLength = 1000L, nSites = 0L, meanDepth = 1000,
         threshold = 0.03, corrected = FALSE)
-    expect_warning(res <- neutralityFromSFS(sfs),
-                   "at least three segregating sites")
+    expect_warning(expect_warning(res <- neutralityFromSFS(sfs),
+                                  "at least three segregating sites"),
+                   "no segregating site")
     expect_equal(res$S, 0L)
     expect_true(is.na(res$tajimaD))
+    ## Fu's Fs is undefined without a segregating site (was: 0)
+    expect_identical(res$fusFs, NA_real_)
 })
 
 # ---- compareSFS ----

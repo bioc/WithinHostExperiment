@@ -33,10 +33,15 @@ A \code{DataFrame} with one row per sample and columns
   each statistic rests on, that is, the sites at which the sample's
   frequency after QC lies strictly between 0 and 1; a frequency of 0,
   or of 1, a fixed difference from the reference, is not segregating
-  within the host) and one column per requested test. Tajima's D is
-  \code{NA} for a sample with fewer than three segregating sites (see
-  \code{\link{tajimaD}}); one warning names how many samples that
-  affected.
+  within the host) and one column per requested test. With \eqn{n}
+  the effective sample size, the sample's median depth capped at 100,
+  a value is \code{NA} in four cases (see
+  \code{\link{tajimaD}} and \code{\link{fusFs}}): Tajima's D when
+  \code{n_sites} is below three, or when \eqn{n} is below four; Fu's
+  Fs when \code{n_sites} is 0, or when \code{n_sites + 1} exceeds
+  \eqn{n}, which is the case for every sample with 100 or more
+  segregating sites. For each case that occurs, one warning names how
+  many samples it affected.
 }
 \description{
 Generic for computing neutrality tests from within-host

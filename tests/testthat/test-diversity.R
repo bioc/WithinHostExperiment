@@ -338,8 +338,11 @@ test_that("a sample with no calls gives zeros, not an error (was: missing value 
     expect_identical(div$richness, c(2L, 0L))
     expect_equal(div$pi[2], 0)
     expect_equal(div$watterson[2], 0)
-    expect_warning(nt <- calcNeutralityTests(whe), "fewer than three")
+    expect_warning(expect_warning(nt <- calcNeutralityTests(whe),
+                                  "fewer than three"),
+                   "no segregating site")
     expect_identical(nt$n_sites, c(2L, 0L))
     expect_true(all(is.na(nt$tajimaD)))
-    expect_equal(nt$fusFs[2], 0)
+    ## Fu's Fs is undefined without a segregating site (was: 0)
+    expect_identical(nt$fusFs[2], NA_real_)
 })

@@ -179,9 +179,12 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
 #' @param theta_pi Numeric scalar. Theta estimated from
 #'   nucleotide diversity (\eqn{\hat{\pi} \times L}).
 #'
-#' @return Numeric scalar. Fu's Fs, or \code{NA} with a warning when
-#'   \eqn{S + 1 > n}: the statistic uses \eqn{S + 1} as the number of
-#'   haplotypes, which cannot exceed the number of sequences sampled.
+#' @return Numeric scalar. Fu's Fs, or \code{NA} with a warning in three
+#'   cases: at \eqn{S = 0}, where \eqn{S' = 1} and Fs is infinite; at
+#'   \code{theta_pi = 0} with \eqn{S > 0}, where there is no diversity to
+#'   condition on; and when \eqn{S + 1 > n}, since the statistic uses
+#'   \eqn{S + 1} as the number of haplotypes, which cannot exceed the
+#'   number of sequences sampled.
 #'
 #' @references
 #' Fu YX (1997). Statistical tests of neutrality of mutations
@@ -200,7 +203,20 @@ fusFs <- function(S, n, theta_pi) {
         theta_pi < 0)
         stop("'theta_pi' must be a single non-negative number.")
 
-    if (S == 0 || theta_pi == 0) return(0)
+    ## At S = 0, S' = P(K >= 1) = 1 and Fs is infinite; with sites but no
+    ## diversity there is no theta to condition on. Like tajimaD(), the
+    ## function returns NA rather than a number that reads as neutral.
+    if (S == 0) {
+        warning("Fu's Fs is undefined with no segregating site (S = 0); ",
+                "returning NA.", call. = FALSE)
+        return(NA_real_)
+    }
+    if (theta_pi == 0) {
+        warning("Fu's Fs is undefined at theta_pi = 0 with S = ", S,
+                ": there is no diversity to condition on. Returning NA.",
+                call. = FALSE)
+        return(NA_real_)
+    }
 
     n <- as.integer(round(n))
     k_obs <- S + 1L
@@ -315,10 +331,15 @@ fusFs <- function(S, n, theta_pi) {
 #'   each statistic rests on, that is, the sites at which the sample's
 #'   frequency after QC lies strictly between 0 and 1; a frequency of 0,
 #'   or of 1, a fixed difference from the reference, is not segregating
-#'   within the host) and one column per requested test. Tajima's D is
-#'   \code{NA} for a sample with fewer than three segregating sites (see
-#'   \code{\link{tajimaD}}); one warning names how many samples that
-#'   affected.
+#'   within the host) and one column per requested test. With \eqn{n}
+#'   the effective sample size, the sample's median depth capped at 100,
+#'   a value is \code{NA} in four cases (see
+#'   \code{\link{tajimaD}} and \code{\link{fusFs}}): Tajima's D when
+#'   \code{n_sites} is below three, or when \eqn{n} is below four; Fu's
+#'   Fs when \code{n_sites} is 0, or when \code{n_sites + 1} exceeds
+#'   \eqn{n}, which is the case for every sample with 100 or more
+#'   segregating sites. For each case that occurs, one warning names how
+#'   many samples it affected.
 #'
 #' @references
 #' Tajima F (1989). Statistical method for testing the neutral
@@ -396,25 +417,44 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
 
         vals <- list(sample_id = sample_ids[j], n_sites = S)
 
+        ## where tajimaD() and fusFs() would return NA they would also warn
+        ## per sample; one summary warning per cause is given for the whole
+        ## object instead. theta_pi is positive whenever S is, since every
+        ## segregating site has 0 < f < 1.
         if ("tajimaD" %in% indices) {
-            ## below three sites tajimaD() warns per sample; one summary
-            ## warning is given for the whole object instead
-            vals$tajimaD <- if (S < 3L) NA_real_ else
+            vals$tajimaD <- if (S < 3L || n < 4L) NA_real_ else
                 tajimaD(S, n, pi_hat = theta_pi, genomeLength = 1)
         }
-        if ("fusFs" %in% indices)
-            vals$fusFs <- fusFs(S, n, theta_pi)
+        if ("fusFs" %in% indices) {
+            vals$fusFs <- if (S == 0L || S + 1L > n) NA_real_ else
+                fusFs(S, n, theta_pi)
+        }
 
-        as.data.frame(vals, stringsAsFactors = FALSE)
+        list(row = as.data.frame(vals, stringsAsFactors = FALSE), n = n)
     })
 
-    out <- DataFrame(do.call(rbind, results))
+    out <- DataFrame(do.call(rbind, lapply(results, `[[`, "row")))
+    n_eff <- vapply(results, `[[`, integer(1), "n")
+    .warnNA <- function(hit, stat, why) {
+        if (any(hit))
+            warning(stat, " is NA for ", sum(hit), " of ", nrow(out),
+                    " sample(s), ", why, call. = FALSE)
+    }
     if ("tajimaD" %in% indices) {
         few <- out$n_sites < 3L
-        if (any(few))
-            warning("Tajima's D is NA for ", sum(few), " of ", nrow(out),
-                    " sample(s), which have fewer than three segregating ",
-                    "sites.", call. = FALSE)
+        .warnNA(few, "Tajima's D",
+                "which have fewer than three segregating sites.")
+        .warnNA(!few & n_eff < 4L, "Tajima's D",
+                paste("whose effective sample size, the median depth capped",
+                      "at 100, is below four."))
+    }
+    if ("fusFs" %in% indices) {
+        none <- out$n_sites == 0L
+        .warnNA(none, "Fu's Fs", "which have no segregating site.")
+        .warnNA(!none & out$n_sites + 1L > n_eff, "Fu's Fs",
+                paste("whose n_sites is not below the effective sample",
+                      "size, the median depth capped at 100: S + 1",
+                      "haplotypes cannot occur among that many sequences."))
     }
     out
 })

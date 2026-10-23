@@ -18,9 +18,12 @@ that reflects the number of independently sampled genomes.}
 nucleotide diversity (\eqn{\hat{\pi} \times L}).}
 }
 \value{
-Numeric scalar. Fu's Fs, or \code{NA} with a warning when
-  \eqn{S + 1 > n}: the statistic uses \eqn{S + 1} as the number of
-  haplotypes, which cannot exceed the number of sequences sampled.
+Numeric scalar. Fu's Fs, or \code{NA} with a warning in three
+  cases: at \eqn{S = 0}, where \eqn{S' = 1} and Fs is infinite; at
+  \code{theta_pi = 0} with \eqn{S > 0}, where there is no diversity to
+  condition on; and when \eqn{S + 1 > n}, since the statistic uses
+  \eqn{S + 1} as the number of haplotypes, which cannot exceed the
+  number of sequences sampled.
 }
 \description{
 Computes Fu's Fs (Fu 1997), a test of neutrality based on the

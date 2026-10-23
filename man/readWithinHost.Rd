@@ -75,7 +75,12 @@ of the per-allele fields read here (INFO \code{AF}; FORMAT
 \code{ALT_QUAL}) under another \code{Number}, the function stops
 rather than give the second allele the first allele's value. Correct
 the header, or split the records first (for example with
-\code{bcftools norm -m-}).
+\code{bcftools norm -m-}). On a biallelic record a field declared
+\code{Number=1} or \code{Number=.} is read as it is. A field declared
+\code{Number=R} stops the import whatever the records, since it gives
+the reference allele's value first and that value would be read as the
+alternative allele's; declare it \code{Number=A}, with one value per
+alternative allele.
 
 \strong{Sequence lengths.} Lengths are recorded in
 \code{seqlengths(rowRanges())} from the VCF header's \code{##contig}

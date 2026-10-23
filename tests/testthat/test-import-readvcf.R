@@ -22,6 +22,53 @@ test_that("a per-allele field not declared Number=A stops the import", {
                  "bcftools norm -m-")
 })
 
+freebayes_ao <- function(number, alt, ao) vcf_file(c("##fileformat=VCFv4.2",
+    "##source=freeBayes v1.3.6",
+    "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"GT\">",
+    "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+    "##FORMAT=<ID=RO,Number=1,Type=Integer,Description=\"RO\">",
+    paste0("##FORMAT=<ID=AO,Number=", number,
+           ",Type=Integer,Description=\"AO\">"),
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\td",
+    paste0("seg\t100\t.\tA\t", alt, "\t100\t.\t.\tGT:DP:RO:AO\t0/1:100:60:",
+           ao)))
+
+test_that("a FORMAT field declared Number=R stops the import (was: the reference count read as altCount)", {
+    cd <- S4Vectors::DataFrame(sample_id = "d")
+    ## biallelic: AO holds 60 (REF) then 40 (ALT); 60 was read as altCount
+    f <- freebayes_ao("R", "G", "60,40")
+    expect_error(readWithinHost(f, colData = cd, caller = "freebayes"),
+                 "AO as Number=R.*Declare each such field Number=A")
+    expect_error(as(VariantAnnotation::readVcf(f), "WithinHostExperiment"),
+                 "the VCF declares AO as Number=R")
+    ## multi-allelic: both alleles were given 30, the REF count
+    f2 <- freebayes_ao("R", "G,T", "30,20,10")
+    expect_error(readWithinHost(f2, colData = cd, caller = "freebayes"),
+                 "AO as Number=R")
+    ## Number=A, Number=1 and Number=. stay accepted on a biallelic record
+    for (n in c("A", "1", "."))
+        expect_identical(unname(SummarizedExperiment::assay(
+            readWithinHost(freebayes_ao(n, "G", "40"), colData = cd,
+                           caller = "freebayes"), "altCount")[1, 1]),
+            40L, info = n)
+})
+
+test_that("an INFO field declared Number=R stops the import (was: the reference frequency read as altFreq)", {
+    lofreq_af <- function(alt, af) vcf_file(c("##fileformat=VCFv4.2",
+        "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",
+        "##INFO=<ID=AF,Number=R,Type=Float,Description=\"AF\">",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+        paste0("seg\t100\t.\tA\t", alt, "\t100\tPASS\tDP=1000;AF=", af)))
+    cd <- S4Vectors::DataFrame(sample_id = "d")
+    ## biallelic: altFreq was 0.9, the reference allele's frequency
+    expect_error(readWithinHost(lofreq_af("G", "0.9,0.1"), colData = cd,
+                                caller = "lofreq"), "AF as Number=R")
+    ## multi-allelic: both alleles were given 0.7
+    expect_error(readWithinHost(lofreq_af("G,T", "0.7,0.2,0.1"),
+                                colData = cd, caller = "lofreq"),
+                 "AF as Number=R")
+})
+
 test_that("Number=1 fields are fine when no record is multi-allelic", {
     f <- vcf_file(c("##fileformat=VCFv4.2",
         "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"DP\">",

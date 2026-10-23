@@ -81,7 +81,12 @@ NULL
 #' \code{ALT_QUAL}) under another \code{Number}, the function stops
 #' rather than give the second allele the first allele's value. Correct
 #' the header, or split the records first (for example with
-#' \code{bcftools norm -m-}).
+#' \code{bcftools norm -m-}). On a biallelic record a field declared
+#' \code{Number=1} or \code{Number=.} is read as it is. A field declared
+#' \code{Number=R} stops the import whatever the records, since it gives
+#' the reference allele's value first and that value would be read as the
+#' alternative allele's; declare it \code{Number=A}, with one value per
+#' alternative allele.
 #'
 #' \strong{Sequence lengths.} Lengths are recorded in
 #' \code{seqlengths(rowRanges())} from the VCF header's \code{##contig}
@@ -248,13 +253,14 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
 .PER_ALLELE_INFO <- "AF"
 .PER_ALLELE_FORMAT <- c("AO", "AF", "ALT_DP", "ALT_FREQ", "ALT_QUAL")
 
-## readVcf() keeps only the first value of a field whose header does not
-## declare it per allele, so a multi-allelic record would give every allele
+## Only a per-allele field declared Number=A is read correctly. A
+## Number=R field holds the reference allele's value first, and that is
+## the value read, so it is refused on any record. readVcf() keeps only
+## the first value of a field declared otherwise, which is harmless on a
+## biallelic record but would give every allele of a multi-allelic record
 ## the first allele's value. Stop instead.
 #' @keywords internal
 .checkPerAlleleNumbers <- function(vcf, label = "the VCF") {
-    multi <- lengths(alt(vcf)) > 1L
-    if (!any(multi)) return(invisible(TRUE))
     hdr <- header(vcf)
     num <- function(d, ids) {
         ids <- intersect(ids, rownames(d))
@@ -262,7 +268,17 @@ readWithinHost <- function(vcfFiles, colData, caller = "auto",
     }
     declared <- c(num(info(hdr), .PER_ALLELE_INFO),
                   num(geno(hdr), .PER_ALLELE_FORMAT))
-    bad <- declared[!declared %in% c("A", "R")]
+    with_ref <- names(declared)[declared == "R"]
+    if (length(with_ref))
+        stop(label, " declares ", paste(with_ref, collapse = ", "),
+             " as Number=R in its header, which gives the reference ",
+             "allele's value before those of the alternative alleles, so ",
+             "the reference value would be read as the alternative ",
+             "allele's. Declare each such field Number=A, with one value ",
+             "per alternative allele.", call. = FALSE)
+    multi <- lengths(alt(vcf)) > 1L
+    if (!any(multi)) return(invisible(TRUE))
+    bad <- declared[declared != "A"]
     if (length(bad))
         stop(label, " has ", sum(multi), " record(s) with several ",
              "alternative alleles, but its header declares ",

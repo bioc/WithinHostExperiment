@@ -40,6 +40,22 @@ test_that("NG86 synonymous sites match hand-computed values", {
     expect_length(sites, 61L)
 })
 
+test_that("NG86 sites of the 61 sense codons equal those of MSA2dist", {
+    skip_if_not_installed("MSA2dist")
+    sites <- WithinHostExperiment:::.NG_SYN_SITES
+    ## a one-codon sequence does not make a codon matrix, so each codon
+    ## is read twice and its sites halved
+    msa <- t(vapply(names(sites), function(codon) {
+        two <- strrep(codon, 2L)
+        cm <- MSA2dist::dnastring2codonmat(
+            Biostrings::DNAStringSet(c(a = two, b = two)))
+        r <- unlist(MSA2dist::codonmat2pnps(cm))
+        as.numeric(r[c("S", "N")]) / 2
+    }, numeric(2)))
+    expect_equal(unname(msa[, 1L]), unname(sites))
+    expect_equal(unname(msa[, 2L]), unname(3 - sites))
+})
+
 test_that("pNpSWithinHost normalises by synonymous and nonsynonymous sites", {
     skip_if_not_installed("txdbmaker")
     ## 1 A>G: ATG -> GTG (M -> V); 6 G>A: CTG -> CTA (L -> L)

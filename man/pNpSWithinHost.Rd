@@ -135,6 +135,17 @@ warning names them with the nucleotides and codons they share. The
 sites of a gene are summed in the same way over the codons of that
 gene's own transcripts, so a codon shared by two genes is counted in
 each of them but once in the total.
+
+\strong{Relation to MSA2dist.} \code{MSA2dist::codonmat2pnps()} and
+\code{MSA2dist::dnastring2kaks()} compare pairs of aligned sequences
+codon by codon, so they cannot take a set of per-site iSNV calls,
+each present in a sample at its own frequency; that is why the sites
+are counted here. Codon for codon the counts agree: each of the 61
+sense codons carries the same Nei-Gojobori synonymous and
+nonsynonymous sites here as in \code{MSA2dist::codonmat2pnps()}. They
+differ only at stop codons, which carry no sites here but a third or
+two thirds of a synonymous site there, so over a coding sequence
+holding stop codons the two totals differ.
 }
 \examples{
 ## A 15-nucleotide coding sequence, ATG CTG AAA GGG TAA

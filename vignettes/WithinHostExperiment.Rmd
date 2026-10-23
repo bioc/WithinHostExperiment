@@ -539,9 +539,10 @@ frequency a call may have and be kept; `maxFreq`, above which a variant is
 treated as a consensus-level change rather than within-host variation;
 `minAltReads`, a floor on the reads supporting the alternative allele;
 `maxStrandBias`, the largest tolerated fold-difference between the strands; and
-`replicateConc`, recorded for provenance but applied by a separate function.
-Defaults follow the within-host literature, and the class documentation gives
-the reasoning for each.
+`replicateConc`, which is not a threshold but an optional rule for technical
+replicates, described under replicate-aware quality control below. Defaults
+follow the within-host literature, and the class documentation gives the
+reasoning for each.
 
 ```{r qc-filter}
 filt <- ISNVFilter(minDepth = 200L, minFreq = 0.03)
@@ -666,8 +667,8 @@ whe_rep <- readWithinHost(
     ),
     caller = "ivar", genome = ref
 )
-whe_rep <- flagReplicateDiscordance(whe_rep, freqTolerance = 0.05)
-qcLog(whe_rep)
+rep_checked <- flagReplicateDiscordance(whe_rep, freqTolerance = 0.05)
+qcLog(rep_checked)
 ```
 
 Two rows are recorded, one per argument, but only the first counts anything: the
@@ -682,6 +683,31 @@ choice: the sampling spread of a frequency difference grows with frequency, so a
 fixed tolerance removes proportionally more calls at intermediate frequencies
 than at the bottom of the range. Report the tolerance alongside any count of
 discordant sites.
+
+The same comparison can travel with the other thresholds. A `ConcordanceRule`
+holds the two settings, and an `ISNVFilter` that carries one in `replicateConc`
+applies it as the last step of `flagISNV()`. The filter, rule included, is then
+stored in `qcFilters`, so the object records every check applied to it, not only
+the per-sample thresholds.
+
+```{r qc-replicate-rule}
+rule <- ConcordanceRule(freqTolerance = 0.05)
+rep_qc <- flagISNV(whe_rep,
+    ISNVFilter(minDepth = 200L, replicateConc = rule))
+qcLog(rep_qc)
+qcFilters(rep_qc)[[1]]
+```
+
+The four per-sample steps come first and the two replicate rows last, written as
+the separate function writes them. The depth floor flags 2 cells, one site below
+200 reads in both replicates, and the rule then flags the same 6 cells as
+before. It compares the calls as made, before any threshold, so a threshold can
+only decide whether a cell the rule flags was already flagged, and here none
+was; 24 of the 32 cells remain passed. The last line of the stored filter shows
+the rule. A rule needs replicates to compare, so `flagISNV()` stops when
+`colData` has no `replicate_group` with two or more samples, rather than return
+an object that looks checked; samples without a replicate are named in a warning
+and filtered by the thresholds alone.
 
 ## Masking primer sites
 

@@ -296,12 +296,18 @@ plotPairScatter <- function(whe, pairId, threshold = 0.03) {
     .requireGgplot2()
 
     pf <- exportPairFrequencies(whe, pairId = pairId)
+    if (nrow(pf) == 0L) {
+        message("Pair '", pairId, "' has no site where either host ",
+                "carries an allele; nothing to plot")
+        return(ggplot2::ggplot())
+    }
 
     d_freq <- ifelse(is.na(pf$donor_freq), 0, pf$donor_freq)
     r_freq <- ifelse(is.na(pf$recipient_freq), 0,
                      pf$recipient_freq)
     ## a host carries the allele where its frequency is known and above
-    ## 0, as in exportPairFrequencies()
+    ## 0, as in exportPairFrequencies(); every row it returns is carried
+    ## by one host at least, so "Other" is a fallback that should not occur
     d_pres <- .carries(pf$donor_freq)
     r_pres <- .carries(pf$recipient_freq)
     category <- ifelse(

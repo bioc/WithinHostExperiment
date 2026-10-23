@@ -185,6 +185,14 @@ test_that("a pair that carries no allele gives empty results (was: an error)", {
     expect_message(q <- quickBottleneck(whe, pairId = "q"),
                    "No donor variants above threshold")
     expect_true(is.na(q$Nb))
+    ## and the scatter plot says there is nothing to draw (was: a grid
+    ## error when printed)
+    expect_message(p <- plotPairScatter(whe, pairId = "q"),
+                   "nothing to plot")
+    expect_s3_class(p, "ggplot")
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    expect_no_error(print(p))
 })
 
 test_that("plotPairScatter() draws a recorded recipient 0 as donor-only (was: Shared, then Other)", {

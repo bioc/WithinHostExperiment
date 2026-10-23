@@ -159,6 +159,34 @@ test_that("a frequency of 0 is not a call in a pair (was: counted as shared)", {
     }
 })
 
+test_that("a pair that carries no allele gives empty results (was: an error)", {
+    ## pair q lists three assessed sites without alternative reads in
+    ## both hosts, so neither host carries an allele anywhere
+    write_table <- function(aaf) {
+        f <- tempfile(fileext = ".csv")
+        utils::write.csv(data.frame(chrom = "seg", pos = 1:3 * 100L,
+                                    ref = "A", alt = "G", aaf = aaf,
+                                    depth = 1000L), f, row.names = FALSE)
+        f
+    }
+    files <- c(write_table(c(0.1, 0.2, 0)), write_table(c(0.15, 0, 0)),
+               write_table(c(0, 0, 0)), write_table(c(0, 0, 0)))
+    whe <- readWithinHostTable(files, format = "generic",
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r", "d2", "r2"),
+            role = c("donor", "recipient", "donor", "recipient"),
+            pair_id = c("p", "p", "q", "q")))
+    expect_identical(nrow(exportPairFrequencies(whe, pairId = "q")), 0L)
+    ## the other pair is still exported when every pair is asked for
+    all_pairs <- exportPairFrequencies(whe)
+    expect_identical(unique(all_pairs$pair_id), "p")
+    sv <- calcSharedVariants(whe, pairId = "q")
+    expect_identical(sv$n_total, 0L)
+    expect_true(is.na(sv$sharing_rate))
+    expect_message(q <- quickBottleneck(whe, pairId = "q"),
+                   "No donor variants above threshold")
+    expect_true(is.na(q$Nb))
+})
+
 test_that("exportPairFrequencies errors without pairs", {
     vcf <- system.file("extdata", "test_donor.vcf",
                        package = "WithinHostExperiment")

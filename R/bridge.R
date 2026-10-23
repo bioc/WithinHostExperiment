@@ -110,7 +110,8 @@ exportPairFrequencies <- function(whe, pairId = NULL,
             donor_freq     = d_freq[has_data],
             recipient_freq = r_freq[has_data],
             shared         = (d_pres & r_pres)[has_data],
-            pair_id        = as.character(pairs$pair_id[p]),
+            pair_id        = rep(as.character(pairs$pair_id[p]),
+                                 sum(has_data)),
             row_index      = unname(which(has_data)),
             recipient_col  = rep(r_col, sum(has_data))
         )

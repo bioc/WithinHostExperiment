@@ -451,11 +451,17 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #' only as far as the reference is close to the population the host was
 #' infected from. H is defined as:
 #' \deqn{H = \hat{\pi} - \hat{\theta}_H}
-#' where \eqn{\hat{\theta}_H =
+#' where \eqn{\hat{\pi} = \frac{2}{n(n-1)} \sum_i i (n - i) \xi_i}{pi =
+#'   2/(n(n-1)) * sum(i * (n - i) * xi_i)} and \eqn{\hat{\theta}_H =
 #'   \frac{2}{n(n-1)} \sum_i i^2 \xi_i}{theta_H = 2/(n(n-1)) * sum(i^2 * xi_i)}
-#' and \eqn{\xi_i} is the count of sites with \eqn{i} derived
-#' alleles. A negative H indicates an excess of high-frequency
-#' variants.
+#' are Fay and Wu's estimators on the same classes, and \eqn{\xi_i} is
+#' the count of sites with \eqn{i} derived alleles. Each bin stands for
+#' the class \eqn{i} nearest its midpoint, \code{round(mid * n)}, held
+#' within 1 to \eqn{n - 1}. On matching classes both estimators have the
+#' same expectation under neutrality, so H is centred on 0, and
+#' \eqn{\hat{\pi}} carries the \eqn{n/(n-1)} correction that
+#' \code{\link{calcNeutralityTests}} applies. A negative H indicates an
+#' excess of high-frequency variants.
 #'
 #' The per-site values need the spectrum's genome length, which
 #' \code{\link{buildSFS}} takes from the object; a spectrum without one
@@ -471,7 +477,10 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 #'   \describe{
 #'     \item{S}{Number of segregating sites.}
 #'     \item{n}{Effective sample size used.}
-#'     \item{pi}{Nucleotide diversity per site.}
+#'     \item{pi}{Nucleotide diversity per site, Fay and Wu's
+#'       \eqn{\hat{\pi}} on the classes \eqn{i}; this is the value passed
+#'       to \code{\link{tajimaD}} and, times the genome length, to
+#'       \code{\link{fusFs}}.}
 #'     \item{theta_W}{Watterson's theta per site.}
 #'     \item{theta_H}{Fay and Wu's theta_H per site.}
 #'     \item{tajimaD}{Tajima's D.}
@@ -525,14 +534,21 @@ neutralityFromSFS <- function(sfs, n = NULL) {
              "seqlengths(rowRanges()) are recorded, or pass genomeLength ",
              "to buildSFS().", call. = FALSE)
 
-    ## Reconstruct per-site pi from SFS bin midpoints
+    ## Each bin stands for the derived-allele class i = round(mid * n),
+    ## held within the segregating classes 1..n-1, and pi and theta_H are
+    ## Fay and Wu's estimators on those same classes:
+    ## theta_pi = sum 2 i (n - i) xi_i / (n (n - 1)), which carries the
+    ## n/(n-1) correction, and theta_H = sum 2 i^2 xi_i / (n (n - 1)), so
+    ## that H = theta_pi - theta_H has expectation 0 under neutrality
     breaks <- sfs@breaks
     mids <- (breaks[-length(breaks)] + breaks[-1L]) / 2
     counts <- sfs@counts
+    cls <- pmin(pmax(round(mids * n), 1), n - 1)
+    norm <- 2 / (as.numeric(n) * (n - 1))
 
     ## Nucleotide diversity from SFS
     pi_per_site <- if (S > 0 && gl > 0) {
-        (2 / gl) * sum(counts * mids * (1 - mids))
+        norm * sum(counts * cls * (n - cls)) / gl
     } else {
         0
     }
@@ -542,11 +558,8 @@ neutralityFromSFS <- function(sfs, n = NULL) {
     theta_W <- if (S > 0) (S / a1) / gl else 0
 
     ## Fay and Wu's theta_H
-    ## For deep sequencing SFS, use bin midpoints as proxies
-    ## for the frequency class i/n
     theta_H <- if (S > 0) {
-        freq_classes <- round(mids * n)
-        (2 / (n * (n - 1))) * sum(counts * freq_classes^2) / gl
+        norm * sum(counts * cls^2) / gl
     } else {
         0
     }

@@ -19,7 +19,10 @@ A named list with components:
   \describe{
     \item{S}{Number of segregating sites.}
     \item{n}{Effective sample size used.}
-    \item{pi}{Nucleotide diversity per site.}
+    \item{pi}{Nucleotide diversity per site, Fay and Wu's
+      \eqn{\hat{\pi}} on the classes \eqn{i}; this is the value passed
+      to \code{\link{tajimaD}} and, times the genome length, to
+      \code{\link{fusFs}}.}
     \item{theta_W}{Watterson's theta per site.}
     \item{theta_H}{Fay and Wu's theta_H per site.}
     \item{tajimaD}{Tajima's D.}
@@ -52,11 +55,17 @@ that the reference allele is ancestral at every site, which holds
 only as far as the reference is close to the population the host was
 infected from. H is defined as:
 \deqn{H = \hat{\pi} - \hat{\theta}_H}
-where \eqn{\hat{\theta}_H =
+where \eqn{\hat{\pi} = \frac{2}{n(n-1)} \sum_i i (n - i) \xi_i}{pi =
+  2/(n(n-1)) * sum(i * (n - i) * xi_i)} and \eqn{\hat{\theta}_H =
   \frac{2}{n(n-1)} \sum_i i^2 \xi_i}{theta_H = 2/(n(n-1)) * sum(i^2 * xi_i)}
-and \eqn{\xi_i} is the count of sites with \eqn{i} derived
-alleles. A negative H indicates an excess of high-frequency
-variants.
+are Fay and Wu's estimators on the same classes, and \eqn{\xi_i} is
+the count of sites with \eqn{i} derived alleles. Each bin stands for
+the class \eqn{i} nearest its midpoint, \code{round(mid * n)}, held
+within 1 to \eqn{n - 1}. On matching classes both estimators have the
+same expectation under neutrality, so H is centred on 0, and
+\eqn{\hat{\pi}} carries the \eqn{n/(n-1)} correction that
+\code{\link{calcNeutralityTests}} applies. A negative H indicates an
+excess of high-frequency variants.
 
 The per-site values need the spectrum's genome length, which
 \code{\link{buildSFS}} takes from the object; a spectrum without one

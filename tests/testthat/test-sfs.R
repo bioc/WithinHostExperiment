@@ -157,6 +157,34 @@ test_that("neutralityFromSFS handles empty SFS", {
     expect_identical(res$fusFs, NA_real_)
 })
 
+test_that("neutralityFromSFS() puts pi and theta_H on the same classes, so H is 0 under neutrality (was: biased by about -theta/n)", {
+    ## one unfolded bin centred on 0.5 with four sites, n = 10
+    one <- new("WithinHostSFS", counts = 4L, breaks = c(0.45, 0.55),
+               folded = FALSE, polarization = "reference", sampleId = "s",
+               genomeLength = 1000L, nSites = 4L, meanDepth = 10,
+               threshold = 0.45, corrected = FALSE)
+    res <- neutralityFromSFS(one, n = 10)
+    expect_equal(res$pi, 2 * 5 * 5 * 4 / (10 * 9) / 1000)
+    expect_equal(res$theta_H, 2 * 5^2 * 4 / (10 * 9) / 1000)
+    expect_equal(res$fayWuH, 0)
+    ## the standard neutral spectrum, xi_i proportional to 1 / i, on bins
+    ## centred at i / n: pi, theta_W and theta_H all estimate theta
+    n <- 20L
+    i <- seq_len(n - 1L)
+    xi <- as.integer(232792560 / i)
+    sfs <- new("WithinHostSFS", counts = xi, breaks = (c(i, n) - 0.5) / n,
+               folded = FALSE, polarization = "reference", sampleId = "s",
+               genomeLength = 1000000000L, nSites = sum(xi),
+               meanDepth = n, threshold = 0.5 / n, corrected = FALSE)
+    ## so many sites exceed the haplotypes n sequences can carry
+    expect_warning(res <- neutralityFromSFS(sfs, n = n),
+                   "Fu's Fs is undefined")
+    expect_equal(res$pi, res$theta_H)
+    expect_equal(res$pi, res$theta_W)
+    expect_lt(abs(res$fayWuH), 1e-12)
+    expect_equal(res$tajimaD, 0)
+})
+
 # ---- compareSFS ----
 
 test_that("compareSFS compares two SFS objects", {

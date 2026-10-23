@@ -178,8 +178,9 @@ NULL
 #' The totals take each iSNV by its first counted reading, in the order
 #' of \code{collapse = "longest"}: the longest transcript that reads it in
 #' a sense codon, and where that transcript reads the nucleotide twice,
-#' the first of those readings in a sense codon. Each gene's counts take it by the first counted
-#' reading of that gene's own transcripts, so an iSNV in a codon two
+#' the first of those readings in a sense codon. Each gene's counts take
+#' it by the first counted reading of that gene's own transcripts, so an
+#' iSNV in a codon two
 #' genes share counts in both genes, as the codon's sites do, but once in
 #' the total. Sites outside every coding sequence, insertions and
 #' deletions, and codons holding an ambiguous base are not counted. An

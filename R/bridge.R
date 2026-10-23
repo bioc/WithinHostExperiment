@@ -143,14 +143,16 @@ exportPairFrequencies <- function(whe, pairId = NULL,
 #' One row is written for each donor variant at or above
 #' \code{threshold}. Where the recipient has no call, its frequency is
 #' written as 0, which an estimator reads as a variant lost in
-#' transmission. A recipient call that QC removed is not such an
-#' absence: the call may have been removed for lying above
-#' \code{maxFreq}, as when the variant rose towards fixation in the
-#' recipient. With \code{usePassedOnly = TRUE}, a donor variant at a
-#' site where the recipient made a call, at a frequency above 0, that
-#' failed QC is therefore left out, and a message gives the number of
-#' such sites, as counted by \code{n_donor_only_recipient_failed_qc} in
-#' \code{\link{calcSharedVariants}}. \code{\link{quickBottleneck}} and
+#' transmission. A recipient call at or above \code{threshold} that QC
+#' removed is not such an absence: the call may have been removed for
+#' lying above \code{maxFreq}, as when the variant rose towards fixation
+#' in the recipient. With \code{usePassedOnly = TRUE}, a donor variant at
+#' such a site is therefore left out, and a message gives the number of
+#' sites. A removed call below \code{threshold} is an absence by the
+#' estimators' own definition, and is written as 0.
+#' (\code{n_donor_only_recipient_failed_qc} in
+#' \code{\link{calcSharedVariants}} counts every removed call above 0,
+#' whatever its frequency.) \code{\link{quickBottleneck}} and
 #' \code{\link{exactBottleneck}} use the same donor variants.
 #'
 #' For comprehensive bottleneck analysis with multiple methods
@@ -190,18 +192,20 @@ asViralBottleneckInput <- function(whe, pairId = NULL, threshold = 0.03,
     donor_above <- !is.na(pf$donor_freq) & pf$donor_freq >= threshold
     pf <- pf[donor_above, , drop = FALSE]
 
-    ## A recipient call that QC removed is not an absence
+    ## A recipient call at or above threshold that QC removed is not an
+    ## absence; one below threshold is, by the estimators' definition
     failed <- logical(nrow(pf))
     if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
-        r_raw <- as.matrix(assay(whe, "altFreq"))[
-            cbind(pf$row_index, pf$recipient_col)]
-        failed <- is.na(pf$recipient_freq) & .carries(r_raw)
+        r_raw <- assay(whe, "altFreq")[cbind(pf$row_index,
+                                             pf$recipient_col)]
+        failed <- is.na(pf$recipient_freq) & !is.na(r_raw) &
+            r_raw >= threshold
     }
     n_failed <- sum(failed)
     if (n_failed > 0L)
-        message(n_failed, " donor variant site(s) where QC removed the ",
-                "recipient's call were left out: such a site is not an ",
-                "absence.")
+        message(n_failed, " donor variant site(s) where QC removed a ",
+                "recipient call at or above threshold were left out: ",
+                "such a site is not an absence.")
     pf <- pf[!failed, , drop = FALSE]
 
     ## Elsewhere a recipient without a call is written as 0

@@ -211,7 +211,7 @@ test_that("a recipient call removed by QC is left out of every estimator (was: s
     whe <- flagISNV(whe, ISNVFilter(maxFreq = 0.95))
     expect_identical(calcSharedVariants(whe, pairId = "p")$
                          n_donor_only_recipient_failed_qc, 1L)
-    left_out <- "1 donor variant site\\(s\\) where QC removed the recipient"
+    left_out <- "1 donor variant site\\(s\\) where QC removed a recipient call"
     expect_message(vb <- asViralBottleneckInput(whe, pairId = "p"), left_out)
     expect_identical(vb$pos, c(10L, 30L, 40L))
     ## without the QC mask the call is used as it was made
@@ -276,6 +276,32 @@ test_that("presence_absence leaves out a donor variant above 1 - threshold (was:
         exactBottleneck(pair(3L), pairId = "p", maxNb = 50L,
                         method = "wright_fisher")),
         "not finite at any Nb from 1 to 50")
+})
+
+test_that("a recipient call below threshold that QC removed stays an absence (was: left out)", {
+    ## the recipient carries site 1 at 30%, has 1% at site 2, which the
+    ## default minFreq removes, and 97% at site 3, which maxFreq = 0.95
+    ## removes; only site 3 is not an absence
+    gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(1:3 * 10, width = 1))
+    S4Vectors::mcols(gr)$ref <- "A"
+    S4Vectors::mcols(gr)$alt <- "G"
+    whe <- WithinHostExperiment(
+        assays = list(
+            altFreq = cbind(d = c(0.2, 0.2, 0.2), r = c(0.3, 0.01, 0.97)),
+            altCount = cbind(d = c(200L, 200L, 200L), r = c(300L, 10L, 970L)),
+            totalDepth = cbind(d = rep(1000L, 3), r = rep(1000L, 3))),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+            role = c("donor", "recipient"), pair_id = c("p", "p"),
+            row.names = c("d", "r")))
+    whe <- flagISNV(whe, ISNVFilter(maxFreq = 0.95))
+    expect_message(vb <- asViralBottleneckInput(whe, pairId = "p"),
+                   "1 donor variant site\\(s\\)")
+    expect_identical(vb$pos, c(10L, 20L))
+    expect_identical(vb$recipient_freq, c(0.3, 0))
+    q <- suppressMessages(quickBottleneck(whe, pairId = "p", maxNb = 50L))
+    expect_identical(q$n_variants, 2L)
+    expect_identical(q$n_excluded[["recipient_failed_qc"]], 1L)
 })
 
 test_that("exactBottleneck says that wright_fisher is a heuristic", {

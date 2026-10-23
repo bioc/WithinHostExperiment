@@ -245,3 +245,27 @@ test_that("a qcPass that is not a logical matrix is refused naming an ordinary R
         colData = DataFrame(sample_id = "S1")),
         "'qcPass' assay must be an ordinary R logical matrix")
 })
+
+test_that("flagReplicateDiscordance() checks requireBothDetected (was: any value taken as TRUE)", {
+    ## the same checks as ConcordanceRule(), so the two routes agree
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.1, 0.4, 0.1, 0.1), ncol = 2,
+                                       dimnames = list(NULL, c("a", "b")))),
+        rowRanges = GenomicRanges::GRanges("seg",
+            IRanges::IRanges(c(10, 20), width = 1)),
+        colData = DataFrame(sample_id = c("a", "b"),
+                            replicate_group = c("g", "g"),
+                            row.names = c("a", "b")))
+    expect_error(flagReplicateDiscordance(whe, requireBothDetected = 0.5),
+                 "'requireBothDetected' must be TRUE or FALSE")
+    expect_error(flagReplicateDiscordance(whe, requireBothDetected = NA),
+                 "'requireBothDetected' must be TRUE or FALSE")
+    expect_error(flagReplicateDiscordance(whe, freqTolerance = NA_real_),
+                 "'freqTolerance' must be a single positive number")
+    expect_error(flagReplicateDiscordance(whe, freqTolerance = 1,
+                                          requireBothDetected = FALSE),
+                 "flags nothing")
+    ## replicate intersection is still allowed
+    expect_s4_class(flagReplicateDiscordance(whe, freqTolerance = Inf),
+                    "WithinHostExperiment")
+})

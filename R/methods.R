@@ -29,9 +29,11 @@ NULL
 #'   replicate of a pair but not in the other fails (default:
 #'   \code{TRUE}).
 #'
-#' @details Neither argument is converted: a factor, a string or a logical
-#'   \code{freqTolerance} is an error, and so is a \code{requireBothDetected}
-#'   that is not logical, as in \code{\link{flagReplicateDiscordance}}.
+#' @details Neither argument is converted from another type: a factor, a
+#'   string or a logical \code{freqTolerance} is an error, and so is a
+#'   \code{requireBothDetected} that is not \code{TRUE} or \code{FALSE}, as
+#'   in \code{\link{flagReplicateDiscordance}}. An integer tolerance is
+#'   stored as a double.
 #'
 #' @return A \code{\linkS4class{ConcordanceRule}} object.
 #' @seealso \code{\link{flagISNV}}, which applies the rule, and
@@ -52,7 +54,7 @@ ConcordanceRule <- function(freqTolerance = 0.05,
         stop("'requireBothDetected' must be TRUE or FALSE, not ",
              class(requireBothDetected)[1L], ".")
     new("ConcordanceRule",
-        freqTolerance       = freqTolerance,
+        freqTolerance       = as.numeric(freqTolerance),
         requireBothDetected = requireBothDetected)
 }
 

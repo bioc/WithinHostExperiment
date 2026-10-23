@@ -51,8 +51,8 @@ test_that("ConcordanceRule() refuses a wrong type (was: coerced to a number)", {
                  "'requireBothDetected' must be TRUE or FALSE")
     expect_error(ConcordanceRule(requireBothDetected = "T"),
                  "'requireBothDetected' must be TRUE or FALSE")
-    ## an integer tolerance is a number
-    expect_equal(ConcordanceRule(1L)@freqTolerance, 1)
+    ## an integer tolerance is a number, stored as a double
+    expect_identical(ConcordanceRule(1L)@freqTolerance, 1)
 })
 
 test_that("ISNVFilter takes a ConcordanceRule or NULL as replicateConc", {

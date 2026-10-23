@@ -17,7 +17,10 @@ NULL
 #' @param freqTolerance Numeric scalar. Maximum allowable difference
 #'   in \code{altFreq} between replicates (default: 0.05).
 #' @param requireBothDetected Logical scalar. If \code{TRUE} (default),
-#'   sites detected in only one replicate are also flagged.
+#'   sites detected in only one replicate are also flagged. A
+#'   \code{freqTolerance} of 1 or more with \code{requireBothDetected =
+#'   FALSE} would flag nothing, since frequencies lie in [0, 1], and is an
+#'   error, as it is for a \code{\linkS4class{ConcordanceRule}}.
 #'
 #' @return A \code{\linkS4class{WithinHostExperiment}} with updated
 #'   \code{qcPass} and \code{qcLog}.
@@ -63,8 +66,15 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
     if (!is(whe, "WithinHostExperiment"))
         stop("'whe' must be a WithinHostExperiment object.")
     if (!is.numeric(freqTolerance) || length(freqTolerance) != 1L ||
-        freqTolerance <= 0)
+        is.na(freqTolerance) || freqTolerance <= 0)
         stop("'freqTolerance' must be a single positive number.")
+    if (!is.logical(requireBothDetected) ||
+        length(requireBothDetected) != 1L || is.na(requireBothDetected))
+        stop("'requireBothDetected' must be TRUE or FALSE.")
+    ## two frequencies in [0, 1] never differ by more than 1
+    if (freqTolerance >= 1 && !requireBothDetected)
+        stop("freqTolerance >= 1 with requireBothDetected = FALSE flags ",
+             "nothing, since frequencies lie in [0, 1].")
 
     cd <- colData(whe)
 

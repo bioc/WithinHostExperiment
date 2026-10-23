@@ -15,7 +15,10 @@ flagReplicateDiscordance(whe, freqTolerance = 0.05, requireBothDetected = TRUE)
 in \code{altFreq} between replicates (default: 0.05).}
 
 \item{requireBothDetected}{Logical scalar. If \code{TRUE} (default),
-sites detected in only one replicate are also flagged.}
+sites detected in only one replicate are also flagged. A
+\code{freqTolerance} of 1 or more with \code{requireBothDetected =
+FALSE} would flag nothing, since frequencies lie in [0, 1], and is an
+error, as it is for a \code{\linkS4class{ConcordanceRule}}.}
 }
 \value{
 A \code{\linkS4class{WithinHostExperiment}} with updated

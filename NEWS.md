@@ -4,7 +4,11 @@ Changes made in response to the Bioconductor review. The package has not
 been released, so functions are removed and renamed without a deprecation
 cycle, and objects saved with 0.99.0 must be rebuilt: an `ISNVFilter`
 saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
-`polarization` and `maxFreq` slots.
+`polarization` and `maxFreq` slots. The `WithinHostExperiment` validity
+checks every filter in `qcFilters`, so `validObject()`, subsetting and
+combining report a filter saved with 0.99.0, with a message to rebuild it
+with `ISNVFilter()`, and `flagISNV()` given one names its `replicateConc`
+slot.
 
 ## Interface changes
 
@@ -66,25 +70,27 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   reference and to one another. `region` returns one coding sequence,
   joined across its parts and read in its own direction. dN/dS between
   hosts can then be estimated with `MSA2dist::dnastring2kaks()`, which is
-  suggested, rather than with a model of this package's own.
+  suggested, rather than with a model of this package's own. When `ref`
+  and the sites share no sequence name it stops and names both sets, and
+  a `region` on a sequence missing from `ref` is reported as such.
 * `readWithinHost()` keeps its arguments but reads files with
   `VariantAnnotation::readVcf()` instead of parsing VCF text, and splits
   records with several alternative alleles with `expand()`. A per-allele
-  field that the header does not declare `Number=A` on such a record
-  stops the import, since `readVcf()` would give every allele the first
-  allele's value; a field declared `Number=R`, whose first value is the
-  reference allele's, stops it on any file, where it was read as the
-  alternative allele's count. `genome` takes a `DNAStringSet`, not a file
-  path; its lengths, or those of `##contig` header lines, are recorded in
-  `seqlengths()` for every sequence named, with a call or without. A
-  `genome` that names none of the sequences the calls lie on, or is
-  shorter than a called position, is an error, since every per-site
-  statistic would divide by its length. A file holding more than one
-  sample is refused; `as(vcf, "WithinHostExperiment")` converts a `VCF`
-  object with all of its samples. Coercion to and from `VRanges` keeps
-  every recorded sequence and its length, so the genome length survives a
-  round trip, and a sequence name may contain ':', which it used to be
-  split on.
+  field that the header does not declare `Number=A` on such a record stops
+  the import, since `readVcf()` would give every allele the first allele's
+  value; a field declared `Number=R`, whose first value is the reference
+  allele's, stops it on any file, where that value was read as the
+  alternative allele's count or frequency. `genome` takes a
+  `DNAStringSet`, not a file path; its lengths, or those of `##contig`
+  header lines, are recorded in `seqlengths()` for every sequence named,
+  with a call or without. A `genome` that names none of the sequences the
+  calls lie on, or is shorter than a called position, is an error, since
+  every per-site statistic would divide by its length. A file holding more
+  than one sample is refused; `as(vcf, "WithinHostExperiment")` converts a
+  `VCF` object with all of its samples. Coercion to and from `VRanges`
+  keeps every recorded sequence and its length, so the genome length
+  survives a round trip, and a sequence name may contain ':', which it
+  used to be split on.
 * `calcDiversity()` and `compareDiversity()` lose the `genomeLength`
   argument. The length that `pi` and `watterson` divide by is read from
   `seqlengths(rowRanges(x))`, summed over every sequence recorded for
@@ -104,7 +110,7 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   ranges are the package's own heuristics, not literature values, and the
   man page lists every one. Every sample of a `calcDiversity()` table is
   checked, where only the first row was checked before, and the result
-  names the sample.
+  names the sample; a missing value is reported as not in range.
 * `ISNVFilter()` loses the `minBaseQual` and `minMapQual` slots and
   arguments: the object holds no per-site quality, so they could be
   recorded but never applied, and quality filtering belongs in the
@@ -165,8 +171,13 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
 * `neutralityFromSFS()` computes pi and theta_H on the same derived-allele
   classes, `round(mid * n)` held within 1 to n - 1, with Fay and Wu's
   normalisation. Before, pi came from unrounded midpoints without the
-  n/(n-1) factor, so H was biased by about -theta/n under neutrality.
-  pi, Tajima's D, Fu's Fs and H from this function change.
+  n/(n-1) factor, which biased H by about -theta/n under neutrality even
+  on a complete spectrum. H is now centred on 0 only when every class
+  from 1 to n - 1 is observed and each bin holds one class; the detection
+  threshold and wide bins still shift it, to about -0.03 theta on the
+  expected neutral spectrum under the defaults (20 bins, threshold 0.03,
+  n = 100), much as before. pi, Tajima's D, Fu's Fs and H from this
+  function change.
 * `compareSFS()` stops unless both spectra share their bin breaks, their
   folding, their polarisation and their QC frequency cap, and neither is
   bias-corrected; it used to compare any two spectra with the same number
@@ -196,11 +207,15 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
 * The help pages of `fusFs()`, `calcNeutralityTests()` and
   `neutralityFromSFS()` say that the haplotype count is set to S + 1, the
   infinite-sites maximum. The value therefore carries no haplotype
-  information and lies well below 0 under neutrality, -7.00 at theta = 5
-  with n = 100, so a negative Fs is not evidence of expansion.
-* `pNpSWithinHost()` counts an iSNV only where its sites are counted. An
-  iSNV in a stop codon, including the loss of a stop codon, enters
-  neither n_S nor n_N, since a stop codon carries no sites. Each call is
+  information and is pushed below 0 under neutrality, increasingly so as
+  theta grows (-7.00 at theta = 5 with n = 100, -0.37 at theta = 1), so a
+  negative Fs is not evidence of expansion.
+* `pNpSWithinHost()` counts an iSNV only through a reading whose codon
+  carries sites. A reading in a stop codon, including the loss of a stop
+  codon, is not counted, since a stop codon carries no sites; where coding
+  sequences overlap, such an iSNV is counted through a transcript that
+  reads it in a sense codon, and one that every transcript reads in a stop
+  codon enters neither n_S nor n_N. Each call is
   classified by translating its reference and variant codons with the
   standard genetic code and no initiator rule, so `ATG` to `CTG` or `TTG`
   at the first base of a coding sequence is nonsynonymous here, as `ATG`
@@ -220,8 +235,7 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
 * `exportPairFrequencies()` and `calcSharedVariants()` take a host to
   carry an allele only where its frequency is known and above 0. A site
   that a table read with `readWithinHostTable(format = "generic")` lists
-  with `aaf = 0` counted as shared when no QC had been applied, and after
-  `flagISNV()` fell among the recipient calls that QC removed; it is now
+  with `aaf = 0` counted as shared when no QC had been applied; it is now
   an absence, split by the recipient's depth. `recipient_freq` keeps the
   recorded 0, and sites that neither host carries are no longer listed;
   a pair with no such site gives an empty table.
@@ -232,7 +246,7 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   was written as a frequency of 0 and scored as a variant lost in
   transmission, while `exact_bb` used its raw read counts. A removed call
   below `threshold` is an absence by the estimators' own definition and
-  is still written as 0.
+  is still written as 0, and a recorded 0 is never taken for a call.
 * `exactBottleneck(method = "exact_bb")` leaves out, with a message, donor
   variants whose recipient depth is unknown, which includes every site
   the recipient's VCF file does not list. They added the same constant to
@@ -252,7 +266,11 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   estimate of length 0 with two base-R warnings. It and
   `exactBottleneck()` refuse a `maxNb` that is not a single whole number
   from 1 to the integer limit; `exactBottleneck()` truncated 2.5 to 2 and
-  accepted text and logical values.
+  accepted text and logical values. Both refuse a `threshold` that is not
+  a single number above 0 and below 0.5: at 0 every recipient frequency
+  counts as present, and from 0.5 no donor variant lies between
+  `threshold` and `1 - threshold`. `quickBottleneck()` did not check it,
+  and `exactBottleneck()` accepted any value from 0 to 1.
 * `flagReplicateDiscordance()`, and the replicate step of `flagISNV()`,
   let a frequency difference equal to `freqTolerance` pass, as
   documented. A decimal subtraction such as 0.20 - 0.15 rounds to just
@@ -262,15 +280,16 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   replicate step also counts the cells it flags when `qcPass` holds
   `NA`, where the `qcLog` recorded `n_flagged` as `NA`.
 * `flagTemporalInconsistency()` counts the distinct timepoints at which a
-  site is detected within a host, not the samples, so technical
-  replicates taken at one timepoint no longer make a variant persistent;
+  site is detected within a host, not the samples, so technical replicates
+  taken at one timepoint no longer make a variant persistent;
   `minConsecutive` runs over those timepoints, and a host sampled at a
-  single timepoint is not classified. Timepoints must be numbers, dates,
-  a factor in time order, or text that reads as numbers; other text is an
-  error. A `qcPass` cell that is `NA` counts as not passed, where an `NA`
-  cell with a frequency stopped the function with an uninformative error,
-  and is left `NA` when the site is flagged. Samples with no timepoint
-  are not counted, with a warning.
+  single timepoint is not classified. Timepoints may be numbers, dates,
+  date-times, time differences, a factor in time order, or text that reads
+  as numbers; other text is an error, and a blank is a missing timepoint.
+  A `qcPass` cell that is `NA` counts as not passed, where an `NA` cell
+  with a frequency stopped the function with an uninformative error, and
+  is left `NA` when the site is flagged. Samples with no timepoint are not
+  counted, with a warning.
 * `flagStrandBiasSCI()` computes each sample's global strand ratio over
   the sites that sample called. The ratio was summed without removing
   missing values, so in a multi-sample object any sample with an absent
@@ -280,7 +299,8 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   counts, where a negative count returned `-Inf`.
 * `buildSFS()` checks `sampleIdx`, `nBins`, `threshold` and `fold` and
   names the one at fault; two samples are no longer pooled, and a filter
-  that removed every call is named. It folds a sample with no passing
+  with a `maxFreq` of 0, which leaves no call to count, is an error giving
+  that value. It folds a sample with no passing
   call to an empty spectrum, where it failed and took `buildSFSList()`
   down with it. `piISNV()`, `shannonISNV()` and `simpsonISNV()` stop on
   text and on frequencies outside [0, 1], where `piISNV()` returned a
@@ -307,18 +327,9 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   `runCol` is not a single column of `colData`; a misspelt name used to
   compare every sample with every other without a word. Samples whose
   run is `NA` are left out with a warning giving their number.
-* The WithinHostExperiment validity checks every filter in `qcFilters`,
-  so an `ISNVFilter` saved under 0.99.0 is reported, by `validObject()`
-  and by subsetting or combining, with a message to rebuild it with
-  `ISNVFilter()`; `flagISNV()` given such a filter names the
-  `replicateConc` slot. Before, the object validated and `flagISNV()`
-  failed with a slot-access error.
 * `plotPairScatter()` draws a donor variant whose recipient frequency is
-  a recorded 0 as donor-only.
-* `consensusSequences()` says that no site could be written into a
-  consensus when `ref` and the sites share no sequence name, where it said
-  no site could be annotated, and reports a `region` on a sequence
-  missing from `ref` against `region`.
+  a recorded 0 as donor-only, where it drew it as shared, and says there
+  is nothing to plot for a pair in which neither host carries an allele.
 
 ## Performance
 
@@ -380,11 +391,12 @@ saved then has a logical `replicateConc`, and a `WithinHostSFS` lacks the
   annotator is kept in `tests/testthat/helper-reference-codon.R` as a
   reference implementation, and `annotateCodonChange()` is tested
   against it.
-* Every change listed above has a test named after the behaviour it
-  replaced. The replicate rule of `flagISNV()` is tested at a tolerance
-  other than the default, with `requireBothDetected = FALSE`, on calls
-  that fail a threshold, at the tolerance boundary from both sides and on
-  a group of three replicates, with hard-coded expected flags.
+* Each behavioural change listed above has a regression test, and most
+  test names say what the behaviour used to be. The replicate rule of
+  `flagISNV()` is tested at a tolerance other than the default, with
+  `requireBothDetected = FALSE`, on calls that fail a threshold, at the
+  tolerance boundary from both sides and on a group of three replicates,
+  with hard-coded expected flags.
 
 # WithinHostExperiment 0.99.0
 

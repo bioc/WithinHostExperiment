@@ -43,6 +43,29 @@ test_that("buildSFS respects threshold", {
     expect_true(min(sfs@breaks) >= 0.10)
 })
 
+.two_sample_whe <- function(a, b) {
+    gr <- GRanges("seg", IRanges::IRanges(seq_along(a) * 100L, width = 1))
+    freq <- cbind(a = a, b = b)
+    WithinHostExperiment(
+        assays = list(altFreq = freq),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = c("a", "b"),
+                            row.names = c("a", "b")))
+}
+
+test_that("buildSFS() folds a sample with no call to an empty spectrum (was: 'x' must be numeric)", {
+    whe <- .two_sample_whe(a = c(0.1, 0.7), b = c(NA, NA))
+    sfs <- buildSFS(whe, sampleIdx = 2L, nBins = 5L)
+    expect_identical(sfs@counts, integer(5))
+    expect_identical(sfs@nSites, 0L)
+    ## buildSFSList() no longer fails for the whole object
+    sfs_list <- buildSFSList(whe, nBins = 5L)
+    expect_length(sfs_list, 2L)
+    expect_identical(sum(sfs_list$b@counts), 0L)
+    ## the fold itself is unchanged: 0.7 is binned as 0.3
+    expect_identical(sfs_list$a@counts, c(1L, 0L, 1L, 0L, 0L))
+})
+
 test_that("buildSFSList returns one SFS per sample", {
     data(example_whe)
     sfs_list <- buildSFSList(example_whe, genomeLength = 1000L)

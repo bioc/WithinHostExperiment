@@ -218,7 +218,8 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
 
     ## Fold if requested
     if (fold) {
-        freq <- ifelse(freq > 0.5, 1 - freq, freq)
+        ## pmin() keeps an empty vector numeric, which ifelse() does not
+        freq <- pmin(freq, 1 - freq)
         max_f <- 0.5
     } else {
         max_f <- 1.0

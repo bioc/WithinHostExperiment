@@ -161,6 +161,34 @@ test_that("calcNeutralityTests is silent when every sample has three sites", {
     expect_true(all(is.finite(res$tajimaD)))
 })
 
+.fixed_site_whe <- function(freq) {
+    gr <- GenomicRanges::GRanges("seg",
+        IRanges::IRanges(seq_along(freq) * 10L, width = 1))
+    WithinHostExperiment(
+        assays = list(altFreq = matrix(freq, ncol = 1),
+                      totalDepth = matrix(1000L, nrow = length(freq),
+                                          ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "s"))
+}
+
+test_that("calcNeutralityTests() counts only 0 < f < 1 as segregating (was: absent and fixed sites in S)", {
+    ## no QC has been run, so qcPass is TRUE at every site
+    whe <- .fixed_site_whe(c(0.05, 0.2, 0.3, 0, 1, 1, 1))
+    res <- calcNeutralityTests(whe)
+    three <- calcNeutralityTests(whe[1:3, ])
+    expect_identical(res$n_sites, 3L)
+    expect_equal(res$tajimaD, three$tajimaD)
+    expect_equal(res$tajimaD, 0.8175039, tolerance = 1e-6)
+    expect_equal(res$fusFs, three$fusFs)
+    ## a sample with no polymorphism at all has no segregating site
+    ## (was: n_sites 4 and D = -1.98)
+    expect_warning(none <- calcNeutralityTests(.fixed_site_whe(c(0, 1, 1, 1))),
+                   "fewer than three")
+    expect_identical(none$n_sites, 0L)
+    expect_true(is.na(none$tajimaD))
+})
+
 test_that("n_sites counts only the QC-passed sites it used", {
     whe <- .neutrality_whe(c(5))
     qc <- matrix(c(TRUE, TRUE, TRUE, FALSE, FALSE), ncol = 1,

@@ -72,7 +72,13 @@ sites at which the sample has a frequency, before QC, and
 through the filters applied (the strictest \code{minFreq} among
 them), \code{NA} when no filter was applied or
 \code{usePassedOnly = FALSE}. \code{richness} counts the sites that
-entered the indices after QC. A site counts as assessed only when the
+entered the indices after QC: the segregating sites, whose frequency
+lies strictly between 0 and 1. A frequency of 0, or of 1, a fixed
+difference from the reference such as iVar reports, is not
+segregating within the host, so it enters none of the indices; the
+site count of \code{"watterson"} and the singletons and doubletons of
+\code{"chao1"} come from the same sites. A site counts as assessed
+only when the
 sample has a call there: a VCF lists only the sites a caller reported,
 so a site sequenced without a call cannot be told apart from one not
 sequenced at all, and neither is counted.

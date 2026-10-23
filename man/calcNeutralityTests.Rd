@@ -30,8 +30,10 @@ A \code{DataFrame} of neutrality statistics.
 
 A \code{DataFrame} with one row per sample and columns
   \code{sample_id}, \code{n_sites} (the number of segregating sites
-  each statistic rests on, that is, the variant sites present in the
-  sample after QC) and one column per requested test. Tajima's D is
+  each statistic rests on, that is, the sites at which the sample's
+  frequency after QC lies strictly between 0 and 1; a frequency of 0,
+  or of 1, a fixed difference from the reference, is not segregating
+  within the host) and one column per requested test. Tajima's D is
   \code{NA} for a sample with fewer than three segregating sites (see
   \code{\link{tajimaD}}); one warning names how many samples that
   affected.

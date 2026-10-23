@@ -312,8 +312,10 @@ fusFs <- function(S, n, theta_pi) {
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
 #'   \code{sample_id}, \code{n_sites} (the number of segregating sites
-#'   each statistic rests on, that is, the variant sites present in the
-#'   sample after QC) and one column per requested test. Tajima's D is
+#'   each statistic rests on, that is, the sites at which the sample's
+#'   frequency after QC lies strictly between 0 and 1; a frequency of 0,
+#'   or of 1, a fixed difference from the reference, is not segregating
+#'   within the host) and one column per requested test. Tajima's D is
 #'   \code{NA} for a sample with fewer than three segregating sites (see
 #'   \code{\link{tajimaD}}); one warning names how many samples that
 #'   affected.
@@ -366,7 +368,9 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
         freq_j <- freq_mat[, j]
         if (usePassedOnly && !is.null(qc_mat))
             freq_j[!qc_mat[, j]] <- NA
-        valid <- freq_j[!is.na(freq_j)]
+        ## a site segregates within the host only when both alleles are
+        ## present: a frequency of 0 or 1 adds to S but nothing to pi
+        valid <- freq_j[!is.na(freq_j) & freq_j > 0 & freq_j < 1]
 
         S <- length(valid)
         md <- if (!is.null(depth_mat)) {

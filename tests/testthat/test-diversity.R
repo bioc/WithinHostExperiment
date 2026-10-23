@@ -247,6 +247,31 @@ test_that("n_sites_assessed and detection_limit tell a zero apart", {
     expect_true(all(is.na(no_qc$detection_limit)))
 })
 
+test_that("calcDiversity() counts only 0 < f < 1 as segregating (was: absent and fixed sites in richness, watterson and chao1)", {
+    freq <- c(0.05, 0.2, 0.3, 0, 1, 1, 1)
+    gr <- GenomicRanges::GRanges("s",
+        IRanges::IRanges(seq_along(freq) * 10L, width = 1))
+    GenomeInfoDb::seqlengths(gr) <- c(s = 1000L)
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(freq, ncol = 1),
+                      totalDepth = matrix(1000L, nrow = 7, ncol = 1),
+                      altCount = matrix(c(1L, 1L, 2L, 0L, 1000L, 1000L,
+                                          1000L), ncol = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = "S1"))
+    ## no QC has been run, so qcPass is TRUE at every site
+    div <- calcDiversity(whe)
+    expect_identical(div$n_sites_assessed, 7L)
+    expect_identical(div$richness, 3L)
+    expect_equal(div$watterson, wattersonISNV(3, 1000, 1000))
+    ## chao1 takes its singletons and doubletons from the same three sites
+    expect_equal(div$chao1, chao1ISNV(c(1L, 1L, 2L), detected = 3))
+    ## the indices that already left these sites out are unchanged
+    expect_equal(div$shannon, shannonISNV(freq[1:3]))
+    expect_equal(div$simpson, simpsonISNV(freq[1:3]))
+    expect_equal(div$pi, piISNV(freq[1:3], 1000, meanDepth = 1000))
+})
+
 test_that("the genome length sums every recorded sequence (was: only those with sites)", {
     gr <- GenomicRanges::GRanges(c("seg1", "seg2"),
                                  IRanges::IRanges(c(10, 20), width = 1))

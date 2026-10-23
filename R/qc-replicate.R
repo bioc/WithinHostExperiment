@@ -150,3 +150,27 @@ flagReplicateDiscordance <- function(whe, freqTolerance = 0.05,
 
     list(qc = qc, n_flagged = total_flagged)
 }
+
+## Stops when flagISNV() is given a ConcordanceRule but colData names no
+## pair of replicates, and warns naming the samples the rule cannot reach
+.checkReplicateGroups <- function(cd, ids) {
+    if (!"replicate_group" %in% colnames(cd))
+        stop("The filter's replicateConc rule needs a 'replicate_group' ",
+             "column in colData naming the technical replicates of ",
+             "each sample.")
+    group <- as.character(cd$replicate_group)
+    sizes <- table(group[!is.na(group)])
+    replicated <- !is.na(group) & group %in% names(sizes)[sizes >= 2L]
+    if (!any(replicated))
+        stop("The filter's replicateConc rule found no replicate_group ",
+             "with two or more samples to compare.")
+    if (!all(replicated)) {
+        if (is.null(ids)) ids <- as.character(seq_along(group))
+        warning("The replicateConc rule cannot be applied to ",
+                sum(!replicated), " sample(s) without a replicate (",
+                paste(ids[!replicated], collapse = ", "), "); their ",
+                "calls are filtered by the other thresholds only.",
+                call. = FALSE)
+    }
+    invisible(replicated)
+}

@@ -2,7 +2,8 @@
 # Quality control: flag-based filtering (never deletes rows)
 
 #' @include methods.R
-#' @importFrom SummarizedExperiment assay assay<- assayNames rowRanges
+#' @importFrom SummarizedExperiment assay assay<- assayNames colData
+#'   rowRanges
 #' @importFrom GenomicRanges findOverlaps
 #' @importFrom S4Vectors DataFrame queryHits
 NULL
@@ -36,15 +37,26 @@ NULL
 #'   \item Minimum alternative allele read count (\code{minAltReads})
 #'   \item Strand bias (\code{maxStrandBias}) -- only if
 #'     \code{fwdAltCount} and \code{revAltCount} assays exist
+#'   \item Replicate concordance (\code{replicateConc}) -- only if the
+#'     filter holds a \code{\link{ConcordanceRule}}
 #' }
 #'
 #' Base and mapping quality are not filtered here: the object holds no
 #' per-site quality, so those thresholds belong in the variant caller.
-#' The \code{replicateConc} slot of the filter is recorded for
-#' provenance but not applied here; \code{TRUE} raises a warning. Use
-#' \code{\link{flagReplicateDiscordance}} for replicate concordance.
+#'
+#' The replicate step compares every pair of samples that share a value
+#' of the \code{replicate_group} column of \code{colData} and flags a site
+#' that fails the rule in every sample of the group. It compares the calls
+#' as made, before the thresholds above, so it flags what
+#' \code{\link{flagReplicateDiscordance}} flags with the same settings,
+#' and it records the same two \code{qcLog} rows. A rule with no
+#' \code{replicate_group} column, or with no group of two or more samples,
+#' is an error rather than a step that checks nothing. Samples outside
+#' any such group are named in a warning and are filtered by the other
+#' thresholds only.
 #'
 #' @seealso \code{\link{ISNVFilter}} for filter configuration,
+#'   \code{\link{ConcordanceRule}} for the replicate rule,
 #'   \code{\link{passedISNV}} for extracting passed variants,
 #'   \code{\link{qcSummary}} for QC report,
 #'   \code{\link{flagReplicateDiscordance}} for replicate QC.
@@ -73,12 +85,10 @@ setMethod("flagISNV", "WithinHostExperiment",
         stop("WithinHostExperiment must have a 'qcPass' assay")
     }
 
-    ## A threshold this function cannot apply must not pass unnoticed
-    if (isTRUE(slot(filter, "replicateConc"))) {
-        warning("replicateConc is recorded but not applied by ",
-                "flagISNV(); use flagReplicateDiscordance().",
-                call. = FALSE)
-    }
+    ## A replicate rule with nothing to compare must not pass unnoticed
+    rule <- slot(filter, "replicateConc")
+    if (!is.null(rule))
+        .checkReplicateGroups(colData(whe), colnames(whe))
 
     qc <- assay(whe, "qcPass")
 
@@ -150,6 +160,21 @@ setMethod("flagISNV", "WithinHostExperiment",
         qc[fail] <- FALSE
         whe <- .addQcStep(whe, "strand_bias_filter", "maxStrandBias",
                           max_sb, n_flag,
+                          sum(qc, na.rm = TRUE))
+    }
+
+    ## ---- Step 6: Replicate concordance (only with a ConcordanceRule) ----
+    if (!is.null(rule)) {
+        tol <- slot(rule, "freqTolerance")
+        both <- slot(rule, "requireBothDetected")
+        res <- .flagDiscordantReplicates(colData(whe)$replicate_group,
+                                         assay(whe, "altFreq"), qc,
+                                         tol, both)
+        qc <- res$qc
+        whe <- .addQcStep(whe, "replicate_discordance", "freqTolerance",
+                          tol, res$n_flagged, sum(qc, na.rm = TRUE))
+        whe <- .addQcStep(whe, "replicate_discordance",
+                          "requireBothDetected", both, 0L,
                           sum(qc, na.rm = TRUE))
     }
 

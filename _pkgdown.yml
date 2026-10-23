@@ -12,10 +12,12 @@ reference:
   - title: "Classes"
     desc: >
       The container for within-host variant calls, the filter that QC
-      applies to it, and the site frequency spectrum built from it.
+      applies to it, the rule technical replicates must meet, and the
+      site frequency spectrum built from the calls.
     contents:
       - WithinHostExperiment-class
       - ISNVFilter-class
+      - ConcordanceRule-class
       - WithinHostSFS-class
 
   - title: "Import and conversion"
@@ -44,6 +46,7 @@ reference:
       cross-contamination and summarise what QC removed.
     contents:
       - ISNVFilter
+      - ConcordanceRule
       - adaptiveFilter
       - flagISNV
       - flagPrimerSites

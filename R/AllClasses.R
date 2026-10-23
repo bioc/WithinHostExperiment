@@ -2,9 +2,94 @@
 # S4 class definitions for WithinHostExperiment
 # Collate order: loaded first
 
-#' @importFrom methods setClass setValidity new is validObject slot
+#' @importFrom methods setClass setClassUnion setValidity new is
+#'   validObject slot
 #' @importFrom S4Vectors DataFrame
 NULL
+
+# ============================================================
+# ConcordanceRule -- agreement required between replicates
+# ============================================================
+
+#' ConcordanceRule: agreement required between technical replicates
+#'
+#' An S4 class saying how the technical replicates of a sample must agree
+#' for their calls to pass. It is held in the \code{replicateConc} slot of
+#' an \code{\linkS4class{ISNVFilter}}, and \code{\link{flagISNV}} applies
+#' it after the per-sample thresholds.
+#'
+#' @slot freqTolerance Numeric scalar. The largest difference in
+#'   \code{altFreq} allowed between two replicates that both made the call
+#'   (default: 0.05). \code{Inf} compares no frequencies.
+#' @slot requireBothDetected Logical scalar. If \code{TRUE} (default), a
+#'   site called in one replicate of a pair but not in the other fails.
+#'
+#' @return An object of class \code{ConcordanceRule}. Objects are created
+#'   with the constructor \code{\link{ConcordanceRule}}; the \code{show}
+#'   method prints the two settings and returns \code{NULL} invisibly.
+#'
+#' @details
+#' Replicates are the samples that share a value of the
+#' \code{replicate_group} column of \code{colData}. Every pair of
+#' replicates in a group is compared, and a site that fails for any pair
+#' is flagged in every sample of the group. A call is a non-missing
+#' \code{altFreq}, taken before any threshold is applied, so the rule
+#' flags what \code{\link{flagReplicateDiscordance}} flags with the same
+#' two settings. Replicate intersection, which keeps only the calls made
+#' in both replicates, is \code{ConcordanceRule(freqTolerance = Inf)}.
+#' A rule with \code{freqTolerance = Inf} and
+#' \code{requireBothDetected = FALSE} would flag nothing and is refused.
+#'
+#' @seealso \code{\link{ConcordanceRule}} for the constructor,
+#'   \code{\link{ISNVFilter}} and \code{\link{flagISNV}} for applying it,
+#'   \code{\link{flagReplicateDiscordance}} for the same check on its own.
+#'
+#' @exportClass ConcordanceRule
+#' @examples
+#' # Frequencies within 5 points, and called in both replicates
+#' ConcordanceRule()
+#'
+#' # Replicate intersection only
+#' ConcordanceRule(freqTolerance = Inf)
+.ConcordanceRule <- setClass("ConcordanceRule",
+    slots = list(
+        freqTolerance       = "numeric",
+        requireBothDetected = "logical"
+    ),
+    prototype = list(
+        freqTolerance       = 0.05,
+        requireBothDetected = TRUE
+    )
+)
+
+setValidity("ConcordanceRule", function(object) {
+    msg <- character()
+
+    tol <- slot(object, "freqTolerance")
+    if (length(tol) != 1L || is.na(tol)) {
+        msg <- c(msg, "'freqTolerance' must be a single non-NA numeric")
+    } else if (tol <= 0) {
+        msg <- c(msg, sprintf(
+            "'freqTolerance' must be positive, got %.4f", tol))
+    }
+
+    both <- slot(object, "requireBothDetected")
+    if (length(both) != 1L || is.na(both)) {
+        msg <- c(msg,
+            "'requireBothDetected' must be a single non-NA logical")
+    }
+
+    if (length(msg) == 0L && is.infinite(tol) && !both) {
+        msg <- c(msg, paste(
+            "freqTolerance = Inf with requireBothDetected = FALSE",
+            "flags nothing; use replicateConc = NULL for no rule"))
+    }
+
+    if (length(msg) == 0L) TRUE else msg
+})
+
+## The replicateConc slot of an ISNVFilter: a rule, or NULL for none
+setClassUnion("ConcordanceRuleOrNULL", c("ConcordanceRule", "NULL"))
 
 # ============================================================
 # ISNVFilter -- QC filter configuration class
@@ -25,9 +110,10 @@ NULL
 #'   alternative allele (default: 10).
 #' @slot maxStrandBias Numeric scalar. Maximum strand bias as
 #'   fold-difference between strands (default: 10.0).
-#' @slot replicateConc Logical scalar. Whether replicate concordance
-#'   is required (default: FALSE). Recorded for provenance only;
-#'   apply it with \code{\link{flagReplicateDiscordance}}.
+#' @slot replicateConc A \code{\linkS4class{ConcordanceRule}} saying how
+#'   technical replicates must agree, or \code{NULL} (default) for no
+#'   replicate check. \code{\link{flagISNV}} applies it after the other
+#'   thresholds.
 #'
 #' @return An object of class \code{ISNVFilter}. Objects are created with
 #'   the constructor \code{\link{ISNVFilter}}; the \code{show} method prints
@@ -92,7 +178,7 @@ NULL
         maxFreq       = "numeric",
         minAltReads   = "integer",
         maxStrandBias = "numeric",
-        replicateConc = "logical"
+        replicateConc = "ConcordanceRuleOrNULL"
     ),
     prototype = list(
         minDepth      = 100L,
@@ -100,7 +186,7 @@ NULL
         maxFreq       = 0.50,
         minAltReads   = 10L,
         maxStrandBias = 10.0,
-        replicateConc = FALSE
+        replicateConc = NULL
     )
 )
 
@@ -159,10 +245,13 @@ setValidity("ISNVFilter", function(object) {
             "'maxStrandBias' must be positive, got %.4f", v))
     }
 
-    # replicateConc
+    # replicateConc: the slot type admits a rule or NULL; a rule whose
+    # slots were changed after construction is checked again here
     v <- slot(object, "replicateConc")
-    if (length(v) != 1L || is.na(v)) {
-        msg <- c(msg, "'replicateConc' must be a single non-NA logical")
+    if (!is.null(v)) {
+        ok <- validObject(v, test = TRUE)
+        if (!isTRUE(ok))
+            msg <- c(msg, paste0("'replicateConc': ", ok))
     }
 
     if (length(msg) == 0L) TRUE else msg

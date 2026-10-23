@@ -6,7 +6,44 @@ test_that("ISNVFilter constructor works with defaults", {
     expect_equal(f@maxFreq, 0.50)
     expect_equal(f@minAltReads, 10L)
     expect_equal(f@maxStrandBias, 10.0)
-    expect_identical(f@replicateConc, FALSE)
+    expect_null(f@replicateConc)
+})
+
+test_that("ConcordanceRule holds a positive tolerance and a logical", {
+    r <- ConcordanceRule()
+    expect_s4_class(r, "ConcordanceRule")
+    expect_equal(r@freqTolerance, 0.05)
+    expect_true(r@requireBothDetected)
+    expect_identical(ConcordanceRule(freqTolerance = Inf)@freqTolerance, Inf)
+    expect_error(ConcordanceRule(freqTolerance = 0), "freqTolerance")
+    expect_error(ConcordanceRule(freqTolerance = NA), "freqTolerance")
+    expect_error(ConcordanceRule(freqTolerance = c(0.05, 0.1)),
+                 "freqTolerance")
+    expect_error(ConcordanceRule(requireBothDetected = NA),
+                 "requireBothDetected")
+    ## a rule that could flag nothing is refused
+    expect_error(ConcordanceRule(freqTolerance = Inf,
+                                 requireBothDetected = FALSE),
+                 "flags nothing")
+})
+
+test_that("ISNVFilter takes a ConcordanceRule or NULL as replicateConc", {
+    rule <- ConcordanceRule(freqTolerance = 0.1)
+    expect_identical(ISNVFilter(replicateConc = rule)@replicateConc, rule)
+    ## the logical it used to record is refused, naming the class to use
+    expect_error(ISNVFilter(replicateConc = TRUE), "ConcordanceRule")
+    expect_error(ISNVFilter(replicateConc = FALSE), "ConcordanceRule")
+    ## a rule changed after construction is caught by the filter's validity
+    f <- ISNVFilter(replicateConc = rule)
+    f@replicateConc@freqTolerance <- -1
+    expect_error(validObject(f), "freqTolerance")
+})
+
+test_that("ISNVFilter and ConcordanceRule show the replicate settings", {
+    expect_output(show(ISNVFilter()), "replicateConc: none")
+    expect_output(show(ISNVFilter(replicateConc = ConcordanceRule(0.1))),
+                  "freqTolerance 0.1, requireBothDetected TRUE")
+    expect_output(show(ConcordanceRule()), "requireBothDetected: TRUE")
 })
 
 test_that("ISNVFilter has no base or mapping quality threshold", {

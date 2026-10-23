@@ -89,15 +89,24 @@ test_that("trackFrequency keeps its documented order and content", {
     expect_equal(as.numeric(traj$timepoint), c(1, 2, 2))
 })
 
-test_that("flagISNV warns about thresholds it cannot apply", {
-    vcf <- system.file("extdata", "test_donor.vcf",
-                       package = "WithinHostExperiment")
-    whe <- readWithinHost(vcf,
-        colData = S4Vectors::DataFrame(sample_id = "donor"),
+test_that("flagISNV applies a replicate rule (was: warned it could not)", {
+    rep1 <- system.file("extdata", "test_donor_rep1.vcf",
+                        package = "WithinHostExperiment")
+    rep2 <- system.file("extdata", "test_donor_rep2.vcf",
+                        package = "WithinHostExperiment")
+    whe <- readWithinHost(c(rep1, rep2),
+        colData = S4Vectors::DataFrame(sample_id = c("rep1", "rep2"),
+            replicate_group = c("donor_reps", "donor_reps"),
+            replicate_id = c("1", "2")),
         caller = "ivar")
-    expect_warning(flagISNV(whe, ISNVFilter(replicateConc = TRUE)),
-                   "flagReplicateDiscordance")
-    expect_no_warning(flagISNV(whe, ISNVFilter()))
+    filt <- ISNVFilter(replicateConc = ConcordanceRule(freqTolerance = 0.05))
+    expect_no_warning(got <- flagISNV(whe, filt))
+    plain <- flagISNV(whe, ISNVFilter())
+    want <- flagReplicateDiscordance(plain, freqTolerance = 0.05)
+    qc <- function(x) SummarizedExperiment::assay(x, "qcPass")
+    expect_identical(qc(got), qc(want))
+    ## the rule flags calls that the per-sample thresholds pass
+    expect_gt(sum(!qc(got)), sum(!qc(plain)))
 })
 
 test_that("the constructor requires an altFreq assay", {

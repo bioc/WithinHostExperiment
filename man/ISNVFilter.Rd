@@ -10,7 +10,7 @@ ISNVFilter(
   maxFreq = 0.5,
   minAltReads = 10L,
   maxStrandBias = 10,
-  replicateConc = FALSE
+  replicateConc = NULL
 )
 }
 \arguments{
@@ -24,9 +24,10 @@ ISNVFilter(
 
 \item{maxStrandBias}{Numeric. Max strand bias fold-diff (default: 10).}
 
-\item{replicateConc}{Logical. Require replicate concordance
-(default: FALSE). Recorded for provenance; apply it with
-\code{\link{flagReplicateDiscordance}}.}
+\item{replicateConc}{A \code{\link{ConcordanceRule}} saying how
+technical replicates must agree, which \code{\link{flagISNV}}
+applies after the other thresholds, or \code{NULL} (default) for
+none.}
 }
 \value{
 An \code{\link{ISNVFilter}} object.
@@ -38,4 +39,5 @@ Constructs a quality control filter configuration for use with
 \examples{
 ISNVFilter()
 ISNVFilter(minDepth = 500L, minFreq = 0.05)
+ISNVFilter(replicateConc = ConcordanceRule(freqTolerance = 0.05))
 }

@@ -14,6 +14,48 @@
 NULL
 
 # ============================================================
+# ConcordanceRule constructor + show
+# ============================================================
+
+#' Create a ConcordanceRule object
+#'
+#' Says how the technical replicates of a sample must agree, for use as
+#' the \code{replicateConc} of an \code{\link{ISNVFilter}}.
+#'
+#' @param freqTolerance Numeric. The largest difference in allele
+#'   frequency allowed between two replicates that both made the call
+#'   (default: 0.05); \code{Inf} compares no frequencies.
+#' @param requireBothDetected Logical. Whether a site called in one
+#'   replicate of a pair but not in the other fails (default:
+#'   \code{TRUE}).
+#'
+#' @return A \code{\linkS4class{ConcordanceRule}} object.
+#' @seealso \code{\link{flagISNV}}, which applies the rule, and
+#'   \code{\link{flagReplicateDiscordance}}.
+#' @export
+#' @examples
+#' rule <- ConcordanceRule(freqTolerance = 0.05)
+#' rule
+#' ISNVFilter(replicateConc = rule)
+ConcordanceRule <- function(freqTolerance = 0.05,
+                            requireBothDetected = TRUE) {
+    new("ConcordanceRule",
+        freqTolerance       = as.numeric(freqTolerance),
+        requireBothDetected = as.logical(requireBothDetected))
+}
+
+#' @rdname ConcordanceRule-class
+#' @param object A \code{ConcordanceRule} object.
+#' @export
+setMethod("show", "ConcordanceRule", function(object) {
+    cat("ConcordanceRule object\n")
+    cat("  freqTolerance:      ", slot(object, "freqTolerance"), "\n")
+    cat("  requireBothDetected:", slot(object, "requireBothDetected"),
+        "\n")
+})
+
+
+# ============================================================
 # ISNVFilter constructor + show
 # ============================================================
 
@@ -27,25 +69,31 @@ NULL
 #' @param maxFreq Numeric. Maximum alt allele frequency (default: 0.50).
 #' @param minAltReads Integer. Minimum alt allele reads (default: 10).
 #' @param maxStrandBias Numeric. Max strand bias fold-diff (default: 10).
-#' @param replicateConc Logical. Require replicate concordance
-#'   (default: FALSE). Recorded for provenance; apply it with
-#'   \code{\link{flagReplicateDiscordance}}.
+#' @param replicateConc A \code{\link{ConcordanceRule}} saying how
+#'   technical replicates must agree, which \code{\link{flagISNV}}
+#'   applies after the other thresholds, or \code{NULL} (default) for
+#'   none.
 #'
 #' @return An \code{\link{ISNVFilter}} object.
 #' @export
 #' @examples
 #' ISNVFilter()
 #' ISNVFilter(minDepth = 500L, minFreq = 0.05)
+#' ISNVFilter(replicateConc = ConcordanceRule(freqTolerance = 0.05))
 ISNVFilter <- function(minDepth = 100L, minFreq = 0.03, maxFreq = 0.50,
                        minAltReads = 10L, maxStrandBias = 10.0,
-                       replicateConc = FALSE) {
+                       replicateConc = NULL) {
+    if (!is.null(replicateConc) && !is(replicateConc, "ConcordanceRule"))
+        stop("'replicateConc' must be a ConcordanceRule or NULL; ",
+             "replicateConc = ConcordanceRule() requires technical ",
+             "replicates to agree.")
     new("ISNVFilter",
         minDepth      = as.integer(minDepth),
         minFreq       = as.numeric(minFreq),
         maxFreq       = as.numeric(maxFreq),
         minAltReads   = as.integer(minAltReads),
         maxStrandBias = as.numeric(maxStrandBias),
-        replicateConc = as.logical(replicateConc))
+        replicateConc = replicateConc)
 }
 
 #' @rdname ISNVFilter-class
@@ -58,7 +106,14 @@ setMethod("show", "ISNVFilter", function(object) {
         slot(object, "maxFreq"), "]\n", sep = "")
     cat("  minAltReads:  ", slot(object, "minAltReads"), "\n")
     cat("  maxStrandBias:", slot(object, "maxStrandBias"), "\n")
-    cat("  replicateConc:", slot(object, "replicateConc"), "\n")
+    rule <- slot(object, "replicateConc")
+    if (is.null(rule)) {
+        cat("  replicateConc: none\n")
+    } else {
+        cat("  replicateConc: freqTolerance ",
+            slot(rule, "freqTolerance"), ", requireBothDetected ",
+            slot(rule, "requireBothDetected"), "\n", sep = "")
+    }
 })
 
 

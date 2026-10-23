@@ -97,8 +97,17 @@ cycle.
 * `ISNVFilter()` loses the `minBaseQual` and `minMapQual` slots and
   arguments: the object holds no per-site quality, so they could be
   recorded but never applied, and quality filtering belongs in the
-  variant caller. `replicateConc` is still recorded without being
-  applied, and `flagISNV()` warns when it is set.
+  variant caller.
+* `replicateConc` holds a `ConcordanceRule`, or `NULL` for none, where
+  it held a logical that was recorded but never applied.
+  `ConcordanceRule(freqTolerance, requireBothDetected)` takes the two
+  settings of `flagReplicateDiscordance()`, and `flagISNV()` applies it
+  after the per-sample thresholds, flagging what that function flags
+  and recording the same two `qcLog` rows, so the rule is stored with the
+  other thresholds in `qcFilters`. A rule with no `replicate_group` of
+  two or more samples to compare is an error; samples without a
+  replicate are named in a warning. A logical `replicateConc` is
+  refused, and so is a rule that would flag nothing.
 
 ## Statistical safeguards
 

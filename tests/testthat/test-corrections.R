@@ -274,11 +274,45 @@ test_that("the plausibility ranges are the package's own heuristics", {
 
 # -- 8. ISNVFilter ------------------------------------------------------------
 
-test_that("flagISNV warns on replicateConc and the constructor needs altFreq", {
-    whe <- .single_whe()
-    expect_warning(flagISNV(whe, ISNVFilter(replicateConc = TRUE)),
-                   "flagReplicateDiscordance")
-    expect_no_warning(flagISNV(whe, ISNVFilter()))
+test_that("flagISNV applies replicateConc (was: recorded, warned, ignored)", {
+    ## r1 and r2 are replicates: site 1 differs by 14 points, site 2 is
+    ## called in r1 only, site 3 agrees, and site 4 differs and fails
+    ## minFreq in r2; 'other' has no replicate
+    freq <- cbind(r1 = c(0.37, 0.04, 0.10, 0.20),
+                  r2 = c(0.23, NA, 0.10, 0.02),
+                  other = c(0.37, 0.04, 0.10, 0.20))
+    cd <- S4Vectors::DataFrame(sample_id = colnames(freq),
+        replicate_group = c("g", "g", NA), replicate_id = c("1", "2", NA),
+        row.names = colnames(freq))
+    whe <- .whe_from_freq(freq, matrix(1000L, 4, 3),
+                          pos = c(10, 20, 30, 40), colData = cd)
+    rule <- ConcordanceRule(freqTolerance = 0.05)
+    expect_warning(got <- flagISNV(whe, ISNVFilter(replicateConc = rule)),
+                   "1 sample\\(s\\) without a replicate \\(other\\)")
+    q <- SummarizedExperiment::assay(got, "qcPass")
+    expect_identical(unname(q[, "r1"]), c(FALSE, FALSE, TRUE, FALSE))
+    expect_identical(unname(q[, "r2"]), c(FALSE, FALSE, TRUE, FALSE))
+    expect_true(all(q[, "other"]))
+    ## the same flags and log rows as the separate function after the
+    ## per-sample thresholds; the rule travels with the filter
+    want <- flagReplicateDiscordance(flagISNV(whe, ISNVFilter()),
+                                     freqTolerance = 0.05)
+    expect_identical(q, SummarizedExperiment::assay(want, "qcPass"))
+    cols <- c("step", "parameter", "value", "n_flagged", "n_passed")
+    expect_identical(as.data.frame(qcLog(got))[, cols],
+                     as.data.frame(qcLog(want))[, cols])
+    expect_identical(tail(qcLog(got)$n_flagged, 2), c(5L, 0L))
+    expect_identical(slot(qcFilters(got)[[1]], "replicateConc"), rule)
+    ## a rule with nothing to compare is an error, not a silent no-op
+    expect_error(flagISNV(.single_whe(), ISNVFilter(replicateConc = rule)),
+                 "replicate_group")
+    lone <- whe
+    SummarizedExperiment::colData(lone)$replicate_group <- c("a", "b", NA)
+    expect_error(flagISNV(lone, ISNVFilter(replicateConc = rule)),
+                 "two or more samples")
+})
+
+test_that("the constructor needs altFreq", {
     gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(10, width = 1))
     expect_error(WithinHostExperiment(
         assays = list(totalDepth = matrix(100L, ncol = 1)),

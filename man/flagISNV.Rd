@@ -44,13 +44,23 @@ Filtering steps are applied in order:
   \item Minimum alternative allele read count (\code{minAltReads})
   \item Strand bias (\code{maxStrandBias}) -- only if
     \code{fwdAltCount} and \code{revAltCount} assays exist
+  \item Replicate concordance (\code{replicateConc}) -- only if the
+    filter holds a \code{\link{ConcordanceRule}}
 }
 
 Base and mapping quality are not filtered here: the object holds no
 per-site quality, so those thresholds belong in the variant caller.
-The \code{replicateConc} slot of the filter is recorded for
-provenance but not applied here; \code{TRUE} raises a warning. Use
-\code{\link{flagReplicateDiscordance}} for replicate concordance.
+
+The replicate step compares every pair of samples that share a value
+of the \code{replicate_group} column of \code{colData} and flags a site
+that fails the rule in every sample of the group. It compares the calls
+as made, before the thresholds above, so it flags what
+\code{\link{flagReplicateDiscordance}} flags with the same settings,
+and it records the same two \code{qcLog} rows. A rule with no
+\code{replicate_group} column, or with no group of two or more samples,
+is an error rather than a step that checks nothing. Samples outside
+any such group are named in a warning and are filtered by the other
+thresholds only.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",
@@ -64,6 +74,7 @@ passedISNV(whe)
 }
 \seealso{
 \code{\link{ISNVFilter}} for filter configuration,
+  \code{\link{ConcordanceRule}} for the replicate rule,
   \code{\link{passedISNV}} for extracting passed variants,
   \code{\link{qcSummary}} for QC report,
   \code{\link{flagReplicateDiscordance}} for replicate QC.

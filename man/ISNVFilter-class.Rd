@@ -60,9 +60,10 @@ alternative allele (default: 10).}
 \item{\code{maxStrandBias}}{Numeric scalar. Maximum strand bias as
 fold-difference between strands (default: 10.0).}
 
-\item{\code{replicateConc}}{Logical scalar. Whether replicate concordance
-is required (default: FALSE). Recorded for provenance only;
-apply it with \code{\link{flagReplicateDiscordance}}.}
+\item{\code{replicateConc}}{A \code{\linkS4class{ConcordanceRule}} saying how
+technical replicates must agree, or \code{NULL} (default) for no
+replicate check. \code{\link{flagISNV}} applies it after the other
+thresholds.}
 }}
 
 \examples{

@@ -62,9 +62,10 @@ multiplied back by the length it was divided by.
 Fu's Fs sets the number of haplotypes to \code{n_sites + 1}, the
 infinite-sites maximum, as \code{\link{fusFs}} explains. It therefore
 carries no haplotype information, depends only on \code{n_sites}, the
-effective sample size and \eqn{\hat{\pi} L}, and lies well below 0
-under neutrality (about -7 at \eqn{\theta = 5} with \eqn{n = 100});
-a negative value is not evidence of expansion.
+effective sample size and \eqn{\hat{\pi} L}, and is pushed below 0
+under neutrality, increasingly so as \eqn{\theta} grows (about -7 at
+\eqn{\theta = 5} with \eqn{n = 100}, near 0 at \eqn{\theta} of 1 or
+less); a negative value is not evidence of expansion.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",

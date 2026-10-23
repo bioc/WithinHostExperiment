@@ -30,9 +30,9 @@ A named list with components:
     \item{fusFs}{Fu's Fs, with the number of haplotypes set to
       \eqn{S + 1}, the infinite-sites maximum. As \code{\link{fusFs}}
       explains, it then carries no haplotype information, depends only
-      on \eqn{S}, \eqn{n} and \eqn{\hat{\pi}}, and lies well below 0
-      under neutrality, so a negative value is not evidence of
-      expansion.}
+      on \eqn{S}, \eqn{n} and \eqn{\hat{\pi}}, and is pushed below 0
+      under neutrality, increasingly so as \eqn{\theta} grows, so a
+      negative value is not evidence of expansion.}
     \item{fayWuH}{Fay and Wu's H.}
     \item{sfs_corrected}{Whether the input SFS was bias-corrected.}
     \item{polarization}{The input's polarisation, \code{"reference"}

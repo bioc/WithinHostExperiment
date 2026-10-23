@@ -187,14 +187,17 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
 #' segregating sites can produce, and it is usually far above the number
 #' present. The value therefore carries no haplotype information: it
 #' depends only on \eqn{S}, \eqn{n} and \code{theta_pi}, the summaries
-#' Tajima's D already contrasts, and under neutrality it lies well below
-#' 0. With \eqn{n = 100} and \eqn{S} and \code{theta_pi} at their neutral
-#' expectations, it is -1.46 at \eqn{\theta = 2} (\eqn{S = 10}), -7.00 at
-#' \eqn{\theta = 5} (\eqn{S = 26}) and -25.0 at \eqn{\theta = 10}
-#' (\eqn{S = 52}), where the expected numbers of haplotypes are 8.4,
-#' 15.7 and 24.4 rather than 11, 27 and 53. A negative value is
-#' therefore not evidence of population expansion or hitchhiking, and no
-#' fixed threshold calibrates it.
+#' Tajima's D already contrasts, and under neutrality it is pushed below
+#' 0, increasingly so as \eqn{\theta} grows. With \eqn{n = 100} and
+#' \eqn{S} and \code{theta_pi} at their neutral expectations, it is
+#' -1.46 at \eqn{\theta = 2} (\eqn{S = 10}), -7.00 at \eqn{\theta = 5}
+#' (\eqn{S = 26}) and -25.0 at \eqn{\theta = 10} (\eqn{S = 52}), where
+#' the expected numbers of haplotypes are 8.4, 15.7 and 24.4 rather than
+#' 11, 27 and 53; at \eqn{\theta = 1} (\eqn{S = 5}) it is -0.37, and at
+#' very small \eqn{\theta} it can be positive (+0.55 at
+#' \eqn{\theta = 0.2}, \eqn{S = 1}). A negative value is therefore not
+#' evidence of population expansion or hitchhiking, and no fixed
+#' threshold calibrates it.
 #'
 #' The probability is computed exactly, for every \code{n}, from Ewens'
 #' sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
@@ -356,9 +359,10 @@ fusFs <- function(S, n, theta_pi) {
 #' Fu's Fs sets the number of haplotypes to \code{n_sites + 1}, the
 #' infinite-sites maximum, as \code{\link{fusFs}} explains. It therefore
 #' carries no haplotype information, depends only on \code{n_sites}, the
-#' effective sample size and \eqn{\hat{\pi} L}, and lies well below 0
-#' under neutrality (about -7 at \eqn{\theta = 5} with \eqn{n = 100});
-#' a negative value is not evidence of expansion.
+#' effective sample size and \eqn{\hat{\pi} L}, and is pushed below 0
+#' under neutrality, increasingly so as \eqn{\theta} grows (about -7 at
+#' \eqn{\theta = 5} with \eqn{n = 100}, near 0 at \eqn{\theta} of 1 or
+#' less); a negative value is not evidence of expansion.
 #'
 #' @return A \code{DataFrame} with one row per sample and columns
 #'   \code{sample_id}, \code{n_sites} (the number of segregating sites

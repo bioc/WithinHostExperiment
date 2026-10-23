@@ -138,7 +138,8 @@ trackFrequency <- function(whe,
 #' @param whe A \code{\link{WithinHostExperiment}} with longitudinal
 #'   samples.
 #' @param hostCol Character scalar. Column name in \code{colData}
-#'   for host identifier (default: \code{"host_id"}).
+#'   for host identifier (default: \code{"host_id"}). Samples whose
+#'   host is \code{NA} are left out, with a warning.
 #' @param timeCol Character scalar. Column name in \code{colData}
 #'   for time point (default: \code{"timepoint"}).
 #' @param freqThreshold Numeric scalar. Frequency threshold for
@@ -158,6 +159,10 @@ trackFrequency <- function(whe,
 #'     \item{freq_to}{Frequency at the later time point.}
 #'     \item{delta_freq}{Change in frequency.}
 #'   }
+#'   One row is one interval. Rows are ordered by host, then by
+#'   variant, each in order of first appearance in the object, then
+#'   by time point; samples tied at one time point stay in column
+#'   order.
 #'
 #' @export
 #' @examples
@@ -192,58 +197,53 @@ detectEmergingVariants <- function(whe,
     traj <- trackFrequency(whe, hostCol = hostCol,
                            timeCol = timeCol,
                            usePassedOnly = usePassedOnly)
-    if (nrow(traj) == 0L) {
-        return(DataFrame(
-            host_id = character(),
-            variant_key = character(),
-            time_from = numeric(),
-            time_to = numeric(),
-            freq_from = numeric(),
-            freq_to = numeric(),
-            delta_freq = numeric()))
-    }
+    empty <- DataFrame(
+        host_id = character(),
+        variant_key = character(),
+        time_from = numeric(),
+        time_to = numeric(),
+        freq_from = numeric(),
+        freq_to = numeric(),
+        delta_freq = numeric())
 
-    hosts <- unique(as.character(traj$host_id))
-    results <- list()
+    host <- as.character(traj$host_id)
+    keep <- !is.na(host)
+    if (!all(keep))
+        warning(sum(is.na(colData(whe)[[hostCol]])), " sample(s) with ",
+                "NA in '", hostCol, "' are left out.")
+    if (!any(keep)) return(empty)
+    host <- host[keep]
+    key <- as.character(traj$variant_key)[keep]
+    freq <- traj$frequency[keep]
+    time <- traj$timepoint[keep]
 
-    for (h in hosts) {
-        host_traj <- traj[as.character(traj$host_id) == h, ]
-        variants <- unique(as.character(host_traj$variant_key))
-        for (v in variants) {
-            v_traj <- host_traj[as.character(host_traj$variant_key) == v, ]
-            v_traj <- v_traj[order(v_traj$timepoint), ]
-            if (nrow(v_traj) < 2L) next
-            for (k in seq_len(nrow(v_traj) - 1L)) {
-                f_from <- v_traj$frequency[k]
-                f_to <- v_traj$frequency[k + 1L]
-                increase <- f_to - f_from
-                if (f_from < freqThreshold && increase >= minIncrease) {
-                    results <- c(results, list(data.frame(
-                        host_id = h,
-                        variant_key = v,
-                        time_from = v_traj$timepoint[k],
-                        time_to = v_traj$timepoint[k + 1L],
-                        freq_from = f_from,
-                        freq_to = f_to,
-                        delta_freq = increase,
-                        stringsAsFactors = FALSE)))
-                }
-            }
-        }
-    }
+    ## Order once: hosts and, within each host, variants in order of
+    ## first appearance, then by timepoint. order() is stable, so
+    ## samples tied at one timepoint keep their column order.
+    host_rank <- match(host, unique(host))
+    pair <- paste(host_rank, key, sep = ":")
+    o <- order(host_rank, match(pair, unique(pair)), time)
+    host <- host[o]
+    key <- key[o]
+    freq <- freq[o]
+    time <- time[o]
 
-    if (length(results) == 0L) {
-        return(DataFrame(
-            host_id = character(),
-            variant_key = character(),
-            time_from = numeric(),
-            time_to = numeric(),
-            freq_from = numeric(),
-            freq_to = numeric(),
-            delta_freq = numeric()))
-    }
+    ## Each row and the next form an interval when they share host and
+    ## variant
+    n <- length(o)
+    i <- which(host[-n] == host[-1L] & key[-n] == key[-1L])
+    increase <- freq[i + 1L] - freq[i]
+    hit <- i[freq[i] < freqThreshold & increase >= minIncrease]
+    if (!length(hit)) return(empty)
 
-    DataFrame(do.call(rbind, results))
+    DataFrame(
+        host_id = host[hit],
+        variant_key = key[hit],
+        time_from = time[hit],
+        time_to = time[hit + 1L],
+        freq_from = freq[hit],
+        freq_to = freq[hit + 1L],
+        delta_freq = freq[hit + 1L] - freq[hit])
 }
 
 

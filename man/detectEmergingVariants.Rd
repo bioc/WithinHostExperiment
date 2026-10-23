@@ -18,7 +18,8 @@ detectEmergingVariants(
 samples.}
 
 \item{hostCol}{Character scalar. Column name in \code{colData}
-for host identifier (default: \code{"host_id"}).}
+for host identifier (default: \code{"host_id"}). Samples whose
+host is \code{NA} are left out, with a warning.}
 
 \item{timeCol}{Character scalar. Column name in \code{colData}
 for time point (default: \code{"timepoint"}).}
@@ -43,6 +44,10 @@ A \code{DataFrame} with columns:
     \item{freq_to}{Frequency at the later time point.}
     \item{delta_freq}{Change in frequency.}
   }
+  One row is one interval. Rows are ordered by host, then by
+  variant, each in order of first appearance in the object, then
+  by time point; samples tied at one time point stay in column
+  order.
 }
 \description{
 Identifies variants whose allele frequency crosses a threshold

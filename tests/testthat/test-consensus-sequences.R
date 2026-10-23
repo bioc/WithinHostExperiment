@@ -139,6 +139,27 @@ test_that("consensusSequences stops when sites and ref share no name", {
     expect_error(consensusSequences(whe, ref), "MN908947\\.3")
 })
 
+test_that("a ref name mismatch says no site could enter a consensus (was: annotated)", {
+    whe <- cons_whe(1, "A", "G", cbind(host1 = 0.9),
+                    seqnames = "MN908947.3")
+    ref <- Biostrings::DNAStringSet(c(NC_045512.2 = "ATGCTGAAAGGGTAA"))
+    expect_error(consensusSequences(whe, ref),
+                 "no site could be written into a consensus")
+    ## a second variant sequence that ref lacks draws the warning
+    whe2 <- cons_whe(c(1, 1), c("A", "A"), c("G", "G"),
+                     cbind(host1 = c(0.9, 0.9)),
+                     seqnames = c("seg1", "seg9"))
+    expect_warning(consensusSequences(whe2, cons_ref),
+                   "sites there are not written into a consensus")
+})
+
+test_that("a region off ref is blamed on 'region' (was: 'seqname')", {
+    whe <- cons_whe(1, "A", "G", cbind(host1 = 0.9))
+    expect_error(consensusSequences(whe, cons_ref,
+        region = GenomicRanges::GRanges("seg2", IRanges::IRanges(1, 6))),
+        "'region' lies on seg2, which is not a sequence of 'ref': seg1")
+})
+
 test_that("a host with nothing above minFreq returns the reference", {
     whe <- cons_whe(1, "A", "G", cbind(host1 = 0.2, host2 = 0.9))
     cons <- consensusSequences(whe, cons_ref)

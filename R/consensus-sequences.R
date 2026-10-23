@@ -147,6 +147,10 @@ setMethod("consensusSequences", c("WithinHostExperiment", "DNAStringSet"),
                 stop("'region' must lie on one sequence.")
             if (length(region_strand) != 1L)
                 stop("'region' must lie on one strand.")
+            if (is.null(seqname) && !region_seq %in% names(ref))
+                stop("'region' lies on ", region_seq, ", which is not a ",
+                     "sequence of 'ref': ", paste(names(ref), collapse = ", "),
+                     ".")
             if (is.null(seqname)) seqname <- region_seq
             if (!identical(region_seq, seqname))
                 stop("'region' lies on ", region_seq, ", not on '",
@@ -163,8 +167,8 @@ setMethod("consensusSequences", c("WithinHostExperiment", "DNAStringSet"),
             !seqname %in% names(ref))
             stop("'seqname' must name one sequence of 'ref': ",
                  paste(names(ref), collapse = ", "), ".")
-        .checkSeqlevels(rr, GRanges(names(ref),
-                                    IRanges(1L, width(ref))), "ref")
+        .checkSeqlevels(rr, GRanges(names(ref), IRanges(1L, width(ref))),
+                        "ref", effect = "written into a consensus")
         genome <- ref[[seqname]]
         len <- length(genome)
         if (!is.null(region) &&

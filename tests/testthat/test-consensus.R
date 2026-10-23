@@ -138,6 +138,15 @@ test_that("consensusISNV() gives the mean frequencies at 2,000 sites in 20 sampl
                  unname(freq) + 0.005)
 })
 
+test_that("consensusISNV() keeps a spread equal to the tolerance (was: kept or not by rounding)", {
+    ## 0.20 - 0.15 is 0.050000000000000017 in floating point
+    a <- .caller_whe("seg", c(10, 20), c("T", "G"), c(0.15, 0.10))
+    b <- .caller_whe("seg", c(10, 20), c("T", "G"), c(0.20, 0.16))
+    cons <- consensusISNV(list(a = a, b = b), freq_tolerance = 0.05)
+    expect_identical(BiocGenerics::start(SummarizedExperiment::rowRanges(
+        cons)), 10L)
+})
+
 test_that("consensusISNV() keeps the inputs' seqinfo (was: seqlengths dropped)", {
     si <- GenomeInfoDb::Seqinfo(c("seg1", "seg2"), c(1000L, 800L),
                                 genome = "toy")

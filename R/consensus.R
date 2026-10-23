@@ -34,7 +34,8 @@ NULL
 #'   that must detect a site (default: 2L).
 #' @param freq_tolerance Numeric scalar. Maximum allowed range
 #'   (max - min) of allele frequencies across callers for a site
-#'   to pass (default: 0.05).
+#'   to pass (default: 0.05); a range equal to it, to within rounding
+#'   error, passes.
 #'
 #' @return A \code{\link{WithinHostExperiment}} containing only
 #'   consensus sites, with a column for every sample of the inputs.
@@ -133,7 +134,10 @@ consensusISNV <- function(whe_list, min_callers = 2L,
     spread <- calls$freq[o][!duplicated(rec[o], fromLast = TRUE)] -
         calls$freq[o][!duplicated(rec[o])]
 
-    kept <- which(n_callers >= min_callers & spread <= freq_tolerance)
+    ## a spread equal to the tolerance passes, to within rounding error,
+    ## as in the replicate rule
+    kept <- which(n_callers >= min_callers &
+                      spread <= freq_tolerance + .freqEps)
     if (length(kept) == 0L) {
         stop("No sites passed consensus filters ",
              "(min_callers = ", min_callers,

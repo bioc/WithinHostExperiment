@@ -16,7 +16,8 @@ that must detect a site (default: 2L).}
 
 \item{freq_tolerance}{Numeric scalar. Maximum allowed range
 (max - min) of allele frequencies across callers for a site
-to pass (default: 0.05).}
+to pass (default: 0.05); a range equal to it, to within rounding
+error, passes.}
 }
 \value{
 A \code{\link{WithinHostExperiment}} containing only

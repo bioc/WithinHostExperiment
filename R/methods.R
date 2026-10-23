@@ -29,6 +29,10 @@ NULL
 #'   replicate of a pair but not in the other fails (default:
 #'   \code{TRUE}).
 #'
+#' @details Neither argument is converted: a factor, a string or a logical
+#'   \code{freqTolerance} is an error, and so is a \code{requireBothDetected}
+#'   that is not logical, as in \code{\link{flagReplicateDiscordance}}.
+#'
 #' @return A \code{\linkS4class{ConcordanceRule}} object.
 #' @seealso \code{\link{flagISNV}}, which applies the rule, and
 #'   \code{\link{flagReplicateDiscordance}}.
@@ -39,9 +43,17 @@ NULL
 #' ISNVFilter(replicateConc = rule)
 ConcordanceRule <- function(freqTolerance = 0.05,
                             requireBothDetected = TRUE) {
+    ## the slots would store a factor's level codes, so check the type
+    ## here rather than convert it
+    if (!is.numeric(freqTolerance) || is.factor(freqTolerance))
+        stop("'freqTolerance' must be a single positive number, not ",
+             class(freqTolerance)[1L], ".")
+    if (!is.logical(requireBothDetected))
+        stop("'requireBothDetected' must be TRUE or FALSE, not ",
+             class(requireBothDetected)[1L], ".")
     new("ConcordanceRule",
-        freqTolerance       = as.numeric(freqTolerance),
-        requireBothDetected = as.logical(requireBothDetected))
+        freqTolerance       = freqTolerance,
+        requireBothDetected = requireBothDetected)
 }
 
 #' @rdname ConcordanceRule-class

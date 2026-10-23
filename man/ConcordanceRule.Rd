@@ -22,6 +22,11 @@ A \code{\linkS4class{ConcordanceRule}} object.
 Says how the technical replicates of a sample must agree, for use as
 the \code{replicateConc} of an \code{\link{ISNVFilter}}.
 }
+\details{
+Neither argument is converted: a factor, a string or a logical
+  \code{freqTolerance} is an error, and so is a \code{requireBothDetected}
+  that is not logical, as in \code{\link{flagReplicateDiscordance}}.
+}
 \examples{
 rule <- ConcordanceRule(freqTolerance = 0.05)
 rule

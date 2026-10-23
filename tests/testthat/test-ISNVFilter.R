@@ -27,6 +27,23 @@ test_that("ConcordanceRule holds a positive tolerance and a logical", {
                  "flags nothing")
 })
 
+test_that("ConcordanceRule() refuses a wrong type (was: coerced to a number)", {
+    ## a factor became its level code and TRUE became 1; requireBothDetected
+    ## took any non-zero number as TRUE
+    expect_error(ConcordanceRule(factor("0.02", levels = c("0.01", "0.02"))),
+                 "'freqTolerance' must be a single positive number")
+    expect_error(ConcordanceRule(TRUE),
+                 "'freqTolerance' must be a single positive number")
+    expect_error(ConcordanceRule("0.1"),
+                 "'freqTolerance' must be a single positive number")
+    expect_error(ConcordanceRule(requireBothDetected = 0.5),
+                 "'requireBothDetected' must be TRUE or FALSE")
+    expect_error(ConcordanceRule(requireBothDetected = "T"),
+                 "'requireBothDetected' must be TRUE or FALSE")
+    ## an integer tolerance is a number
+    expect_equal(ConcordanceRule(1L)@freqTolerance, 1)
+})
+
 test_that("ISNVFilter takes a ConcordanceRule or NULL as replicateConc", {
     rule <- ConcordanceRule(freqTolerance = 0.1)
     expect_identical(ISNVFilter(replicateConc = rule)@replicateConc, rule)

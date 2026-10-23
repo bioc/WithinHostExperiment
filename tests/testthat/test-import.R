@@ -190,6 +190,20 @@ test_that("iVar's PASS and strand columns are not read, as the man page says", {
     expect_identical(rowRanges(kept)$alt, c("G", "+TTG"))
 })
 
+test_that("a table missing a required column gets only the package's error (was: a colClasses warning first)", {
+    tsv <- tempfile(fileext = ".tsv")
+    writeLines(c(paste("REGION", "POS", "ALT", sep = "\t"),
+                 paste("seg", 100, "T", sep = "\t")), tsv)
+    expect_no_warning(expect_error(
+        readWithinHostTable(tsv, format = "ivar"),
+        "iVar TSV missing columns: REF"))
+    csv <- tempfile(fileext = ".csv")
+    writeLines(c("chrom,pos,alt,aaf,depth", "seg,100,T,0.1,1000"), csv)
+    expect_no_warning(expect_error(
+        readWithinHostTable(csv, format = "generic"),
+        "Generic CSV missing columns: ref"))
+})
+
 test_that("readWithinHostTable() keeps an allele of T when the column holds only T (was: TRUE)", {
     ## read.delim() and read.csv() read a column of "T" as logical
     tsv <- tempfile(fileext = ".tsv")

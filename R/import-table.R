@@ -119,18 +119,19 @@ readWithinHostTable <- function(files, format = c("ivar", "generic"),
 
 #' @keywords internal
 .parseIvarTsv <- function(file) {
-    ## read.delim() would turn a column that holds only "T" into TRUE
-    df <- read.delim(file, stringsAsFactors = FALSE,
-                     colClasses = c(REGION = "character", REF = "character",
-                                    ALT = "character"))
     ## Expected columns: REGION, POS, REF, ALT, REF_DP, ALT_DP,
-    ## ALT_FREQ, TOTAL_DP
+    ## ALT_FREQ, TOTAL_DP. The header is checked first, so that the text
+    ## columns named below exist when the file is read.
     required <- c("REGION", "POS", "REF", "ALT")
-    missing_cols <- setdiff(required, colnames(df))
+    missing_cols <- setdiff(required, colnames(read.delim(file, nrows = 0L)))
     if (length(missing_cols) > 0L) {
         stop("iVar TSV missing columns: ",
              paste(missing_cols, collapse = ", "))
     }
+    ## read.delim() would turn a column that holds only "T" into TRUE
+    df <- read.delim(file, stringsAsFactors = FALSE,
+                     colClasses = c(REGION = "character", REF = "character",
+                                    ALT = "character"))
 
     list(
         chrom      = df$REGION,
@@ -151,16 +152,18 @@ readWithinHostTable <- function(files, format = c("ivar", "generic"),
 
 #' @keywords internal
 .parseGenericCsv <- function(file) {
-    ## read.csv() would turn a column that holds only "T" into TRUE
-    df <- read.csv(file, stringsAsFactors = FALSE,
-                   colClasses = c(chrom = "character", ref = "character",
-                                  alt = "character"))
+    ## The header is checked first, so that the text columns named below
+    ## exist when the file is read
     required <- c("chrom", "pos", "ref", "alt", "aaf", "depth")
-    missing_cols <- setdiff(required, colnames(df))
+    missing_cols <- setdiff(required, colnames(read.csv(file, nrows = 0L)))
     if (length(missing_cols) > 0L) {
         stop("Generic CSV missing columns: ",
              paste(missing_cols, collapse = ", "))
     }
+    ## read.csv() would turn a column that holds only "T" into TRUE
+    df <- read.csv(file, stringsAsFactors = FALSE,
+                   colClasses = c(chrom = "character", ref = "character",
+                                  alt = "character"))
 
     alt_dp <- as.integer(round(df$depth * df$aaf))
     ref_dp <- as.integer(df$depth) - alt_dp

@@ -304,8 +304,10 @@ NULL
 #' @slot qcLog \code{DataFrame}. Audit trail of QC filtering steps.
 #' @slot qcFilters \code{list}. History of \code{\link{ISNVFilter}} objects
 #'   that have been applied. Validity checks each one, so a filter saved
-#'   by an earlier version of the package, or changed with \code{@<-}, is
-#'   reported and must be rebuilt with \code{\link{ISNVFilter}}.
+#'   by an earlier version of the package, or changed with \code{@<-} into
+#'   an invalid one, is reported, and the object cannot be subset or
+#'   combined until the filter is rebuilt with \code{\link{ISNVFilter}}
+#'   and stored with \code{qcFilters<-}.
 #'
 #' @seealso
 #'   \code{\link{readWithinHost}} and \code{\link{readWithinHostTable}}
@@ -378,15 +380,17 @@ setValidity("WithinHostExperiment", function(object) {
         msg <- c(msg, "'altFreq' assay is required")
     }
 
-    ## Validate qcPass assay is logical if present; a DelayedArray or
-    ## other backend fails is.logical() and is named in the message
+    ## Validate qcPass assay is a logical matrix if present; a DelayedArray
+    ## or other backend is not a base matrix and is named in the message
     if ("qcPass" %in% anames) {
         qc <- SummarizedExperiment::assay(object, "qcPass")
-        if (!is.logical(qc)) {
+        if (!is.matrix(qc)) {
             msg <- c(msg, paste(
                 "'qcPass' assay must be an ordinary R logical matrix;",
                 "DelayedArray and other matrix-like backends are not",
                 "supported"))
+        } else if (!is.logical(qc)) {
+            msg <- c(msg, "'qcPass' assay must be a logical matrix")
         }
     }
 

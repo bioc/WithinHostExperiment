@@ -235,15 +235,22 @@ test_that("flagISNV + flagReplicateDiscordance pipeline works", {
     expect_true(nrow(passed) < nrow(whe))
 })
 
-test_that("a qcPass that is not a logical matrix is refused naming an ordinary R matrix (was: silent on backends)", {
-    ## a DelayedArray or other matrix-like backend fails the same check
+test_that("a qcPass that is not a base logical matrix is refused (was: silent on backends)", {
     gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(1:3, width = 1))
-    expect_error(WithinHostExperiment(
+    build <- function(qc) WithinHostExperiment(
         assays = list(altFreq = matrix(c(0.1, 0.2, 0.3), ncol = 1),
-                      qcPass = matrix(c(1L, 1L, 0L), ncol = 1)),
+                      qcPass = qc),
         rowRanges = gr,
-        colData = DataFrame(sample_id = "S1")),
-        "'qcPass' assay must be an ordinary R logical matrix")
+        colData = DataFrame(sample_id = "S1"))
+    ## an ordinary matrix of the wrong type
+    expect_error(build(matrix(c(1L, 1L, 0L), ncol = 1)),
+                 "'qcPass' assay must be a logical matrix")
+    ## an array-like object that is not a base matrix, as a DelayedArray is
+    whe <- build(matrix(TRUE, 3, 1))
+    SummarizedExperiment::assay(whe, "qcPass", withDimnames = FALSE) <-
+        array(c(TRUE, TRUE, FALSE), c(3, 1, 1))
+    expect_error(validObject(whe),
+                 "must be an ordinary R logical matrix; DelayedArray")
 })
 
 test_that("flagReplicateDiscordance() checks requireBothDetected (was: any value taken as TRUE)", {

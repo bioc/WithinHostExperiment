@@ -81,7 +81,7 @@ setGeneric("calcNeutralityTests", function(x, ...)
 #' size is much smaller than the read depth. Using raw read
 #' depth (e.g., n = 2000) inflates the harmonic number
 #' \eqn{a_1 = \sum 1/i}, making \eqn{\theta_W} artificially
-#' small and biasing D toward positive values.
+#' small and biasing D towards positive values.
 #'
 #' We recommend capping \code{n} at a biologically meaningful
 #' effective sample size. Lauring (2020 \emph{Annu Rev Virol})
@@ -437,7 +437,7 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
         if (is.na(md)) md <- 100
         ## Cap at 100: deep sequencing reads are not independent
         ## lineages; using raw depth (e.g., 2000x) inflates a1
-        ## and biases D toward positive values.
+        ## and biases D towards positive values.
         n <- min(max(as.integer(round(md)), 2L), 100L)
 
         ## Nucleotide diversity summed over the genome (pi times L);

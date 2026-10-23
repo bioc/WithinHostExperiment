@@ -43,7 +43,9 @@ and are carried forward unchanged.
 \item{\code{qcLog}}{\code{DataFrame}. Audit trail of QC filtering steps.}
 
 \item{\code{qcFilters}}{\code{list}. History of \code{\link{ISNVFilter}} objects
-that have been applied.}
+that have been applied. Validity checks each one, so a filter saved
+by an earlier version of the package, or changed with \code{@<-}, is
+reported and must be rebuilt with \code{\link{ISNVFilter}}.}
 }}
 
 \section{Standard assays}{

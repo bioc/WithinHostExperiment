@@ -330,6 +330,31 @@ test_that("flagISNV() refuses a filter changed into an invalid one (was: applied
     expect_error(flagISNV(whe, f), "'minDepth' must be non-negative")
 })
 
+test_that("validObject() reports an invalid filter in qcFilters (was: TRUE)", {
+    ## readRDS() restores a filter saved under 0.99.0 with the logical
+    ## replicateConc it then held; show() and flagISNV() failed on it with
+    ## a slot-access error while the object validated
+    old <- ISNVFilter()
+    attr(old, "replicateConc") <- FALSE
+    x <- .single_whe()
+    qcFilters(x) <- list(ISNVFilter(), old)
+    expect_error(validObject(x),
+                 "'qcFilters' element 2 is not a valid ISNVFilter")
+    expect_error(validObject(x), "rebuild it with ISNVFilter\\(\\)")
+    expect_error(flagISNV(.single_whe(), old), "replicateConc")
+    ## a stored rule changed after construction is reported too
+    f <- ISNVFilter(replicateConc = ConcordanceRule())
+    f@replicateConc@freqTolerance <- -1
+    qcFilters(x) <- list(f)
+    expect_error(validObject(x), "'freqTolerance' must be positive")
+    ## valid filters, and the message for anything else, are unchanged
+    qcFilters(x) <- list(ISNVFilter(), f@replicateConc)
+    expect_error(validObject(x),
+                 "'qcFilters' must contain only ISNVFilter objects")
+    qcFilters(x) <- list(ISNVFilter())
+    expect_true(validObject(x))
+})
+
 test_that("the constructor needs altFreq", {
     gr <- GenomicRanges::GRanges("seg", IRanges::IRanges(10, width = 1))
     expect_error(WithinHostExperiment(

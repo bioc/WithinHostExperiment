@@ -298,7 +298,9 @@ NULL
 #'
 #' @slot qcLog \code{DataFrame}. Audit trail of QC filtering steps.
 #' @slot qcFilters \code{list}. History of \code{\link{ISNVFilter}} objects
-#'   that have been applied.
+#'   that have been applied. Validity checks each one, so a filter saved
+#'   by an earlier version of the package, or changed with \code{@<-}, is
+#'   reported and must be rebuilt with \code{\link{ISNVFilter}}.
 #'
 #' @seealso
 #'   \code{\link{readWithinHost}} and \code{\link{readWithinHostTable}}
@@ -344,13 +346,24 @@ setValidity("WithinHostExperiment", function(object) {
                              paste(missing, collapse = ", ")))
     }
 
-    ## Validate qcFilters is a list of ISNVFilter objects (if non-empty)
+    ## Validate qcFilters is a list of valid ISNVFilter objects; a filter
+    ## saved by an earlier version, or changed with @<-, is named here
     filters <- object@qcFilters
     if (length(filters) > 0L) {
         are_filters <- vapply(filters, is, logical(1), "ISNVFilter")
         if (!all(are_filters)) {
             msg <- c(msg,
                 "'qcFilters' must contain only ISNVFilter objects")
+        } else {
+            for (i in seq_along(filters)) {
+                ok <- tryCatch(validObject(filters[[i]], test = TRUE),
+                               error = conditionMessage)
+                if (!isTRUE(ok))
+                    msg <- c(msg, sprintf(paste(
+                        "'qcFilters' element %d is not a valid",
+                        "ISNVFilter (%s); rebuild it with ISNVFilter()"),
+                        i, paste(ok, collapse = "; ")))
+            }
         }
     }
 

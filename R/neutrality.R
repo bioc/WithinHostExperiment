@@ -155,6 +155,20 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
     d / denom
 }
 
+## log |s(n, k)|, k = 1..n, the unsigned Stirling numbers of the first
+## kind, by the recurrence |s(i, k)| = (i - 1) |s(i - 1, k)| +
+## |s(i - 1, k - 1)| in log space, one vector operation per i
+.logStirlingRow <- function(n) {
+    log_s <- c(0, rep(-Inf, n - 1L))
+    for (i in seq_len(n)[-1L]) {
+        a <- log(i - 1) + log_s
+        b <- c(-Inf, log_s[-n])
+        m <- pmax(a, b)
+        log_s <- ifelse(m == -Inf, -Inf, m + log(exp(a - m) + exp(b - m)))
+    }
+    log_s
+}
+
 #' Fu's Fs statistic
 #'
 #' Computes Fu's Fs (Fu 1997), a test of neutrality based on the
@@ -168,8 +182,10 @@ tajimaD <- function(S, n, pi_hat, genomeLength) {
 #' excess of alleles (rare variants), consistent with population
 #' expansion or genetic hitchhiking.
 #'
-#' The probability is approximated using Ewens' sampling formula
-#' for the expected number of alleles.
+#' The probability is computed exactly, for every \code{n}, from Ewens'
+#' sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
+#' P(K = k) = |s(n, k)| theta^k / theta_(n)}, with the unsigned Stirling
+#' numbers of the first kind built in log space.
 #'
 #' @param S Integer scalar. Number of segregating sites (alleles
 #'   minus 1).
@@ -242,19 +258,15 @@ fusFs <- function(S, n, theta_pi) {
     ## We only need k = k_obs .. n, so work on the full row.
     ## Use log-space to avoid overflow.
 
-    ## For large n (deep sequencing), use the approximate Ewens
-    ## expectation: E[K] = sum_{i=0}^{n-1} theta/(theta+i)
-    ## and approximate the tail probability via a Gaussian.
+    ## For large n the same recursion runs vectorised over k, so that it
+    ## stays fast; it replaces a normal approximation of the tail, which
+    ## is poor at these theta because K is strongly skewed.
     if (n > 500L) {
-        ## Expected number of alleles under Ewens
-        e_k <- sum(theta_pi / (theta_pi + seq_len(n) - 1))
-        ## Variance: sum theta*i / (theta+i)^2
-        v_k <- sum(theta_pi * (seq_len(n) - 1) /
-                        (theta_pi + seq_len(n) - 1)^2)
-        if (v_k <= 0) return(0)
-        ## Continuity-corrected normal approximation
-        z <- (k_obs - 0.5 - e_k) / sqrt(v_k)
-        s_prime <- stats::pnorm(z, lower.tail = FALSE)
+        log_s <- .logStirlingRow(n)
+        ks <- seq(k_obs, n)
+        log_probs <- log_s[ks] + ks * log(theta_pi) - log_rising
+        max_lp <- max(log_probs)
+        s_prime <- exp(max_lp) * sum(exp(log_probs - max_lp))
     } else {
         ## Exact computation via log Stirling numbers
         ## log_s[k] = log |s(n, k)| for k = 1..n

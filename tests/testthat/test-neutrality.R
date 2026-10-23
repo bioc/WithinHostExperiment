@@ -104,6 +104,26 @@ test_that("fusFs() returns NA with a warning at S = 0 and at theta_pi = 0 (was: 
     expect_identical(res, NA_real_)
 })
 
+test_that("fusFs() is exact above n = 500, so it is continuous there (was: a normal approximation that jumped)", {
+    expect_lt(abs(fusFs(40, 500, 3) - fusFs(40, 501, 3)), 0.1)
+    expect_lt(abs(fusFs(20, 500, 3) - fusFs(20, 501, 3)), 0.1)
+    expect_lt(abs(fusFs(5, 500, 3) - fusFs(5, 501, 3)), 0.1)
+    ## an independent exact tail: under the Ewens sampling formula K is a
+    ## sum of independent Bernoulli(theta / (theta + i - 1)), i = 1..n
+    ewens_fs <- function(S, n, theta) {
+        p <- theta / (theta + seq_len(n) - 1)
+        dist <- 1
+        for (pr in p) dist <- c(dist * (1 - pr), 0) + c(0, dist * pr)
+        s_prime <- sum(dist[(S + 2):(n + 1)])
+        log(s_prime / (1 - s_prime))
+    }
+    expect_equal(fusFs(20, 800, 3), ewens_fs(20, 800, 3), tolerance = 1e-6)
+    expect_equal(fusFs(10, 2000, 5), ewens_fs(10, 2000, 5),
+                 tolerance = 1e-6)
+    ## the branch at or below 500 agrees with it too
+    expect_equal(fusFs(10, 100, 5), ewens_fs(10, 100, 5), tolerance = 1e-6)
+})
+
 test_that("tajimaD validates inputs", {
     expect_error(tajimaD(S = -1, n = 10, pi_hat = 0.001,
         genomeLength = 1000), "non-negative")

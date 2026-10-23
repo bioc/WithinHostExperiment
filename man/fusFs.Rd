@@ -38,8 +38,10 @@ excess of alleles (rare variants), consistent with population
 expansion or genetic hitchhiking.
 }
 \details{
-The probability is approximated using Ewens' sampling formula
-for the expected number of alleles.
+The probability is computed exactly, for every \code{n}, from Ewens'
+sampling formula, \eqn{P(K = k) = |s(n, k)| \theta^k / \theta_{(n)}}{
+P(K = k) = |s(n, k)| theta^k / theta_(n)}, with the unsigned Stirling
+numbers of the first kind built in log space.
 }
 \examples{
 fusFs(S = 10, n = 100, theta_pi = 5)

@@ -19,7 +19,10 @@ NULL
 #' @param hostCol Character scalar. Column name in \code{colData}
 #'   for host identifier (default: \code{"host_id"}).
 #' @param timeCol Character scalar. Column name in \code{colData}
-#'   for time point (default: \code{"timepoint"}).
+#'   for time point (default: \code{"timepoint"}). It must hold numbers,
+#'   dates or a factor whose levels are in time order; text is read as
+#'   numbers when every value is one, and is otherwise an error, since
+#'   text such as \code{"day10"} and \code{"day2"} has no time order.
 #' @param minTimepoints Integer scalar. Minimum number of distinct
 #'   timepoints at which an iSNV must be detected to be considered
 #'   persistent (default: 2). Replicate samples taken at one
@@ -113,7 +116,7 @@ flagTemporalInconsistency <- function(whe,
     }
 
     hosts <- as.character(cd[[hostCol]])
-    times <- as.numeric(cd[[timeCol]])
+    times <- .timeOrder(cd[[timeCol]], timeCol)
     n_sites <- nrow(freq_mat)
 
     no_time <- !is.na(hosts) & is.na(times)
@@ -203,4 +206,22 @@ flagTemporalInconsistency <- function(whe,
                       sum(qc, na.rm = TRUE))
 
     whe
+}
+
+## The timepoints of colData as numbers in time order: numbers, dates and
+## factor level codes as they are, text only when every value is a number
+.timeOrder <- function(x, timeCol) {
+    if (is.factor(x) || is.numeric(x) || inherits(x, "Date"))
+        return(as.numeric(x))
+    if (is.character(x)) {
+        num <- suppressWarnings(as.numeric(x))
+        bad <- !is.na(x) & is.na(num)
+        if (!any(bad)) return(num)
+        stop("Column '", timeCol, "' holds text such as '", x[bad][1L],
+             "', which has no time order. Give the timepoints as numbers, ",
+             "dates or a factor with its levels in time order, for example ",
+             "factor(x, levels = c(\"day2\", \"day10\")).", call. = FALSE)
+    }
+    stop("Column '", timeCol, "' must hold numbers, dates or a factor, not ",
+         class(x)[1L], ".", call. = FALSE)
 }

@@ -141,6 +141,24 @@ test_that("flagTemporalInconsistency() warns about samples with an NA timepoint"
     expect_identical(unname(qc[1, ]), c(FALSE, FALSE, FALSE))
 })
 
+test_that("flagTemporalInconsistency() orders timepoints or refuses text without an order (was: every time NA)", {
+    freq <- rbind(c(0.10, NA, 0.20), c(0.10, 0.20, NA))
+    ## numbers written as text, dates and factor levels are ordered
+    for (times in list(c("1", "2", "3"),
+                       as.Date(c("2026-01-01", "2026-01-05", "2026-01-09")),
+                       factor(c("early", "mid", "late"),
+                              levels = c("early", "mid", "late")))) {
+        whe <- flagTemporalInconsistency(.make_rep_whe(freq, times = times))
+        expect_identical(
+            mcols(SummarizedExperiment::rowRanges(whe))$temporal_class,
+            c("persistent", "persistent"))
+    }
+    ## other text has no time order
+    expect_error(flagTemporalInconsistency(
+        .make_rep_whe(freq, times = c("day1", "day2", "day10"))),
+        "holds text such as 'day1', which has no time order")
+})
+
 test_that("flagTemporalInconsistency logs the step", {
     gr <- GRanges("seg", IRanges::IRanges(100, width = 1))
     freq <- matrix(c(0.1, NA, 0.1), nrow = 1, ncol = 3)

@@ -68,6 +68,59 @@ test_that("pNpSWithinHost counts a nonsense change as nonsynonymous", {
     expect_equal(res$nN[1], 1L)
 })
 
+test_that("iSNVs in a stop codon are not counted (was: counted in nS and nN)", {
+    skip_if_not_installed("txdbmaker")
+    ## 13 T>C is TAA -> CAA (stop lost) and 15 A>G is TAA -> TAG; the
+    ## stop codon carries no sites, so neither counts
+    whe <- pnps_whe(c(1, 6, 13, 15), c("A", "G", "T", "A"),
+                    c("G", "A", "C", "G"))
+    res <- pNpSWithinHost(whe, pnps_cds(1, 15), ref15)
+    expect_equal(c(res$nS[1], res$nN[1]), c(1L, 1L))
+    expect_equal(res$S_sites[1], 8 / 3)
+    expect_equal(res$pNpS[1], 2 / 7)
+    expect_equal(c(res$gene_nS[1], res$gene_nN[1]), c(1L, 1L))
+    expect_equal(res$gene_pNpS[1], 2 / 7)
+    ## on the minus strand, plus 15 A>G is minus 1 T>C (TAA -> TAG)
+    minus <- Biostrings::reverseComplement(ref15)
+    res_minus <- pNpSWithinHost(pnps_whe(c(1, 10), c("T", "C"), c("C", "T")),
+                                pnps_cds(1, 15, strand = "-"), minus)
+    expect_equal(c(res_minus$nS[1], res_minus$nN[1]), c(1L, 0L))
+})
+
+test_that("ATG -> CTG at the first base counts as nonsynonymous (was: synonymous by the initiator rule)", {
+    skip_if_not_installed("txdbmaker")
+    ## ATG carries no synonymous site, so a change at its first base is
+    ## nonsynonymous for pN/pS, although annotateCodonChange() follows
+    ## predictCoding() and calls it synonymous
+    whe <- pnps_whe(c(1, 6), c("A", "G"), c("C", "A"))
+    ann <- suppressMessages(annotateCodonChange(whe, pnps_cds(1, 15), ref15))
+    expect_identical(
+        SummarizedExperiment::rowRanges(ann)$CONSEQUENCE[1], "synonymous")
+    res <- pNpSWithinHost(whe, pnps_cds(1, 15), ref15)
+    expect_equal(c(res$nS[1], res$nN[1]), c(1L, 1L))
+    expect_equal(c(res$gene_nS[1], res$gene_nN[1]), c(1L, 1L))
+    expect_equal(res$pNpS[1], 2 / 7)
+})
+
+test_that("an iSNV in one transcript's stop codon counts by a transcript reading it in a sense codon", {
+    skip_if_not_installed("txdbmaker")
+    ## tx1 (g1): ATG AAA TAA GGG CCC AAA; tx2 (g2), 5-13 in another
+    ## frame: AAT AAG GGC. 8 A>G is TAA -> TGA in tx1, the longer, and
+    ## AAG -> GAG (K -> E) in tx2
+    ref <- Biostrings::DNAStringSet(c(seg1 = "ATGAAATAAGGGCCCAAA"))
+    cds <- pnps_cds(c(1, 5), c(18, 13), ID = c("tx1", "tx2"),
+                    gene = c("g1", "g2"))
+    whe <- pnps_whe(c(8, 12), c("A", "G"), c("G", "A"))
+    expect_warning(res <- pNpSWithinHost(whe, cds, ref), "0 codon")
+    res <- as.data.frame(res)
+    ## 12 G>A is GGG -> GGA in tx1 (synonymous) and GGC -> AGC in tx2
+    expect_identical(res$nS[1], 1L)
+    expect_identical(res$nN[1], 1L)
+    expect_identical(res$gene, c("g1", "g2"))
+    expect_identical(res$gene_nS, c(1L, 0L))
+    expect_identical(res$gene_nN, c(0L, 2L))
+})
+
 test_that("iSNVs outside every coding sequence are not counted", {
     skip_if_not_installed("txdbmaker")
     ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA",

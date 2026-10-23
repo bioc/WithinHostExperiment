@@ -91,20 +91,34 @@ but a within-host ratio rests on few iSNVs, is highly variable, and
 should always be read with its counts. It is \code{NA} when no
 synonymous iSNV is present.
 
-\strong{Classification.} Each iSNV is classified by
-\code{\link{annotateCodonChange}}, which this function calls on
-\code{x} with the same \code{cds} and \code{ref}, so annotation
-columns already present in \code{x} are not used. The totals take
-each iSNV as \code{collapse = "longest"} reports it, by the longest
-transcript that reads it; each gene's counts take it by that gene's
-own longest transcript, so an iSNV in a codon two genes share counts
-in both genes, as the codon's sites do, but once in the total.
-Synonymous changes count towards \eqn{n_S};
-nonsynonymous and nonsense changes towards \eqn{n_N}. Sites outside
-every coding sequence, insertions and deletions, and codons holding an
-ambiguous base are not counted. An iSNV is present in a sample when
-its frequency is above zero and, with \code{usePassedOnly = TRUE}, it
-passed QC; it is counted once whatever its frequency.
+\strong{Classification.} The counts use only the codons and the
+genetic code that the sites are counted over. This function calls
+\code{\link{annotateCodonChange}} on \code{x} with the same \code{cds}
+and \code{ref}, so annotation columns already present in \code{x} are
+not used, and takes from it, for each transcript reading an iSNV, the
+reference and variant codon. A reading counts only when its reference
+codon is a sense codon: an iSNV in a stop codon, including the loss of
+a stop codon, is counted in neither \eqn{n_S} nor \eqn{n_N}, since a
+stop codon carries no sites. The reading is then classified by
+translating both codons with the standard genetic code: synonymous
+when the amino acid is kept, counting towards \eqn{n_S}, and
+nonsynonymous otherwise, a change to a stop codon included, counting
+towards \eqn{n_N}. The initiator rule is not applied, so \code{ATG} to
+\code{CTG} or \code{TTG} at the first base of a coding sequence is
+nonsynonymous here, as \code{ATG} carries no synonymous site, although
+\code{annotateCodonChange} reports it as synonymous.
+
+The totals take each iSNV by its first counted reading, in the order
+of \code{collapse = "longest"}: the longest transcript that reads it in
+a sense codon, and where that transcript reads the nucleotide twice,
+its first reading. Each gene's counts take it by the first counted
+reading of that gene's own transcripts, so an iSNV in a codon two
+genes share counts in both genes, as the codon's sites do, but once in
+the total. Sites outside every coding sequence, insertions and
+deletions, and codons holding an ambiguous base are not counted. An
+iSNV is present in a sample when its frequency is above zero and, with
+\code{usePassedOnly = TRUE}, it passed QC; it is counted once whatever
+its frequency.
 
 \strong{Sites.} \eqn{S} and \eqn{N} are summed over the distinct
 codons of the genome that some coding sequence reads: a codon is

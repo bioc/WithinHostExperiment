@@ -34,6 +34,20 @@ NULL
     }, numeric(1))
 })
 
+## Whether each change from a reference to a variant codon keeps the amino
+## acid under the standard genetic code, with no initiator rule; NA where
+## the reference codon is a stop codon or either codon is not one of the
+## 64. These are the codons and the code that .NG_SYN_SITES counts sites
+## over, so a change to a stop codon is nonsynonymous.
+.ngSynonymous <- function(refcodon, varcodon) {
+    code <- Biostrings::GENETIC_CODE
+    ref_aa <- unname(code[toupper(as.character(refcodon))])
+    var_aa <- unname(code[toupper(as.character(varcodon))])
+    syn <- ref_aa == var_aa
+    syn[is.na(ref_aa) | ref_aa == "*" | is.na(var_aa)] <- NA
+    syn
+}
+
 ## Codons of every coding sequence in a TxDb, one row per transcript and
 ## codon, keyed by the genomic positions of the codon's three bases. Two
 ## transcripts reading the same bases in the same frame give the same key,
@@ -144,20 +158,34 @@ NULL
 #' should always be read with its counts. It is \code{NA} when no
 #' synonymous iSNV is present.
 #'
-#' \strong{Classification.} Each iSNV is classified by
-#' \code{\link{annotateCodonChange}}, which this function calls on
-#' \code{x} with the same \code{cds} and \code{ref}, so annotation
-#' columns already present in \code{x} are not used. The totals take
-#' each iSNV as \code{collapse = "longest"} reports it, by the longest
-#' transcript that reads it; each gene's counts take it by that gene's
-#' own longest transcript, so an iSNV in a codon two genes share counts
-#' in both genes, as the codon's sites do, but once in the total.
-#' Synonymous changes count towards \eqn{n_S};
-#' nonsynonymous and nonsense changes towards \eqn{n_N}. Sites outside
-#' every coding sequence, insertions and deletions, and codons holding an
-#' ambiguous base are not counted. An iSNV is present in a sample when
-#' its frequency is above zero and, with \code{usePassedOnly = TRUE}, it
-#' passed QC; it is counted once whatever its frequency.
+#' \strong{Classification.} The counts use only the codons and the
+#' genetic code that the sites are counted over. This function calls
+#' \code{\link{annotateCodonChange}} on \code{x} with the same \code{cds}
+#' and \code{ref}, so annotation columns already present in \code{x} are
+#' not used, and takes from it, for each transcript reading an iSNV, the
+#' reference and variant codon. A reading counts only when its reference
+#' codon is a sense codon: an iSNV in a stop codon, including the loss of
+#' a stop codon, is counted in neither \eqn{n_S} nor \eqn{n_N}, since a
+#' stop codon carries no sites. The reading is then classified by
+#' translating both codons with the standard genetic code: synonymous
+#' when the amino acid is kept, counting towards \eqn{n_S}, and
+#' nonsynonymous otherwise, a change to a stop codon included, counting
+#' towards \eqn{n_N}. The initiator rule is not applied, so \code{ATG} to
+#' \code{CTG} or \code{TTG} at the first base of a coding sequence is
+#' nonsynonymous here, as \code{ATG} carries no synonymous site, although
+#' \code{annotateCodonChange} reports it as synonymous.
+#'
+#' The totals take each iSNV by its first counted reading, in the order
+#' of \code{collapse = "longest"}: the longest transcript that reads it in
+#' a sense codon, and where that transcript reads the nucleotide twice,
+#' its first reading. Each gene's counts take it by the first counted
+#' reading of that gene's own transcripts, so an iSNV in a codon two
+#' genes share counts in both genes, as the codon's sites do, but once in
+#' the total. Sites outside every coding sequence, insertions and
+#' deletions, and codons holding an ambiguous base are not counted. An
+#' iSNV is present in a sample when its frequency is above zero and, with
+#' \code{usePassedOnly = TRUE}, it passed QC; it is counted once whatever
+#' its frequency.
 #'
 #' \strong{Sites.} \eqn{S} and \eqn{N} are summed over the distinct
 #' codons of the genome that some coding sequence reads: a codon is
@@ -255,27 +283,31 @@ NULL
     gene_N <- tapply(3 - by_gene$S, by_gene$gene, sum)
 
     ## x was annotated with collapse = "all": one element per transcript
-    ## and reading, the longest transcript's first reading first
+    ## and reading, the longest transcript's first reading first. A
+    ## reading counts only at a sense codon, the codons that carry sites,
+    ## and is classified by the standard code without the initiator rule,
+    ## the code the sites are counted under
     mc <- mcols(rowRanges(x))
-    cons_l <- mc$CONSEQUENCE
-    n_rows <- lengths(cons_l)
-    cons <- rep(NA_character_, length(cons_l))
-    cons[n_rows > 0L] <- vapply(as.list(cons_l[n_rows > 0L]), `[`,
-                                character(1), 1L)
-    is_syn <- !is.na(cons) & cons == "synonymous"
-    is_non <- !is.na(cons) & cons %in% c("nonsynonymous", "nonsense")
-    ## for each gene a site counts by the first reading of that gene's
-    ## longest transcript, so a codon two genes share counts in both
-    by_tx <- data.frame(
-        site = rep(seq_along(cons_l), n_rows),
+    n_rows <- lengths(mc$CONSEQUENCE)
+    readings <- data.frame(
+        site = rep(seq_along(n_rows), n_rows),
         gene = as.character(unlist(mc$GENEID, use.names = FALSE)),
-        cons = as.character(unlist(cons_l, use.names = FALSE)),
+        syn = .ngSynonymous(unlist(mc$REFCODON, use.names = FALSE),
+                            unlist(mc$VARCODON, use.names = FALSE)),
         stringsAsFactors = FALSE)
-    by_tx <- by_tx[!is.na(by_tx$gene) &
-                       !duplicated(by_tx[, c("site", "gene")]), ,
-                   drop = FALSE]
-    tx_syn <- by_tx$cons == "synonymous"
-    tx_non <- by_tx$cons %in% c("nonsynonymous", "nonsense")
+    readings <- readings[!is.na(readings$syn), , drop = FALSE]
+    ## the total takes a site by its first counted reading
+    first <- readings[!duplicated(readings$site), , drop = FALSE]
+    is_syn <- is_non <- logical(length(n_rows))
+    is_syn[first$site] <- first$syn
+    is_non[first$site] <- !first$syn
+    ## for each gene a site counts by the first counted reading of that
+    ## gene's transcripts, so a codon two genes share counts in both
+    by_tx <- readings[!is.na(readings$gene) &
+                          !duplicated(readings[, c("site", "gene")]), ,
+                      drop = FALSE]
+    tx_syn <- by_tx$syn
+    tx_non <- !by_tx$syn
 
     freq_mat <- assay(x, "altFreq")
     qc_mat <- if (usePassedOnly && "qcPass" %in% assayNames(x)) {

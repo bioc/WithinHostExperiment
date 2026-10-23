@@ -124,7 +124,8 @@ test_that("consensusISNV() matches a worked three-caller example with gaps", {
                  "No sites passed consensus filters")
 })
 
-test_that("consensusISNV() handles 2,000 sites in 20 samples from two callers", {
+test_that("consensusISNV() gives the mean frequencies at 2,000 sites in 20 samples", {
+    ## a size the old loop took minutes over; the time itself is not tested
     set.seed(1)
     n <- 2000L
     freq <- matrix(stats::runif(n * 20L, 0.05, 0.5), n, 20L,
@@ -168,7 +169,8 @@ test_that("consensusISNV() keeps colData and every sample (was: sample_id only)"
                      GenomeInfoDb::seqlengths(example_whe))
 
     ## s2 has no consensus site and stays as an empty column; s3 is
-    ## known to the second caller only and takes its row from there
+    ## known to the second caller only and takes its row from there. Each
+    ## is held by one input, fewer than min_callers, which is warned of
     cd_a <- S4Vectors::DataFrame(sample_id = c("s1", "s2"),
                                  host_id = c("h1", "h2"))
     cd_b <- S4Vectors::DataFrame(sample_id = c("s3", "s1"),
@@ -180,7 +182,8 @@ test_that("consensusISNV() keeps colData and every sample (was: sample_id only)"
     b <- .caller_whe("seg", c(10, 20), c("T", "G"),
                      cbind(s3 = c(0.50, NA), s1 = c(0.11, 0.21)),
                      colData = cd_b)
-    cons <- consensusISNV(list(a = a, b = b))
+    expect_warning(cons <- consensusISNV(list(a = a, b = b)),
+                   "s2, s3 are held by fewer than min_callers \\(2\\)")
     expect_identical(colnames(cons), c("s1", "s2", "s3"))
     cd <- SummarizedExperiment::colData(cons)
     expect_identical(cd$sample_id, c("s1", "s2", "s3"))

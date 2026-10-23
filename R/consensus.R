@@ -43,21 +43,29 @@ NULL
 #'     \item{n_callers}{Number of callers detecting the site; a caller
 #'       that lists the same site and allele twice counts once.}
 #'     \item{caller_names}{Comma-separated caller names.}
-#'     \item{freq_spread}{Range of allele frequencies across callers.}
+#'     \item{freq_spread}{Range of the allele frequencies of the calls,
+#'       across callers.}
 #'   }
 #'   Where a site passes in more than one sample, these three columns
 #'   describe one of those samples, not all of them.
 #'
-#'   The \code{altFreq} assay contains the mean frequency across
-#'   callers for each consensus site and \code{NA} where the site did
-#'   not pass in that sample, so a sample with no consensus site is a
-#'   column of \code{NA}. The constructor adds a \code{qcPass} assay that
+#'   The \code{altFreq} assay contains the mean frequency of the calls
+#'   for each consensus site and \code{NA} where the site did not pass in
+#'   that sample, so a sample with no consensus site is a column of
+#'   \code{NA}. Every call enters the mean and the spread, so a caller
+#'   that lists a site twice is weighted twice there, though it counts
+#'   once in \code{n_callers}. A sample held by fewer than
+#'   \code{min_callers} inputs cannot reach consensus; it is kept as a
+#'   column of \code{NA}, with a warning naming it, since that column
+#'   would otherwise read as a sample without iSNVs. The constructor
+#'   adds a \code{qcPass} assay that
 #'   is \code{TRUE} throughout. Read counts, depths and the QC history
 #'   are not carried over, so run \code{\link{flagISNV}} on the
 #'   individual callers' objects rather than on the consensus.
 #'
 #'   The \code{seqinfo()} of the result merges those of the inputs; a
-#'   sequence whose length differs between inputs is an error. Each
+#'   sequence whose length, circularity or genome differs between inputs
+#'   is an error. Each
 #'   sample's \code{colData} row comes from the first input that holds
 #'   the sample, so host, role and transmission-pair columns carry over.
 #'
@@ -145,6 +153,17 @@ consensusISNV <- function(whe_list, min_callers = 2L,
                             calls$alt[first])
     input_ids <- lapply(whe_list, .consensusSampleIds)
     all_samples <- unique(unlist(input_ids, use.names = FALSE))
+    ## a sample that too few inputs hold can never reach consensus, and
+    ## its all-NA column would read as a sample without iSNVs
+    n_inputs <- tabulate(match(unlist(lapply(input_ids, unique),
+                                      use.names = FALSE), all_samples),
+                         length(all_samples))
+    short <- all_samples[n_inputs < min_callers]
+    if (length(short))
+        warning("Sample(s) ", paste(short, collapse = ", "), " are held ",
+                "by fewer than min_callers (", min_callers, ") inputs ",
+                "and cannot reach consensus; their columns are NA.",
+                call. = FALSE)
     freq_mat <- matrix(NA_real_, nrow = max(site),
                        ncol = length(all_samples),
                        dimnames = list(NULL, all_samples))

@@ -49,6 +49,13 @@ where \eqn{k_{\min} =
 and reweights each bin by the inverse of its detectability.
 Detectability is floored at 0.01, so a bin is inflated at most
 one hundredfold.
+
+Either way the corrected counts stay whole numbers of sites, as
+\code{\link{fusFs}} needs a whole number of segregating sites. The
+corrected total is rounded once, and its sites are shared out among
+the bins by largest remainder, ties going to the lower bins; rounding
+each bin on its own would leave every bin of a few sites unchanged.
+\code{nSites} is that total.
 }
 \examples{
 vcf <- system.file("extdata", "test_donor.vcf",

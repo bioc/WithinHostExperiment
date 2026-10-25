@@ -399,6 +399,13 @@ buildSFSList <- function(whe, nBins = 20L, fold = TRUE,
 #' Detectability is floored at 0.01, so a bin is inflated at most
 #' one hundredfold.
 #'
+#' Either way the corrected counts stay whole numbers of sites, as
+#' \code{\link{fusFs}} needs a whole number of segregating sites. The
+#' corrected total is rounded once, and its sites are shared out among
+#' the bins by largest remainder, ties going to the lower bins; rounding
+#' each bin on its own would leave every bin of a few sites unchanged.
+#' \code{nSites} is that total.
+#'
 #' @export
 #' @examples
 #' vcf <- system.file("extdata", "test_donor.vcf",
@@ -427,7 +434,7 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
         max_f <- max(breaks)
         frac_obs <- (max_f - thr) / max_f
         ## Scale all counts by 1/frac_obs
-        counts <- as.integer(round(counts / frac_obs))
+        counts <- .apportion(counts / frac_obs)
 
     } else if (method == "binomial") {
         if (is.na(depth) || depth <= 0)
@@ -445,7 +452,7 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
 
         ## Reweight: true_count = observed / P(detect)
         p_detect[p_detect < 0.01] <- 0.01  # floor to avoid Inf
-        counts <- as.integer(round(counts / p_detect))
+        counts <- .apportion(counts / p_detect)
     }
 
     new("WithinHostSFS",
@@ -460,6 +467,19 @@ correctSFSBias <- function(sfs, method = c("truncation", "binomial")) {
         corrected    = TRUE,
         polarization = sfs@polarization,
         maxFreq      = sfs@maxFreq)
+}
+
+## Whole site counts for the corrected bins x: the total is rounded, and
+## its sites are shared out by largest remainder, ties going to the lower
+## bins. Rounding bin by bin would leave every bin of a few sites as it was.
+.apportion <- function(x) {
+    out <- floor(x)
+    short <- round(sum(x)) - sum(out)
+    if (short > 0) {
+        add <- order(x - out, decreasing = TRUE)[seq_len(short)]
+        out[add] <- out[add] + 1
+    }
+    as.integer(out)
 }
 
 

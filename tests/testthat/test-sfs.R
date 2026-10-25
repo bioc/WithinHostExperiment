@@ -129,6 +129,33 @@ test_that("correctSFSBias binomial method works", {
     expect_true(sfs_c@corrected)
 })
 
+test_that("correctSFSBias() corrects a spectrum of small bins (was: every bin of 7 or fewer left as it was)", {
+    ## the help page's example: 15 iSNVs, no bin above 2
+    vcf <- system.file("extdata", "test_donor.vcf",
+                       package = "WithinHostExperiment")
+    whe <- readWithinHost(vcf, colData = DataFrame(sample_id = "donor"),
+                          caller = "ivar")
+    sfs <- buildSFS(whe, genomeLength = 1000L)
+    expect_identical(sfs@nSites, 15L)
+    tr <- correctSFSBias(sfs, method = "truncation")
+    ## 15 * 0.5 / (0.5 - 0.03) = 15.96
+    expect_identical(tr@nSites, 16L)
+    expect_identical(sum(tr@counts), tr@nSites)
+    expect_true(all(tr@counts >= sfs@counts))
+    ## one iSNV in each of 20 bins at a depth of 60
+    flat <- new("WithinHostSFS", counts = rep(1L, 20L),
+                breaks = seq(0.03, 0.5, length.out = 21L), folded = TRUE,
+                polarization = "none", sampleId = "s", nSites = 20L,
+                genomeLength = 1000L, meanDepth = 60, threshold = 0.03)
+    mids <- (flat@breaks[-21L] + flat@breaks[-1L]) / 2
+    p_detect <- pmax(1 - pbinom(ceiling(60 * 0.03) - 1, 60, mids), 0.01)
+    bi <- correctSFSBias(flat, method = "binomial")
+    expect_identical(bi@nSites, as.integer(round(sum(1 / p_detect))))
+    expect_identical(sum(bi@counts), bi@nSites)
+    expect_identical(correctSFSBias(flat)@nSites,
+                     as.integer(round(20 * 0.5 / 0.47)))
+})
+
 # ---- neutralityFromSFS ----
 
 test_that("neutralityFromSFS returns all statistics", {

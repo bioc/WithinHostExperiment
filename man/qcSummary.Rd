@@ -10,8 +10,19 @@ qcSummary(whe)
 \item{whe}{A \code{\link{WithinHostExperiment}}.}
 }
 \value{
-A \code{DataFrame} with columns: sample_id, total_sites,
-  passed_sites, flagged_sites, pass_rate, median_depth, median_freq.
+A \code{DataFrame} with one row per sample and columns:
+  \describe{
+    \item{sample_id}{Sample identifier.}
+    \item{total_sites}{The sample's calls: sites where its frequency is
+      above 0. A recorded 0 is a site assessed without the allele and
+      is not counted.}
+    \item{passed_sites, flagged_sites}{The calls whose \code{qcPass}
+      is \code{TRUE} and \code{FALSE}.}
+    \item{pass_rate}{\code{passed_sites / total_sites}, \code{NA}
+      without calls.}
+    \item{median_depth, median_freq}{The median read depth and the
+      median frequency of the calls.}
+  }
 }
 \description{
 Produces per-sample summary statistics from a

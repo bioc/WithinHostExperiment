@@ -114,6 +114,25 @@ test_that("qcSummary returns correct columns", {
                       "flagged_sites", "pass_rate") %in% colnames(smry)))
 })
 
+test_that("qcSummary() does not count a recorded 0 as a site (was: it lowered pass_rate and median_freq)", {
+    ## four calls and six sites assessed without the allele, as a generic
+    ## table records them
+    whe <- WithinHostExperiment(
+        assays = list(
+            altFreq = matrix(c(0.1, 0.2, 0.3, 0.4, rep(0, 6)), ncol = 1),
+            totalDepth = matrix(c(rep(800L, 4), rep(1000L, 6)), ncol = 1)),
+        rowRanges = GenomicRanges::GRanges("seg",
+            IRanges::IRanges(seq_len(10) * 10L, width = 1)),
+        colData = DataFrame(sample_id = "S1"))
+    whe <- flagISNV(whe, ISNVFilter(minAltReads = 0L))
+    s <- qcSummary(whe)
+    expect_equal(c(s$total_sites, s$passed_sites, s$flagged_sites),
+                 c(4L, 4L, 0L))
+    expect_equal(s$pass_rate, 1)
+    expect_equal(s$median_freq, 0.25)
+    expect_equal(s$median_depth, 800)
+})
+
 test_that("qcSummary counts match expectations", {
     whe <- .load_donor_whe()
     whe <- flagISNV(whe, ISNVFilter(minDepth = 200L))

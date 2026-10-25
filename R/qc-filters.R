@@ -203,8 +203,19 @@ setMethod("flagISNV", "WithinHostExperiment",
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #'
-#' @return A \code{DataFrame} with columns: sample_id, total_sites,
-#'   passed_sites, flagged_sites, pass_rate, median_depth, median_freq.
+#' @return A \code{DataFrame} with one row per sample and columns:
+#'   \describe{
+#'     \item{sample_id}{Sample identifier.}
+#'     \item{total_sites}{The sample's calls: sites where its frequency is
+#'       above 0. A recorded 0 is a site assessed without the allele and
+#'       is not counted.}
+#'     \item{passed_sites, flagged_sites}{The calls whose \code{qcPass}
+#'       is \code{TRUE} and \code{FALSE}.}
+#'     \item{pass_rate}{\code{passed_sites / total_sites}, \code{NA}
+#'       without calls.}
+#'     \item{median_depth, median_freq}{The median read depth and the
+#'       median frequency of the calls.}
+#'   }
 #'
 #' @export
 #' @examples
@@ -244,43 +255,37 @@ qcSummary <- function(whe) {
 
     n_samples <- ncol(qc_mat)
 
+    ## A call is a frequency above 0; a recorded 0 is a site assessed
+    ## without the allele and is not counted
+    is_call <- if (is.null(freq_mat)) {
+        matrix(TRUE, nrow = nrow(qc_mat), ncol = n_samples)
+    } else {
+        .carries(freq_mat)
+    }
+
     DataFrame(
         sample_id = sample_ids,
         total_sites = vapply(seq_len(n_samples), function(j) {
-            if (is.null(freq_mat)) return(nrow(qc_mat))
-            sum(!is.na(freq_mat[, j]))
+            sum(is_call[, j])
         }, integer(1)),
         passed_sites = vapply(seq_len(n_samples), function(j) {
-            if (is.null(freq_mat)) return(sum(qc_mat[, j], na.rm = TRUE))
-            sum(qc_mat[, j] & !is.na(freq_mat[, j]), na.rm = TRUE)
+            sum(qc_mat[, j] & is_call[, j], na.rm = TRUE)
         }, integer(1)),
         flagged_sites = vapply(seq_len(n_samples), function(j) {
-            if (is.null(freq_mat)) {
-                return(sum(!qc_mat[, j], na.rm = TRUE))
-            }
-            sum(!qc_mat[, j] & !is.na(freq_mat[, j]), na.rm = TRUE)
+            sum(!qc_mat[, j] & is_call[, j], na.rm = TRUE)
         }, integer(1)),
         pass_rate = vapply(seq_len(n_samples), function(j) {
-            if (is.null(freq_mat)) {
-                total <- nrow(qc_mat)
-            } else {
-                total <- sum(!is.na(freq_mat[, j]))
-            }
+            total <- sum(is_call[, j])
             if (total == 0L) return(NA_real_)
-            if (is.null(freq_mat)) {
-                sum(qc_mat[, j], na.rm = TRUE) / total
-            } else {
-                sum(qc_mat[, j] & !is.na(freq_mat[, j]),
-                    na.rm = TRUE) / total
-            }
+            sum(qc_mat[, j] & is_call[, j], na.rm = TRUE) / total
         }, numeric(1)),
         median_depth = vapply(seq_len(n_samples), function(j) {
             if (is.null(depth_mat)) return(NA_real_)
-            stats::median(depth_mat[, j], na.rm = TRUE)
+            stats::median(depth_mat[is_call[, j], j], na.rm = TRUE)
         }, numeric(1)),
         median_freq = vapply(seq_len(n_samples), function(j) {
             if (is.null(freq_mat)) return(NA_real_)
-            stats::median(freq_mat[, j], na.rm = TRUE)
+            stats::median(freq_mat[is_call[, j], j], na.rm = TRUE)
         }, numeric(1))
     )
 }

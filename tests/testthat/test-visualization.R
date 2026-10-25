@@ -214,6 +214,34 @@ test_that("plotQCDashboard without totalDepth assay still works", {
     expect_s3_class(p, c("patchwork", "ggplot"))
 })
 
+test_that("a recorded 0 is not drawn or counted as an iSNV (was: drawn in both plots and counted in panel d)", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("patchwork")
+    ## sample c holds only sites assessed without the allele
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.12, 0, 0.30, NA,
+                                         0.15, 0.20, 0, 0,
+                                         0, 0, NA, 0), ncol = 3),
+                      totalDepth = matrix(1000L, 4, 3)),
+        rowRanges = GenomicRanges::GRanges("seg",
+            IRanges::IRanges(c(10, 20, 30, 40), width = 1)),
+        colData = S4Vectors::DataFrame(sample_id = c("a", "b", "c")))
+    calls <- c(0.12, 0.30, 0.15, 0.20)
+    expect_equal(plotFrequencySpectrum(whe)$data$altFreq, calls)
+    flagged <- flagISNV(whe, ISNVFilter(minAltReads = 0L))
+    expect_equal(plotFrequencySpectrum(flagged,
+                                       usePassedOnly = FALSE)$data$altFreq,
+                 calls)
+    dash <- plotQCDashboard(flagged)
+    expect_equal(dash[[1]][[1]]$data$freq, calls)
+    panel_d <- dash[[2]][[2]]
+    expect_equal(panel_d$data$count, c(2L, 2L, 0L, 0L, 0L, 0L))
+    expect_identical(panel_d$layers[[2]]$data$label, c("2/2", "2/2", "0/0"))
+    grDevices::pdf(NULL)
+    on.exit(grDevices::dev.off(), add = TRUE)
+    expect_silent(print(dash))
+})
+
 # ==========================================================================
 # plotFrequencyTrajectory
 # ==========================================================================

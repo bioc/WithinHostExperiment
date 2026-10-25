@@ -39,7 +39,9 @@ A ggplot object.
 \description{
 Creates a publication-quality histogram or density plot of
 alternative allele frequencies, optionally faceted by sample
-or metadata group.
+or metadata group. Only calls are drawn: a recorded frequency of 0
+is a site assessed without the allele and is left out. A site at
+frequency 1 is drawn unless QC has removed it.
 }
 \examples{
 if (requireNamespace("ggplot2", quietly = TRUE)) {

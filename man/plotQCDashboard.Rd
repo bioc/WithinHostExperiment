@@ -15,7 +15,9 @@ A patchwork composite ggplot object.
 \description{
 Creates a publication-quality four-panel dashboard showing
 frequency distribution, read depth, QC filtering waterfall,
-and per-sample pass/fail summary.
+and per-sample pass/fail summary. Panels a and d draw and count
+calls, frequencies above 0, as \code{\link{qcSummary}} does: a
+recorded 0 is a site assessed without the allele.
 }
 \examples{
 if (requireNamespace("ggplot2", quietly = TRUE) &&

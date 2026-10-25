@@ -87,7 +87,9 @@ utils::globalVariables(".data")
 #'
 #' Creates a publication-quality histogram or density plot of
 #' alternative allele frequencies, optionally faceted by sample
-#' or metadata group.
+#' or metadata group. Only calls are drawn: a recorded frequency of 0
+#' is a site assessed without the allele and is left out. A site at
+#' frequency 1 is drawn unless QC has removed it.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #' @param type Character. \code{"histogram"} (default) or
@@ -138,7 +140,8 @@ plotFrequencySpectrum <- function(whe,
     df_list <- lapply(seq_len(ncol(freq_mat)), function(j) {
         freq <- freq_mat[, j]
         if (!is.null(qc_mat)) freq[!.passedQC(qc_mat[, j])] <- NA
-        valid <- !is.na(freq) & is.finite(freq)
+        ## a recorded 0 is a site assessed without the allele, not an iSNV
+        valid <- .carries(freq) & is.finite(freq)
         if (sum(valid) == 0L) return(NULL)
         data.frame(sample_id = sample_ids[j],
                    altFreq = freq[valid],
@@ -405,7 +408,9 @@ plotPairScatter <- function(whe, pairId, threshold = 0.03) {
 #'
 #' Creates a publication-quality four-panel dashboard showing
 #' frequency distribution, read depth, QC filtering waterfall,
-#' and per-sample pass/fail summary.
+#' and per-sample pass/fail summary. Panels a and d draw and count
+#' calls, frequencies above 0, as \code{\link{qcSummary}} does: a
+#' recorded 0 is a site assessed without the allele.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}}.
 #'
@@ -448,18 +453,27 @@ plotQCDashboard <- function(whe) {
 
     bs <- 8
 
+    ## A call is a frequency above 0; a recorded 0 is a site assessed
+    ## without the allele and is neither drawn nor counted as an iSNV
+    is_call <- .carries(freq_mat)
+
     ## ---- Panel A: Frequency distribution by sample ----
-    freq_df <- do.call(rbind, lapply(seq_len(ncol(freq_mat)),
-        function(j) {
-            vals <- freq_mat[, j]
-            vals <- vals[!is.na(vals)]
+    ## a sample without calls has no bars
+    freq_df <- do.call(rbind, Filter(Negate(is.null),
+        lapply(seq_len(ncol(freq_mat)), function(j) {
+            vals <- freq_mat[is_call[, j], j]
+            if (!length(vals)) return(NULL)
             data.frame(sample = sample_ids[j], freq = vals,
                        stringsAsFactors = FALSE)
-        }))
+        })))
 
     n_samp <- length(unique(freq_df$sample))
 
-    if (n_samp <= 7) {
+    if (is.null(freq_df)) {
+        pA <- ggplot2::ggplot() +
+            ggplot2::labs(title = expression(bold("a"))) +
+            ggplot2::theme_void()
+    } else if (n_samp <= 7) {
         all_pal <- c(.whe_pal$blue, .whe_pal$vermillon,
                      .whe_pal$orange, .whe_pal$green,
                      .whe_pal$purple, .whe_pal$skyblue,
@@ -483,19 +497,21 @@ plotQCDashboard <- function(whe) {
                 alpha = 0.8)
     }
 
-    all_freq_vals <- freq_df$freq
-    x_lim_d <- c(max(0, min(all_freq_vals) - 0.02),
-                  min(1, max(all_freq_vals) + 0.02))
-    pA <- pA +
-        ggplot2::scale_x_continuous(
-            name = "Alternative allele frequency (%)",
-            labels = function(x) as.integer(x * 100)) +
-        ggplot2::coord_cartesian(xlim = x_lim_d) +
-        ggplot2::labs(y = "Number of iSNVs",
-                      title = expression(bold("a"))) +
-        .theme_pub(base_size = bs) +
-        .legend_inside(0.82, 0.88) +
-        ggplot2::theme(legend.key.size = ggplot2::unit(7, "pt"))
+    if (!is.null(freq_df)) {
+        all_freq_vals <- freq_df$freq
+        x_lim_d <- c(max(0, min(all_freq_vals) - 0.02),
+                     min(1, max(all_freq_vals) + 0.02))
+        pA <- pA +
+            ggplot2::scale_x_continuous(
+                name = "Alternative allele frequency (%)",
+                labels = function(x) as.integer(x * 100)) +
+            ggplot2::coord_cartesian(xlim = x_lim_d) +
+            ggplot2::labs(y = "Number of iSNVs",
+                          title = expression(bold("a"))) +
+            .theme_pub(base_size = bs) +
+            .legend_inside(0.82, 0.88) +
+            ggplot2::theme(legend.key.size = ggplot2::unit(7, "pt"))
+    }
 
     ## ---- Panel B: Depth distribution ----
     if (!is.null(depth_mat)) {
@@ -595,12 +611,11 @@ plotQCDashboard <- function(whe) {
 
     ## ---- Panel D: Per-sample pass/flagged ----
     n_total <- vapply(seq_len(ncol(freq_mat)), function(j) {
-        sum(!is.na(freq_mat[, j]))
+        sum(is_call[, j])
     }, integer(1))
     n_pass <- if (!is.null(qc_mat)) {
         vapply(seq_len(ncol(qc_mat)), function(j) {
-            sum(qc_mat[, j] & !is.na(freq_mat[, j]),
-                na.rm = TRUE)
+            sum(.passedQC(qc_mat[, j]) & is_call[, j])
         }, integer(1))
     } else {
         n_total

@@ -20,7 +20,12 @@ containing the host/patient identifier (default:
 \code{"host_id"}).}
 
 \item{timeCol}{Character scalar. Column name in \code{colData}
-containing the time point (default: \code{"timepoint"}).}
+containing the time point (default: \code{"timepoint"}). It must
+hold numbers, dates, date-times, time differences or a factor whose
+levels are in time order; text is read as numbers when every value
+is one, and is otherwise an error, as in
+\code{\link{flagTemporalInconsistency}}. Samples whose time point is
+\code{NA} are left out, with a warning.}
 
 \item{usePassedOnly}{Logical. If TRUE (default), only use
 variants where \code{qcPass == TRUE}.}

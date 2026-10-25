@@ -140,3 +140,48 @@ test_that("plotFrequencyTrajectory handles missing host", {
         plotFrequencyTrajectory(whe, hostId = "NONEXISTENT"),
         "No trajectory data")
 })
+
+## One site of host H1 sampled at the given timepoints
+.one_site_whe <- function(time, freq) {
+    gr <- GenomicRanges::GRanges("seg1", IRanges::IRanges(100, width = 1))
+    S4Vectors::mcols(gr)$ref <- "A"
+    S4Vectors::mcols(gr)$alt <- "T"
+    WithinHostExperiment(
+        assays = list(altFreq = matrix(freq, nrow = 1)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(
+            sample_id = paste0("s", seq_along(time)),
+            host_id = "H1", timepoint = time))
+}
+
+test_that("timepoints are put in time order and an NA timepoint is left out with a warning (was: text sorted as text, NA placed last)", {
+    ## numbers given as text: "10" comes after "2"
+    em <- detectEmergingVariants(
+        .one_site_whe(c("1", "2", "10"), c(0.01, 0.30, 0.02)))
+    expect_identical(c(em$time_from, em$time_to), c("1", "2"))
+    expect_equal(c(em$freq_from, em$freq_to), c(0.01, 0.30))
+    ## text without a time order is refused, as by flagTemporalInconsistency()
+    day <- .one_site_whe(c("day1", "day2", "day10"), c(0.01, 0.30, 0.02))
+    expect_error(detectEmergingVariants(day), "no time order")
+    expect_error(trackFrequency(day), "no time order")
+    ## a sample without a timepoint cannot be placed in time
+    na_time <- .one_site_whe(c(1, 2, NA), c(0.20, 0.01, 0.40))
+    expect_warning(em <- detectEmergingVariants(na_time),
+                   "1 sample\\(s\\) with NA in 'timepoint' are left out")
+    expect_equal(nrow(em), 0L)
+    expect_warning(tr <- trackFrequency(na_time), "NA in 'timepoint'")
+    expect_equal(tr$frequency, c(0.20, 0.01))
+    ## a factor's levels give its order, and dates keep their class
+    fac <- .one_site_whe(factor(c("late", "early"), levels = c("early", "late")),
+                         c(0.30, 0.01))
+    expect_identical(as.character(detectEmergingVariants(fac)$time_from),
+                     "early")
+    dates <- as.Date(c("2024-03-01", "2024-01-15"))
+    em <- detectEmergingVariants(.one_site_whe(dates, c(0.30, 0.01)))
+    expect_identical(em$time_from, dates[2])
+    ## the plot's axis follows time order
+    skip_if_not_installed("ggplot2")
+    p <- plotFrequencyTrajectory(
+        .one_site_whe(c("1", "2", "10"), c(0.05, 0.30, 0.15)), "H1")
+    expect_identical(levels(p$data$timepoint), c("1", "2", "10"))
+})

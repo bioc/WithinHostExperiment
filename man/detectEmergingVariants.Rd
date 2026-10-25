@@ -22,7 +22,9 @@ for host identifier (default: \code{"host_id"}). Samples whose
 host is \code{NA} are left out, with a warning.}
 
 \item{timeCol}{Character scalar. Column name in \code{colData}
-for time point (default: \code{"timepoint"}).}
+for time point (default: \code{"timepoint"}), read as in
+\code{\link{trackFrequency}}: it is put in time order, and samples
+whose time point is \code{NA} are left out, with a warning.}
 
 \item{freqThreshold}{Numeric scalar. Frequency threshold for
 emergence (default: 0.05).}

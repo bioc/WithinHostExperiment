@@ -22,7 +22,9 @@ samples.}
 for host identifier (default: \code{"host_id"}).}
 
 \item{timeCol}{Character scalar. Column name in \code{colData}
-for time point (default: \code{"timepoint"}).}
+for time point (default: \code{"timepoint"}), read as in
+\code{\link{trackFrequency}}. Numbers given as text are drawn in
+numeric order.}
 
 \item{usePassedOnly}{Logical. If TRUE (default), only use
 QC-passed variants.}

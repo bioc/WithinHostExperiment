@@ -27,7 +27,12 @@ utils::globalVariables(".data")
 #'   containing the host/patient identifier (default:
 #'   \code{"host_id"}).
 #' @param timeCol Character scalar. Column name in \code{colData}
-#'   containing the time point (default: \code{"timepoint"}).
+#'   containing the time point (default: \code{"timepoint"}). It must
+#'   hold numbers, dates, date-times, time differences or a factor whose
+#'   levels are in time order; text is read as numbers when every value
+#'   is one, and is otherwise an error, as in
+#'   \code{\link{flagTemporalInconsistency}}. Samples whose time point is
+#'   \code{NA} are left out, with a warning.
 #' @param usePassedOnly Logical. If TRUE (default), only use
 #'   variants where \code{qcPass == TRUE}.
 #'
@@ -98,6 +103,15 @@ trackFrequency <- function(whe,
     n_sites <- nrow(freq_mat)
     n_samples <- ncol(freq_mat)
 
+    ## A trajectory needs a time order: text without one is refused, and a
+    ## sample without a timepoint is left out
+    no_time <- is.na(.timeOrder(timepoints, timeCol))
+    if (any(no_time)) {
+        warning(sum(no_time), " sample(s) with NA in '", timeCol,
+                "' are left out.")
+        freq_mat[, no_time] <- NA
+    }
+
     if (!is.null(qc_mat)) freq_mat[!.passedQC(qc_mat)] <- NA
     entries <- which(!is.na(freq_mat), arr.ind = TRUE)
 
@@ -141,7 +155,9 @@ trackFrequency <- function(whe,
 #'   for host identifier (default: \code{"host_id"}). Samples whose
 #'   host is \code{NA} are left out, with a warning.
 #' @param timeCol Character scalar. Column name in \code{colData}
-#'   for time point (default: \code{"timepoint"}).
+#'   for time point (default: \code{"timepoint"}), read as in
+#'   \code{\link{trackFrequency}}: it is put in time order, and samples
+#'   whose time point is \code{NA} are left out, with a warning.
 #' @param freqThreshold Numeric scalar. Frequency threshold for
 #'   emergence (default: 0.05).
 #' @param minIncrease Numeric scalar. Minimum frequency increase
@@ -218,11 +234,13 @@ detectEmergingVariants <- function(whe,
     time <- traj$timepoint[keep]
 
     ## Order once: hosts and, within each host, variants in order of
-    ## first appearance, then by timepoint. order() is stable, so
+    ## first appearance, then by timepoint in time order, as
+    ## flagTemporalInconsistency() reads it. order() is stable, so
     ## samples tied at one timepoint keep their column order.
     host_rank <- match(host, unique(host))
     pair <- paste(host_rank, key, sep = ":")
-    o <- order(host_rank, match(pair, unique(pair)), time)
+    o <- order(host_rank, match(pair, unique(pair)),
+               .timeOrder(time, timeCol))
     host <- host[o]
     key <- key[o]
     freq <- freq[o]
@@ -264,7 +282,9 @@ detectEmergingVariants <- function(whe,
 #' @param hostCol Character scalar. Column name in \code{colData}
 #'   for host identifier (default: \code{"host_id"}).
 #' @param timeCol Character scalar. Column name in \code{colData}
-#'   for time point (default: \code{"timepoint"}).
+#'   for time point (default: \code{"timepoint"}), read as in
+#'   \code{\link{trackFrequency}}. Numbers given as text are drawn in
+#'   numeric order.
 #' @param usePassedOnly Logical. If TRUE (default), only use
 #'   QC-passed variants.
 #'
@@ -309,6 +329,12 @@ plotFrequencyTrajectory <- function(whe, hostId,
     }
 
     plot_df <- as.data.frame(host_traj)
+    ## numbers given as text would be drawn in text order, "10" before "2"
+    if (is.character(plot_df$timepoint)) {
+        tp <- plot_df$timepoint
+        plot_df$timepoint <- factor(tp, levels = unique(
+            tp[order(.timeOrder(tp, timeCol))]))
+    }
 
     ggplot2::ggplot(plot_df,
         ggplot2::aes(

@@ -1,3 +1,109 @@
+# WithinHostExperiment 0.99.2
+
+Corrections to functions that the earlier reviews had not examined. Each
+has a test that fails on 0.99.1. Several change results; each entry says
+what the function did and what it does now.
+
+## Interface changes
+
+* `detectEmergingVariants()` returns one more column, `qc_from`: whether
+  a call at the earlier timepoint of the interval passed QC.
+* `combineRows()` and `combineCols()` are an error when the objects do
+  not hold the same samples, or the same sites (see Corrections).
+* `trackFrequency()`, `detectEmergingVariants()` and
+  `plotFrequencyTrajectory()` stop on a timepoint column of text that has
+  no time order, such as `"day10"`, as `flagTemporalInconsistency()`
+  already did, and leave out samples without a timepoint, with a warning.
+* DESCRIPTION and `_pkgdown.yml` no longer give
+  https://cuiweig.github.io/WithinHostExperiment/, which does not
+  resolve; the repository address remains.
+
+## Corrections
+
+* A `qcPass` of `NA` counts as not passed wherever an analysis uses only
+  passing calls. Ten masks wrote `freq[!qc] <- NA`, which R skips at an
+  `NA` index, so such a call was used as passing by `calcDiversity()`,
+  `compareDiversity()`, `buildSFS()`, `calcNeutralityTests()`,
+  `pNpSWithinHost()`, `exportPairFrequencies()`, `calcSharedVariants()`,
+  the bottleneck inputs, `detectCrossContamination()`,
+  `trackFrequency()`, `detectEmergingVariants()`,
+  `plotFrequencyTrajectory()` and `plotFrequencySpectrum()`. No package
+  function writes `NA` into `qcPass`; one set by hand now counts as
+  failed, as it already did in `flagTemporalInconsistency()` and the
+  consensus.
+* A recorded frequency of 0, which a generic table holds for a site
+  assessed without the allele, is no longer counted as a call.
+  `benchmarkCallers()` and `calcCallerConcordance()` counted it as a
+  called site, so a caller with two such rows scored precision 0.6
+  instead of 1. `qcSummary()` counted it in `total_sites`, as flagged
+  once `flagISNV()` had run, and in `median_freq`: four calls among ten
+  assessed sites gave a pass rate of 0.4 and a median frequency of 0.
+  Every column of `qcSummary()` now describes the calls, `median_depth`
+  included, and the help page defines each one.
+  `plotFrequencySpectrum()` and panels a and d of `plotQCDashboard()`
+  drew and counted it as an iSNV; panel a now leaves out a sample with
+  no call, so a sample of recorded zeros does not stop the plot.
+* The percentage tick labels of `plotFrequencySpectrum()`,
+  `plotQCDashboard()` and `plotPairScatter()` are rounded, where
+  `as.integer(x * 100)` truncated them: a break at 4% could read 3, and
+  one at 2.5% read 2.
+* `trackFrequency()`, `detectEmergingVariants()` and
+  `plotFrequencyTrajectory()` read the timepoint column in time order,
+  as `flagTemporalInconsistency()` does. Numbers given as text were
+  sorted as text, so "1", "2", "10" gave an interval from 10 to 2, and
+  an `NA` timepoint was sorted last and formed an interval ending in
+  `NA`, with no warning.
+* `trackFrequency()` reports each call's QC state in `qc_passed`. It read
+  `qcPass` only with `usePassedOnly = TRUE`, which then removed the
+  failing calls, so the column was `TRUE` on every row.
+* `detectEmergingVariants()` combines replicate samples taken at one
+  timepoint by the mean of their calls before it forms intervals. Two
+  replicates formed an interval from a timepoint to itself, a gap
+  between them was reported as emergence, and the answer depended on the
+  order of the columns.
+* `detectEmergingVariants()` forms intervals on every call and applies
+  QC to their end points. It removed the calls that failed QC first, so
+  after the default `flagISNV()` a start below `minFreq` (0.03), a
+  recorded 0 included, could never be reported, and a timepoint that
+  failed QC was skipped, joining the timepoints either side of it. The
+  later point must now have a call that passed QC; the earlier point
+  uses its passing calls, or all its calls when none passed, since a
+  frequency below `minFreq` is the low start that emergence is measured
+  from, and `qc_from` says which.
+* `detectCrossContamination()` keeps a source call that QC failed for
+  its frequency alone. After the default `flagISNV()`, whose `maxFreq` is
+  0.5, every source above 50% was removed, the 80% source of the help
+  page's own example included. A failed source call above the strictest
+  `maxFreq` of the filters applied is now used when it has the depth,
+  alternative reads and strand balance that each of them asks for.
+* `correctSFSBias()` rounds the corrected spectrum as a total and shares
+  its sites out among the bins by largest remainder. Rounding each bin
+  left every bin of 7 or fewer iSNVs unchanged in a folded spectrum at
+  threshold 0.03, and every bin of 16 or fewer in an unfolded one, so the
+  help page's example kept its 15 sites while `corrected` became `TRUE`;
+  it now has 16, and `nSites` is the corrected total.
+* `combineRows()` matches samples by column name, and `combineCols()`
+  matches sites by sequence name, position, `ref` and `alt`. Both bound
+  by position, so an object holding the same samples or sites in another
+  order had its values written to the wrong ones without a message, and
+  one holding others was relabelled. The same samples or sites in another
+  order are now put in the first object's order; others are an error
+  that names the argument and what differs.
+* `exactBottleneck(method = "exact_bb")` derives a missing recipient
+  alternative count at a known depth as `round(altFreq * totalDepth)`, as
+  `readWithinHostTable(format = "generic")` does. It took the count as 0,
+  so an iVar table without its `ALT_DP` column made every recipient call
+  an absence: on the shipped pair without the recipient's counts it gave
+  `Nb` 5 [3, 7] where the counts give 95 [21, 272]. A recipient with no
+  frequency there still counts as 0 reads.
+
+## Documentation
+
+* The vignette describes the new behaviour of `qcSummary()`,
+  `correctSFSBias()`, `trackFrequency()` and `detectEmergingVariants()`;
+  the truncation correction of its donor spectrum gives 15 variants
+  rather than 14.
+
 # WithinHostExperiment 0.99.1
 
 Changes made in response to the Bioconductor review. The package has not

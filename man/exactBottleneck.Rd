@@ -87,7 +87,11 @@ Estimates transmission bottleneck size using one of three methods:
     scored only by the other estimators. Such sites are left out,
     with a message, and counted in \code{n_excluded}, not in
     \code{n_variants}; a bootstrap interval (\code{nboot > 0})
-    resamples only the sites used.}
+    resamples only the sites used. Where the depth is known but the
+    recipient's alternative count is not, as in an iVar table
+    without \code{ALT_DP}, the count is
+    \code{round(altFreq * totalDepth)}; where the recipient has no
+    frequency there either, it has no call, and the count is 0.}
   \item{\code{wright_fisher}}{Approximate score in which one
     generation of binomial drift is combined with a beta kernel of
     concentration \code{max(Nb, 2)} around the drifted frequency.

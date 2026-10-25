@@ -27,7 +27,11 @@ NULL
 #'     scored only by the other estimators. Such sites are left out,
 #'     with a message, and counted in \code{n_excluded}, not in
 #'     \code{n_variants}; a bootstrap interval (\code{nboot > 0})
-#'     resamples only the sites used.}
+#'     resamples only the sites used. Where the depth is known but the
+#'     recipient's alternative count is not, as in an iVar table
+#'     without \code{ALT_DP}, the count is
+#'     \code{round(altFreq * totalDepth)}; where the recipient has no
+#'     frequency there either, it has no call, and the count is 0.}
 #'   \item{\code{wright_fisher}}{Approximate score in which one
 #'     generation of binomial drift is combined with a beta kernel of
 #'     concentration \code{max(Nb, 2)} around the drifted frequency.
@@ -361,6 +365,7 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
     idx <- cbind(input$sites$row_index, input$sites$recipient_col)
     r_alt   <- as.integer(assay(whe, "altCount")[idx])
     r_depth <- as.integer(assay(whe, "totalDepth")[idx])
+    r_freq  <- as.numeric(assay(whe, "altFreq")[idx])
     d_freqs <- as.numeric(d_freqs)
 
     ## A site of unknown recipient depth adds the same constant to the
@@ -374,9 +379,15 @@ exactBottleneck <- function(whe, pairId, maxNb = 500L,
                 "counted in n_excluded, not in n_variants.")
     r_alt   <- r_alt[known]
     r_depth <- r_depth[known]
+    r_freq  <- r_freq[known]
     d_freqs <- d_freqs[known]
 
-    ## a missing alternative count at a known depth is taken as 0
+    ## a missing alternative count at a known depth comes from the
+    ## frequency, as readWithinHostTable(format = "generic") derives it; an
+    ## iVar table without ALT_DP records none. Without a frequency, the
+    ## recipient has no call there, which is 0 reads
+    derive <- is.na(r_alt) & !is.na(r_freq)
+    r_alt[derive] <- as.integer(round(r_freq[derive] * r_depth[derive]))
     r_alt[is.na(r_alt)] <- 0L
     ## Ensure alt does not exceed depth
     r_alt <- pmin(r_alt, r_depth)

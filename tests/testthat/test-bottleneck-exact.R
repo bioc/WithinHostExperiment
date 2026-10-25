@@ -344,3 +344,34 @@ test_that("exactBottleneck says that wright_fisher is a heuristic", {
     expect_no_message(exactBottleneck(whe, pairId = "p1", maxNb = 20L,
                                       method = "presence_absence"))
 })
+
+test_that("exact_bb derives a missing recipient count from frequency and depth (was: taken as 0)", {
+    whe <- .make_pair_whe()
+    ## an iVar table without ALT_DP records no alternative count
+    no_alt <- whe
+    ac <- SummarizedExperiment::assay(no_alt, "altCount")
+    ac[, "recipient"] <- NA_integer_
+    SummarizedExperiment::assay(no_alt, "altCount") <- ac
+    pair <- WithinHostExperiment:::.extractPairData(whe, "p1", 0.03,
+                                                    need_counts = TRUE)
+    derived <- WithinHostExperiment:::.extractPairData(no_alt, "p1", 0.03,
+                                                       need_counts = TRUE)
+    expect_identical(derived$recipient_alt, pair$recipient_alt)
+    run <- function(w) suppressWarnings(suppressMessages(
+        exactBottleneck(w, pairId = "p1", maxNb = 60L, method = "exact_bb")))
+    expect_equal(run(no_alt), run(whe))
+    ## a recipient without a call at a known depth still counts as 0 reads
+    one <- WithinHostExperiment(
+        assays = list(altFreq = matrix(c(0.2, NA), 1),
+                      totalDepth = matrix(c(1000L, 800L), 1),
+                      altCount = matrix(c(200L, NA), 1)),
+        rowRanges = GenomicRanges::GRanges("seg",
+            IRanges::IRanges(10, width = 1)),
+        colData = S4Vectors::DataFrame(sample_id = c("d", "r"),
+                                       role = c("donor", "recipient"),
+                                       pair_id = "p1"))
+    absent <- WithinHostExperiment:::.extractPairData(one, "p1", 0.03,
+                                                      need_counts = TRUE)
+    expect_identical(c(absent$recipient_alt, absent$recipient_depth),
+                     c(0L, 800L))
+})

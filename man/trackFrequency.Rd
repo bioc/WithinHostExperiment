@@ -28,7 +28,8 @@ is one, and is otherwise an error, as in
 \code{NA} are left out, with a warning.}
 
 \item{usePassedOnly}{Logical. If TRUE (default), only use
-variants where \code{qcPass == TRUE}.}
+variants where \code{qcPass == TRUE}. With \code{FALSE} every call
+is returned and \code{qc_passed} marks those that failed.}
 }
 \value{
 A \code{DataFrame} with columns:
@@ -39,8 +40,9 @@ A \code{DataFrame} with columns:
     \item{timepoint}{Time point value.}
     \item{frequency}{Alternative allele frequency at that
       time point.}
-    \item{qc_passed}{Logical. Whether the variant passed QC
-      at that time point (\code{TRUE} if no QC assay present).}
+    \item{qc_passed}{Logical. Whether the call passed QC at that
+      time point; an \code{NA} \code{qcPass} counts as not passed
+      (\code{TRUE} if no QC assay present).}
   }
 }
 \description{

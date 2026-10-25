@@ -30,6 +30,21 @@ test_that("trackFrequency returns correct structure with qc_passed", {
     expect_true(all(traj$qc_passed))
 })
 
+test_that("qc_passed reports each call's QC state with usePassedOnly = FALSE (was: always TRUE)", {
+    whe <- .make_longitudinal_whe()
+    qc <- matrix(TRUE, 3, 3)
+    qc[1, 2] <- FALSE
+    qc[3, 3] <- NA
+    SummarizedExperiment::assay(whe, "qcPass", withDimnames = FALSE) <- qc
+    all_calls <- trackFrequency(whe, usePassedOnly = FALSE)
+    expect_equal(nrow(all_calls), 9L)
+    ## rows run site by site within each sample, as the matrix does
+    expect_identical(all_calls$qc_passed, as.vector(!is.na(qc) & qc))
+    passed <- trackFrequency(whe)
+    expect_equal(nrow(passed), 7L)
+    expect_true(all(passed$qc_passed))
+})
+
 test_that("trackFrequency returns all non-NA entries", {
     whe <- .make_longitudinal_whe()
     traj <- trackFrequency(whe)

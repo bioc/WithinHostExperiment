@@ -34,7 +34,8 @@ utils::globalVariables(".data")
 #'   \code{\link{flagTemporalInconsistency}}. Samples whose time point is
 #'   \code{NA} are left out, with a warning.
 #' @param usePassedOnly Logical. If TRUE (default), only use
-#'   variants where \code{qcPass == TRUE}.
+#'   variants where \code{qcPass == TRUE}. With \code{FALSE} every call
+#'   is returned and \code{qc_passed} marks those that failed.
 #'
 #' @return A \code{DataFrame} with columns:
 #'   \describe{
@@ -44,8 +45,9 @@ utils::globalVariables(".data")
 #'     \item{timepoint}{Time point value.}
 #'     \item{frequency}{Alternative allele frequency at that
 #'       time point.}
-#'     \item{qc_passed}{Logical. Whether the variant passed QC
-#'       at that time point (\code{TRUE} if no QC assay present).}
+#'     \item{qc_passed}{Logical. Whether the call passed QC at that
+#'       time point; an \code{NA} \code{qcPass} counts as not passed
+#'       (\code{TRUE} if no QC assay present).}
 #'   }
 #'
 #' @export
@@ -81,10 +83,12 @@ trackFrequency <- function(whe,
              paste(colnames(cd), collapse = ", "))
 
     freq_mat <- assay(whe, "altFreq")
-    qc_mat <- if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
-        assay(whe, "qcPass")
+    ## Each cell's QC state is read whatever usePassedOnly is, so that with
+    ## FALSE the failing calls are kept and marked
+    passed <- if ("qcPass" %in% assayNames(whe)) {
+        .passedQC(assay(whe, "qcPass"))
     } else {
-        NULL
+        matrix(TRUE, nrow = nrow(freq_mat), ncol = ncol(freq_mat))
     }
 
     rr <- rowRanges(whe)
@@ -112,7 +116,7 @@ trackFrequency <- function(whe,
         freq_mat[, no_time] <- NA
     }
 
-    if (!is.null(qc_mat)) freq_mat[!.passedQC(qc_mat)] <- NA
+    if (usePassedOnly) freq_mat[!passed] <- NA
     entries <- which(!is.na(freq_mat), arr.ind = TRUE)
 
     if (nrow(entries) == 0L) {
@@ -129,11 +133,7 @@ trackFrequency <- function(whe,
         variant_key = variant_keys[entries[, "row"]],
         timepoint = timepoints[entries[, "col"]],
         frequency = freq_mat[entries],
-        qc_passed = if (is.null(qc_mat)) {
-            rep(TRUE, nrow(entries))
-        } else {
-            qc_mat[entries]
-        })
+        qc_passed = passed[entries])
 }
 
 

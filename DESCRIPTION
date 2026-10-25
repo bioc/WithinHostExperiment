@@ -44,8 +44,7 @@ Suggests:
     MSA2dist
 biocViews: Genetics, VariantAnnotation, Sequencing, GenomicVariation,
     QualityControl, VariantDetection, DataImport
-URL: https://github.com/CuiweiG/WithinHostExperiment,
-    https://cuiweig.github.io/WithinHostExperiment/
+URL: https://github.com/CuiweiG/WithinHostExperiment
 BugReports: https://github.com/CuiweiG/WithinHostExperiment/issues
 Encoding: UTF-8
 LazyData: false

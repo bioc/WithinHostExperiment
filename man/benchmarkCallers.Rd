@@ -26,7 +26,10 @@ A \code{DataFrame}. When \code{truth} is provided:
     \item{F1}{Harmonic mean of precision and recall.}
   }
   When \code{truth} is \code{NULL}, the result of
-  \code{\link{calcCallerConcordance}} is returned.
+  \code{\link{calcCallerConcordance}} is returned. A site counts as
+  called, by a caller or in the truth set, when some sample has a
+  frequency above 0 there; a recorded 0 is a site assessed without the
+  allele and is not a call.
 }
 \description{
 If a truth \code{WithinHostExperiment} is provided, computes

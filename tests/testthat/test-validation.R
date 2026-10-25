@@ -167,3 +167,30 @@ test_that("benchmarkCallers falls back to pairwise without truth", {
     expect_s4_class(res, "DataFrame")
     expect_true("jaccard" %in% colnames(res))
 })
+
+test_that("a recorded frequency of 0 is not a call (was: counted, inflating FP and FN)", {
+    site_whe <- function(pos, freq) {
+        gr <- GenomicRanges::GRanges("seg1", IRanges::IRanges(pos, width = 1))
+        S4Vectors::mcols(gr)$ref <- rep("A", length(pos))
+        S4Vectors::mcols(gr)$alt <- rep("T", length(pos))
+        WithinHostExperiment(
+            assays = list(altFreq = matrix(freq, ncol = 1)),
+            rowRanges = gr,
+            colData = S4Vectors::DataFrame(sample_id = "S1"))
+    }
+    truth <- site_whe(c(100, 200, 300), c(0.11, 0.19, 0.31))
+    ## two sites assessed without the allele, as a generic table records
+    caller <- site_whe(c(100, 200, 300, 400, 500),
+                       c(0.11, 0.19, 0.31, 0, 0))
+    res <- benchmarkCallers(list(c1 = caller), truth = truth)
+    expect_equal(c(res$n_total, res$TP, res$FP, res$FN), c(3L, 3L, 0L, 0L))
+    expect_equal(c(res$precision, res$recall, res$F1), c(1, 1, 1))
+    ## a truth set that lists a known negative at 0
+    truth0 <- site_whe(c(100, 200, 300, 400), c(0.11, 0.19, 0.31, 0))
+    res0 <- benchmarkCallers(list(c1 = truth), truth = truth0)
+    expect_equal(c(res0$TP, res0$FP, res0$FN), c(3L, 0L, 0L))
+    ## without a truth set
+    conc <- benchmarkCallers(list(a = caller, b = truth))
+    expect_equal(c(conc$n_shared, conc$n_only1, conc$n_only2), c(3L, 0L, 0L))
+    expect_equal(conc$jaccard, 1)
+})

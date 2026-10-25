@@ -165,7 +165,10 @@ checkDiversityPlausibility <- function(div_df,
 #'     \item{F1}{Harmonic mean of precision and recall.}
 #'   }
 #'   When \code{truth} is \code{NULL}, the result of
-#'   \code{\link{calcCallerConcordance}} is returned.
+#'   \code{\link{calcCallerConcordance}} is returned. A site counts as
+#'   called, by a caller or in the truth set, when some sample has a
+#'   frequency above 0 there; a recorded 0 is a site assessed without the
+#'   allele and is not a call.
 #'
 #' @export
 #' @examples
@@ -226,7 +229,9 @@ benchmarkCallers <- function(whe_list, truth = NULL) {
     DataFrame(out)
 }
 
-## Internal: extract chr:pos:alt site keys from a WHE
+## Internal: the chr:pos:alt keys of the sites a WHE calls, those where some
+## sample has a frequency above 0; a recorded 0 is an assessed site without
+## the allele, not a call
 .siteKeys <- function(whe) {
     rr <- rowRanges(whe)
     mc <- mcols(rr)
@@ -238,7 +243,7 @@ benchmarkCallers <- function(whe_list, truth = NULL) {
         rep(NA_character_, length(rr))
     }
     freq_mat <- assay(whe, "altFreq")
-    has_data <- rowSums(!is.na(freq_mat)) > 0L
+    has_data <- rowSums(.carries(freq_mat)) > 0L
     paste(chr_vals[has_data], pos_vals[has_data],
           alt_vals[has_data], sep = ":")
 }

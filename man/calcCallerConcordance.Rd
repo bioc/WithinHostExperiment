@@ -20,6 +20,8 @@ A \code{DataFrame} with columns:
     \item{n_only2}{Sites unique to caller2.}
     \item{jaccard}{Jaccard similarity index (shared / union).}
   }
+  A caller detects a site when some sample has a frequency above 0
+  there; a recorded 0 is a site assessed without the allele.
 }
 \description{
 For a list of \code{\link{WithinHostExperiment}} objects (one per

@@ -323,6 +323,8 @@ consensusISNV <- function(whe_list, min_callers = 2L,
 #'     \item{n_only2}{Sites unique to caller2.}
 #'     \item{jaccard}{Jaccard similarity index (shared / union).}
 #'   }
+#'   A caller detects a site when some sample has a frequency above 0
+#'   there; a recorded 0 is a site assessed without the allele.
 #'
 #' @references
 #' Roder AE et al. (2023). Optimized quantification of intra-host
@@ -362,23 +364,9 @@ calcCallerConcordance <- function(whe_list) {
 
     caller_names <- names(whe_list)
 
-    ## Build site key sets per caller
-    site_sets <- lapply(whe_list, function(w) {
-        rr <- rowRanges(w)
-        mc <- mcols(rr)
-        chr_vals <- as.character(seqnames(rr))
-        pos_vals <- start(rr)
-        alt_vals <- if ("alt" %in% colnames(mc)) {
-            as.character(mc$alt)
-        } else {
-            rep(NA_character_, length(rr))
-        }
-        ## Only include sites with non-NA frequency in at least one sample
-        freq_mat <- assay(w, "altFreq")
-        has_data <- rowSums(!is.na(freq_mat)) > 0L
-        paste(chr_vals[has_data], pos_vals[has_data],
-              alt_vals[has_data], sep = ":")
-    })
+    ## Build site key sets per caller: the sites where some sample has a
+    ## frequency above 0, as benchmarkCallers() counts them
+    site_sets <- lapply(whe_list, .siteKeys)
 
     ## Pairwise comparisons
     n_callers <- length(caller_names)

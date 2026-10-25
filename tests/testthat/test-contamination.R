@@ -99,3 +99,28 @@ test_that("detectCrossContamination() warns when runCol has NA values, which are
     expect_identical(res$sink_sample, "B")
     expect_identical(res$run, "run1")
 })
+
+test_that("after flagISNV() a source above maxFreq is still a source (was: the 80% signature was dropped)", {
+    gr <- GRanges("seg", IRanges::IRanges(c(100, 200, 300), width = 1))
+    mcols(gr)$ref <- c("A", "C", "G")
+    mcols(gr)$alt <- c("T", "G", "A")
+    ## the help page's example: A at 80% and B at 1% at position 100, and a
+    ## fixed source at position 300 read at a depth below minDepth
+    freq <- matrix(c(0.80, 0.05, 1.00,
+                     0.01, 0.40, 0.01), nrow = 3, ncol = 2)
+    depth <- matrix(c(2000L, 2000L, 50L, 2000L, 2000L, 2000L), 3, 2)
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = depth,
+                      altCount = matrix(as.integer(round(freq * depth)), 3, 2)),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = c("A", "B"), run = "run1"))
+    wq <- flagISNV(whe, ISNVFilter())
+    expect_false(assay(wq, "qcPass")[1, 1])
+    res <- detectCrossContamination(wq, runCol = "run")
+    expect_identical(paste(res$source_sample, res$position),
+                     c("A 100", "B 200"))
+    ## the same result as before QC, less the source that lacks depth
+    raw <- detectCrossContamination(whe, runCol = "run")
+    expect_identical(paste(raw$source_sample, raw$position),
+                     c("A 100", "A 300", "B 200"))
+})

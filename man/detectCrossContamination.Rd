@@ -37,7 +37,14 @@ contamination (default: 0.05).}
 likely noise, not contamination.}
 
 \item{usePassedOnly}{Logical. If \code{TRUE} (default for source),
-only consider QC-passed variants in the source sample.}
+only consider QC-passed variants in the source sample. A source call
+that \code{\link{flagISNV}} failed for being above its
+\code{maxFreq} (0.5 by default) is still used when it has the read
+depth, alternative reads and strand balance that every filter in
+\code{qcFilters(whe)} asks for: a high frequency is the signature
+looked for, and the frequency ceiling is there for the iSNV
+analyses. Other QC steps do not record why a call failed, so a call
+above \code{maxFreq} that one of them also flagged is used too.}
 }
 \value{
 A \code{DataFrame} with columns:

@@ -33,7 +33,14 @@ NULL
 #'   "sink" sample (default: 0.005). Variants below this are
 #'   likely noise, not contamination.
 #' @param usePassedOnly Logical. If \code{TRUE} (default for source),
-#'   only consider QC-passed variants in the source sample.
+#'   only consider QC-passed variants in the source sample. A source call
+#'   that \code{\link{flagISNV}} failed for being above its
+#'   \code{maxFreq} (0.5 by default) is still used when it has the read
+#'   depth, alternative reads and strand balance that every filter in
+#'   \code{qcFilters(whe)} asks for: a high frequency is the signature
+#'   looked for, and the frequency ceiling is there for the iSNV
+#'   analyses. Other QC steps do not record why a call failed, so a call
+#'   above \code{maxFreq} that one of them also flagged is used too.
 #'
 #' @return A \code{DataFrame} with columns:
 #'   \describe{
@@ -110,8 +117,11 @@ detectCrossContamination <- function(whe,
         stop("'sinkMaxFreq' must be < 'sourceMinFreq'.")
 
     freq_mat <- assay(whe, "altFreq")
-    qc_mat <- if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
-        assay(whe, "qcPass")
+    ## A source call that QC failed for its high frequency alone is still a
+    ## source: a high frequency is the signature this function looks for
+    src_ok <- if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
+        passed <- .passedQC(assay(whe, "qcPass"))
+        passed | .failedOnlyCeiling(whe, freq_mat, passed)
     } else {
         NULL
     }
@@ -172,9 +182,7 @@ detectCrossContamination <- function(whe,
                 snk_freq <- freq_mat[, snk]
 
                 ## Apply QC to source
-                if (!is.null(qc_mat)) {
-                    src_freq[!.passedQC(qc_mat[, src])] <- NA
-                }
+                if (!is.null(src_ok)) src_freq[!src_ok[, src]] <- NA
 
                 ## Find sites where source is high, sink is suspicious
                 suspect <- which(
@@ -219,4 +227,35 @@ detectCrossContamination <- function(whe,
     }
 
     DataFrame(do.call(rbind, results))
+}
+
+## TRUE where a call failed QC but lies above the strictest maxFreq of the
+## filters applied and has the depth, alternative reads and strand balance
+## that each of them asks for, so that its frequency alone can explain the
+## failure. Other QC steps keep no record of why a cell failed.
+.failedOnlyCeiling <- function(whe, freq_mat, passed) {
+    filters <- qcFilters(whe)
+    out <- matrix(FALSE, nrow = nrow(freq_mat), ncol = ncol(freq_mat))
+    if (!length(filters)) return(out)
+    cap <- min(vapply(filters, function(f) as.numeric(slot(f, "maxFreq")),
+                      numeric(1)))
+    out <- !passed & !is.na(freq_mat) & freq_mat > cap
+    an <- assayNames(whe)
+    depth <- if ("totalDepth" %in% an) assay(whe, "totalDepth")
+    alt <- if ("altCount" %in% an) assay(whe, "altCount")
+    sb <- if (all(c("fwdAltCount", "revAltCount") %in% an)) {
+        ## the fold difference flagISNV() uses
+        fwd <- pmax(assay(whe, "fwdAltCount"), 1L)
+        rev_counts <- pmax(assay(whe, "revAltCount"), 1L)
+        pmax(fwd / rev_counts, rev_counts / fwd)
+    }
+    for (f in filters) {
+        if (!is.null(depth))
+            out <- out & !(!is.na(depth) & depth < slot(f, "minDepth"))
+        if (!is.null(alt))
+            out <- out & !(!is.na(alt) & alt < slot(f, "minAltReads"))
+        if (!is.null(sb))
+            out <- out & !(!is.na(sb) & sb > slot(f, "maxStrandBias"))
+    }
+    out
 }

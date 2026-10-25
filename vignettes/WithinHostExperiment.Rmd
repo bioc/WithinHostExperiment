@@ -589,7 +589,8 @@ reports that.
 
 `qcSummary()` counts calls rather than cells, one row per sample, and is the
 table to report. `total_sites` is the number of sites where that sample has a
-frequency, `passed_sites` and `flagged_sites` split them by `qcPass`,
+frequency above 0, a recorded 0 being a site assessed without the allele rather
+than a call; `passed_sites` and `flagged_sites` split them by `qcPass`,
 `pass_rate` is the ratio, and `median_depth` and `median_freq` describe the
 calls the sample made.
 
@@ -1101,26 +1102,27 @@ contents are partly unobservable. `correctSFSBias()` reweights the bins to
 compensate, by one of two methods. The `"truncation"` method assumes a uniform
 density of frequencies and multiplies every bin by the reciprocal of the
 observable fraction of the range, which rescales the spectrum without changing
-its shape. The `"binomial"` method uses the stored depth to compute the
-probability of observing a variant at each bin's frequency, and divides each bin
-by that probability, with detectability floored at 0.01 so that no bin is
-inflated more than a hundredfold.
+its shape beyond rounding to whole sites. The `"binomial"` method uses the
+stored depth to compute the probability of observing a variant at each bin's
+frequency, and divides each bin by that probability, with detectability floored
+at 0.01 so that no bin is inflated more than a hundredfold.
 
 ```{r sfs-correct}
 correctSFSBias(sfs_donor, method = "truncation")
 correctSFSBias(sfs_donor, method = "binomial")
 ```
 
-Both results report `corrected: TRUE` and, here, the same 14 variants as before.
-That is the correct answer rather than a failure. The truncation factor is 0.5
-divided by 0.5 minus 0.03, about 1.06, and bin counts are whole numbers, so
-rounding absorbs the rescaling entirely. The binomial correction changes nothing
-for a different reason: at a median depth of 1,600 reads, a variant at 3% is
-expected to be supported by about 48 reads, so detectability is essentially 1 in
-every bin and there is nothing to inflate. Note that a corrected spectrum no
-longer holds raw counts, so its number of segregating sites, and any statistic
-computed from it, inherits the correction's assumptions. Use uncorrected spectra
-when comparing two of them.
+Both results report `corrected: TRUE`. The truncation factor is 0.5 divided by
+0.5 minus 0.03, about 1.06, so the 14 variants become 14.9, rounded to 15: the
+corrected total is rounded once and its sites shared out among the bins, because
+rounding each bin of one or two sites on its own would leave every one of them
+unchanged. The binomial correction keeps the same 14 variants as before, and
+that is the correct answer rather than a failure: at a median depth of 1,600
+reads, a variant at 3% is expected to be supported by about 48 reads, so
+detectability is essentially 1 in every bin and there is nothing to inflate.
+Note that a corrected spectrum no longer holds raw counts, so its number of
+segregating sites, and any statistic computed from it, inherits the correction's
+assumptions. Use uncorrected spectra when comparing two of them.
 
 ## Comparing two spectra
 
@@ -1553,11 +1555,14 @@ trackFrequency(whe_l)
 
 Four rows come back for two variants at two timepoints. `variant_key` identifies
 a variant as `chrom:pos:alt`, so the same variant is recognisable across
-timepoints even though each is a separate column of the matrix, and `qc_passed`
-carries the flag forward so that a trajectory can be drawn with the failing
-points marked rather than silently dropped. A variant with no call at a
-timepoint contributes no row, which is why a trajectory with gaps is not the
-same as one that went to zero.
+timepoints even though each is a separate column of the matrix. By default only
+calls that passed QC are returned; with `usePassedOnly = FALSE` every call is,
+and `qc_passed` carries the flag forward so that a trajectory can be drawn with
+the failing points marked rather than silently dropped. A variant with no call
+at a timepoint contributes no row, which is why a trajectory with gaps is not
+the same as one that went to zero. The timepoint column is read in time order:
+numbers, dates or a factor whose levels are in time order, and text only when
+every value is a number, so that "10" comes after "2".
 
 ## Detecting emerging variants
 
@@ -1575,10 +1580,16 @@ One of the two variants qualifies: the site at position 100 rose from 0.02 to
 0.12, a change of 0.10, and the other began at 0.10, above the threshold, so it
 is not reported as emerging however much it rose. One row is one *interval*, not
 one variant, so a variant that rises twice appears twice, and the output should
-be read as a list of intervals to inspect. Neither threshold has any statistical
-content: a rise from 2% to 12% at a depth of 50 reads is one read against six, a
-difference that sampling noise could produce on its own, so check the depth of
-each reported interval before taking it seriously.
+be read as a list of intervals to inspect. Replicate samples taken at one
+timepoint are combined by their mean first, so they never form an interval of
+their own. After `flagISNV()` the later point of an interval must have passed
+QC, but the earlier need not: a start below the filter's `minFreq` fails QC by
+design, and it is exactly the low start that emergence is measured from.
+`qc_from` says whether the start passed, so that one that failed for low depth
+can be set aside. Neither threshold has any statistical content: a rise from 2%
+to 12% at a depth of 50 reads is one read against six, a difference that
+sampling noise could produce on its own, so check the depth of each reported
+interval before taking it seriously.
 
 ## Flagging temporally inconsistent sites
 

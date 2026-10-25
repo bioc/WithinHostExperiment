@@ -44,6 +44,12 @@ utils::globalVariables(".data")
     }
 }
 
+## Axis labels for frequencies drawn as percentages: rounded, not truncated,
+## so a break computed a hair below 0.04 reads 4 and one at 0.025 reads 2.5
+.pctLabel <- function(x)
+    format(round(x * 100, 4), trim = TRUE, drop0trailing = TRUE,
+           scientific = FALSE)
+
 ## Nature/Science base theme -- Arial/Helvetica, no gridlines,
 ## white background, minimal chrome
 #' @keywords internal
@@ -230,7 +236,7 @@ plotFrequencySpectrum <- function(whe,
         ggplot2::scale_x_continuous(
             name = "Alternative allele frequency (%)",
             breaks = x_breaks,
-            labels = function(x) as.integer(x * 100)) +
+            labels = .pctLabel) +
         ## Clip the view rather than dropping data, which would warn
         ggplot2::coord_cartesian(xlim = x_lim) +
         ggplot2::ggtitle(NULL) +
@@ -254,7 +260,7 @@ plotFrequencySpectrum <- function(whe,
                 alpha = 0.8) +
             ggplot2::scale_x_continuous(
                 name = "Alternative allele frequency (%)",
-                labels = function(x) as.integer(x * 100)) +
+                labels = .pctLabel) +
             ggplot2::coord_cartesian(xlim = x_lim) +
             ggplot2::labs(y = "Number of iSNVs") +
             ggplot2::facet_wrap(
@@ -385,10 +391,10 @@ plotPairScatter <- function(whe, pairId, threshold = 0.03) {
             values = cat_shapes, labels = cat_labels) +
         ggplot2::scale_x_continuous(
             name = "Donor frequency (%)",
-            labels = function(x) as.integer(x * 100)) +
+            labels = .pctLabel) +
         ggplot2::scale_y_continuous(
             name = "Recipient frequency (%)",
-            labels = function(x) as.integer(x * 100)) +
+            labels = .pctLabel) +
         ## Clip the view rather than dropping jittered points
         ggplot2::coord_equal(
             xlim = c(0, max(c(d_freq, r_freq)) * 1.1 + 0.02),
@@ -504,7 +510,7 @@ plotQCDashboard <- function(whe) {
         pA <- pA +
             ggplot2::scale_x_continuous(
                 name = "Alternative allele frequency (%)",
-                labels = function(x) as.integer(x * 100)) +
+                labels = .pctLabel) +
             ggplot2::coord_cartesian(xlim = x_lim_d) +
             ggplot2::labs(y = "Number of iSNVs",
                           title = expression(bold("a"))) +

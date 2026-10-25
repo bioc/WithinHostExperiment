@@ -242,6 +242,26 @@ test_that("a recorded 0 is not drawn or counted as an iSNV (was: drawn in both p
     expect_silent(print(dash))
 })
 
+test_that("percentage tick labels are rounded, not truncated (was: 4% labelled 3, 2.5% labelled 2)", {
+    skip_if_not_installed("ggplot2")
+    skip_if_not_installed("patchwork")
+    ## 0.04 as a computed break lies just below 0.04
+    breaks <- c(0.025, 0.04 - 6e-18, 0.075, 0.1)
+    want <- c("2.5", "4", "7.5", "10")
+    labels_of <- function(p, axis = "x")
+        p$scales$get_scales(axis)$get_labels(breaks)
+    pair <- .make_pair_whe()
+    expect_identical(labels_of(plotFrequencySpectrum(pair)), want)
+    whe <- .make_single_whe()
+    whe$role <- "donor"
+    expect_identical(labels_of(plotFrequencySpectrum(whe, facetBy = "role")),
+                     want)
+    expect_identical(labels_of(plotQCDashboard(pair)[[1]][[1]]), want)
+    scatter <- plotPairScatter(pair, pairId = "p1")
+    expect_identical(labels_of(scatter, "x"), want)
+    expect_identical(labels_of(scatter, "y"), want)
+})
+
 # ==========================================================================
 # plotFrequencyTrajectory
 # ==========================================================================

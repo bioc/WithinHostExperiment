@@ -32,8 +32,16 @@ emergence (default: 0.05).}
 \item{minIncrease}{Numeric scalar. Minimum frequency increase
 between consecutive time points (default: 0.05).}
 
-\item{usePassedOnly}{Logical. If TRUE (default), only use
-QC-passed variants.}
+\item{usePassedOnly}{Logical. If TRUE (default), an interval is
+reported only when the later time point has a call that passed QC,
+and its frequency is the mean of those calls. The earlier time
+point is the mean of its passing calls too, or of all its calls
+when none passed: \code{\link{flagISNV}} fails a frequency below
+the filter's \code{minFreq}, and such a frequency is the low start
+that emergence is measured from. \code{qc_from} says which.
+Intervals are formed on every call before QC is applied, so a time
+point that failed QC, for example above \code{maxFreq}, is never
+passed over. With \code{FALSE} every call is used.}
 }
 \value{
 A \code{DataFrame} with columns:
@@ -45,6 +53,11 @@ A \code{DataFrame} with columns:
     \item{freq_from}{Frequency at the earlier time point.}
     \item{freq_to}{Frequency at the later time point.}
     \item{delta_freq}{Change in frequency.}
+    \item{qc_from}{Logical. Whether a call at the earlier time point
+      passed QC (\code{TRUE} without a \code{qcPass} assay). A
+      \code{FALSE} start failed QC, which a frequency below
+      \code{minFreq} does by design; one that failed for low depth
+      may be set aside.}
   }
   One row is one interval, between two distinct time points. Rows
   are ordered by host, then by variant, each in order of first
@@ -58,7 +71,11 @@ time point and increased by at least \code{minIncrease} at the
 next. Replicate samples taken at one time point are combined first:
 the variant's frequency there is the mean of the replicates' calls,
 so replicates never form an interval of their own and the result
-does not depend on the order of the columns.
+does not depend on the order of the columns. Intervals join the
+consecutive time points at which the variant has a call in the
+host; a time point without a call for it is passed over, since no
+call is not a frequency of 0, so a variant first called at a later
+time point is not reported.
 }
 \examples{
 gr <- GenomicRanges::GRanges("seg1",

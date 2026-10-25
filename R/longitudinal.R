@@ -150,7 +150,11 @@ trackFrequency <- function(whe,
 #' next. Replicate samples taken at one time point are combined first:
 #' the variant's frequency there is the mean of the replicates' calls,
 #' so replicates never form an interval of their own and the result
-#' does not depend on the order of the columns.
+#' does not depend on the order of the columns. Intervals join the
+#' consecutive time points at which the variant has a call in the
+#' host; a time point without a call for it is passed over, since no
+#' call is not a frequency of 0, so a variant first called at a later
+#' time point is not reported.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}} with longitudinal
 #'   samples.
@@ -165,8 +169,16 @@ trackFrequency <- function(whe,
 #'   emergence (default: 0.05).
 #' @param minIncrease Numeric scalar. Minimum frequency increase
 #'   between consecutive time points (default: 0.05).
-#' @param usePassedOnly Logical. If TRUE (default), only use
-#'   QC-passed variants.
+#' @param usePassedOnly Logical. If TRUE (default), an interval is
+#'   reported only when the later time point has a call that passed QC,
+#'   and its frequency is the mean of those calls. The earlier time
+#'   point is the mean of its passing calls too, or of all its calls
+#'   when none passed: \code{\link{flagISNV}} fails a frequency below
+#'   the filter's \code{minFreq}, and such a frequency is the low start
+#'   that emergence is measured from. \code{qc_from} says which.
+#'   Intervals are formed on every call before QC is applied, so a time
+#'   point that failed QC, for example above \code{maxFreq}, is never
+#'   passed over. With \code{FALSE} every call is used.
 #'
 #' @return A \code{DataFrame} with columns:
 #'   \describe{
@@ -177,6 +189,11 @@ trackFrequency <- function(whe,
 #'     \item{freq_from}{Frequency at the earlier time point.}
 #'     \item{freq_to}{Frequency at the later time point.}
 #'     \item{delta_freq}{Change in frequency.}
+#'     \item{qc_from}{Logical. Whether a call at the earlier time point
+#'       passed QC (\code{TRUE} without a \code{qcPass} assay). A
+#'       \code{FALSE} start failed QC, which a frequency below
+#'       \code{minFreq} does by design; one that failed for low depth
+#'       may be set aside.}
 #'   }
 #'   One row is one interval, between two distinct time points. Rows
 #'   are ordered by host, then by variant, each in order of first
@@ -212,9 +229,14 @@ detectEmergingVariants <- function(whe,
         minIncrease < 0)
         stop("'minIncrease' must be a single non-negative number.")
 
+    if (!isTRUE(usePassedOnly) && !isFALSE(usePassedOnly))
+        stop("'usePassedOnly' must be TRUE or FALSE.")
+
+    ## Intervals are formed on every call, so that a timepoint that failed
+    ## QC is never passed over; QC is applied to the end points below
     traj <- trackFrequency(whe, hostCol = hostCol,
                            timeCol = timeCol,
-                           usePassedOnly = usePassedOnly)
+                           usePassedOnly = FALSE)
     empty <- DataFrame(
         host_id = character(),
         variant_key = character(),
@@ -222,7 +244,8 @@ detectEmergingVariants <- function(whe,
         time_to = numeric(),
         freq_from = numeric(),
         freq_to = numeric(),
-        delta_freq = numeric())
+        delta_freq = numeric(),
+        qc_from = logical())
 
     host <- as.character(traj$host_id)
     keep <- !is.na(host)
@@ -234,6 +257,7 @@ detectEmergingVariants <- function(whe,
     key <- as.character(traj$variant_key)[keep]
     freq <- traj$frequency[keep]
     time <- traj$timepoint[keep]
+    pass_freq <- ifelse(traj$qc_passed[keep], freq, NA_real_)
 
     ## One point per host, variant and timepoint: replicate samples taken
     ## at one timepoint are combined by the mean of their calls, as
@@ -246,7 +270,10 @@ detectEmergingVariants <- function(whe,
     point <- paste(pair_rank, time_num)
     point <- factor(point, levels = unique(point))
     first <- !duplicated(point)
+    ## the mean of all the calls at a point, and of those that passed QC
     freq <- unname(vapply(split(freq, point), mean, numeric(1)))
+    pass_freq <- unname(vapply(split(pass_freq, point), function(f)
+        if (all(is.na(f))) NA_real_ else mean(f, na.rm = TRUE), numeric(1)))
     host_rank <- host_rank[first]
     pair_rank <- pair_rank[first]
     time_num <- time_num[first]
@@ -261,14 +288,28 @@ detectEmergingVariants <- function(whe,
     host <- host[o]
     key <- key[o]
     freq <- freq[o]
+    pass_freq <- pass_freq[o]
     time <- time[o]
+    has_pass <- !is.na(pass_freq)
 
     ## Each point and the next form an interval when they share host and
-    ## variant
+    ## variant. With usePassedOnly the later point must have a call that
+    ## passed QC, and is the mean of those; the earlier point is the mean
+    ## of its passing calls too, or of all of them when none passed, since
+    ## a frequency below minFreq, which flagISNV() fails, is the low start
+    ## that emergence is measured from
     n <- length(o)
     i <- which(host[-n] == host[-1L] & key[-n] == key[-1L])
-    increase <- freq[i + 1L] - freq[i]
-    hit <- i[freq[i] < freqThreshold & increase >= minIncrease]
+    if (usePassedOnly) {
+        f_from <- ifelse(has_pass[i], pass_freq[i], freq[i])
+        f_to <- pass_freq[i + 1L]
+    } else {
+        f_from <- freq[i]
+        f_to <- freq[i + 1L]
+    }
+    increase <- f_to - f_from
+    ok <- !is.na(f_to) & f_from < freqThreshold & increase >= minIncrease
+    hit <- i[ok]
     if (!length(hit)) return(empty)
 
     DataFrame(
@@ -276,9 +317,10 @@ detectEmergingVariants <- function(whe,
         variant_key = key[hit],
         time_from = time[hit],
         time_to = time[hit + 1L],
-        freq_from = freq[hit],
-        freq_to = freq[hit + 1L],
-        delta_freq = freq[hit + 1L] - freq[hit])
+        freq_from = f_from[ok],
+        freq_to = f_to[ok],
+        delta_freq = increase[ok],
+        qc_from = has_pass[hit])
 }
 
 

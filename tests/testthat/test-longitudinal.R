@@ -112,7 +112,7 @@ test_that("detectEmergingVariants() orders by host, variant and time, combining 
     expect_s4_class(em, "DataFrame")
     expect_identical(colnames(em),
                      c("host_id", "variant_key", "time_from", "time_to",
-                       "freq_from", "freq_to", "delta_freq"))
+                       "freq_from", "freq_to", "delta_freq", "qc_from"))
     expect_identical(em$host_id, c("B", "A", "A"))
     expect_identical(em$variant_key,
                      c("seg1:100:T", "seg1:100:T", "seg1:200:G"))
@@ -213,4 +213,34 @@ test_that("replicates at one timepoint are combined before intervals are formed 
     ## replicates alone, at one timepoint, are not an interval
     expect_equal(nrow(detectEmergingVariants(
         .one_site_whe(c(5, 5), c(0.01, 0.12)))), 0L)
+})
+
+test_that("after flagISNV() a rise from below minFreq is reported and a failing timepoint is not bridged (was: starts below 3% dropped, t1 joined to t3)", {
+    gr <- GenomicRanges::GRanges("seg1",
+        IRanges::IRanges(c(100, 200, 300, 400), width = 1))
+    S4Vectors::mcols(gr)$ref <- rep("A", 4L)
+    S4Vectors::mcols(gr)$alt <- c("T", "G", "C", "G")
+    ## at t2 the third variant is at 0.60, above the default maxFreq
+    freq <- matrix(c(0.00, 0.30, 0.30,
+                     0.01, 0.30, 0.30,
+                     0.04, 0.60, 0.45,
+                     0.04, 0.30, 0.30), nrow = 4, byrow = TRUE)
+    whe <- WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = matrix(2000L, 4, 3),
+                      altCount = matrix(as.integer(round(freq * 2000)), 4, 3)),
+        rowRanges = gr,
+        colData = S4Vectors::DataFrame(sample_id = c("t1", "t2", "t3"),
+                                       host_id = "H1", timepoint = 1:3))
+    wq <- flagISNV(whe, ISNVFilter())
+    em <- detectEmergingVariants(wq)
+    expect_identical(em$variant_key,
+                     c("seg1:100:T", "seg1:200:G", "seg1:400:G"))
+    expect_identical(c(em$time_from, em$time_to), c(1L, 1L, 1L, 2L, 2L, 2L))
+    expect_equal(em$freq_from, c(0, 0.01, 0.04))
+    ## the two starts below minFreq failed QC, and say so
+    expect_identical(em$qc_from, c(FALSE, FALSE, TRUE))
+    ## without QC the third variant's rise to 0.60 is reported, from t1 to t2
+    all_calls <- detectEmergingVariants(wq, usePassedOnly = FALSE)
+    expect_identical(all_calls$variant_key[3], "seg1:300:C")
+    expect_identical(c(all_calls$time_from[3], all_calls$time_to[3]), 1:2)
 })

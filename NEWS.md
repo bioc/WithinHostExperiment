@@ -80,8 +80,10 @@ what the function did and what it does now.
   its sites out among the bins by largest remainder. Rounding each bin
   left every bin of 7 or fewer iSNVs unchanged in a folded spectrum at
   threshold 0.03, and every bin of 16 or fewer in an unfolded one, so the
-  help page's example kept its 15 sites while `corrected` became `TRUE`;
-  it now has 16, and `nSites` is the corrected total.
+  truncation correction of the help page's example spectrum kept its 15
+  sites while `corrected` became `TRUE`; it now gives 16, and `nSites` is
+  the corrected total. The binomial method, which the example runs, still
+  gives 15: at its median depth of 1,600 reads every bin is detectable.
 * `combineRows()` matches samples by column name, and `combineCols()`
   matches sites by sequence name, position, `ref` and `alt`. Both bound
   by position, so an object holding the same samples or sites in another

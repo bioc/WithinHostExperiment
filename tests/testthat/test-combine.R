@@ -58,6 +58,23 @@ test_that("combineRows() matches samples by name (was: bound by position under t
 
 # ---- combineCols ----
 
+test_that("combineCols() matches sites by position and alleles (was: bound by position)", {
+    data(example_whe, package = "WithinHostExperiment")
+    n <- nrow(example_whe)
+    d <- example_whe[, 1]
+    r <- example_whe[rev(seq_len(n)), 2]
+    merged <- combineCols(d, r)
+    expect_identical(start(rowRanges(merged)), start(rowRanges(d)))
+    expect_identical(unname(assay(merged, "altFreq")),
+                     unname(assay(example_whe[, 1:2], "altFreq")))
+    ## different sites of the same number are an error that counts them
+    expect_error(combineCols(example_whe[1:10, 1], example_whe[11:20, 2]),
+                 "argument 2 lacks 10 of the first object's sites.*readWithinHost")
+    ## so are unequal numbers, which used to give only base R's error
+    expect_error(combineCols(example_whe[1:10, 1], example_whe[1:12, 2]),
+                 "argument 2 has 2 sites the first object lacks")
+})
+
 test_that("combineCols combines WHE objects by columns", {
     data(example_whe, package = "WithinHostExperiment")
     whe1 <- example_whe[, 1]

@@ -474,13 +474,20 @@ setMethod("[", "WithinHostExperiment",
 #' \code{metadata} are the first object's.
 #' \code{combineCols} combines objects horizontally (adding
 #' samples); all objects must have the same variant sites (rows).
+#' Sites are matched by sequence name, position, \code{ref} and
+#' \code{alt}: an object that holds them in another order is put in the
+#' first object's order, and one that holds other sites is an error
+#' counting them. Objects read from separate files usually hold
+#' different sites; read the files together with
+#' \code{\link{readWithinHost}} instead, which takes the union.
 #' QC logs and filters from all objects are merged.
 #'
 #' @param x A \code{\link{WithinHostExperiment}}.
 #' @param ... Further \code{\link{WithinHostExperiment}} objects to
 #'   combine.
 #' @param use.names Accepted for compatibility with the generic. Sites
-#'   are combined in the order given, not matched by name.
+#'   are matched by sequence name, position and alleles, not by row
+#'   name.
 #'
 #' @return A \code{\link{WithinHostExperiment}}.
 #'
@@ -544,6 +551,13 @@ setMethod("combineCols", "WithinHostExperiment",
     args <- c(list(x), list(...))
     if (!all(vapply(args, is, logical(1), "WithinHostExperiment")))
         stop("All arguments must be WithinHostExperiment objects.")
+    ## Sites are matched by sequence, position and alleles: the same sites
+    ## in another order are put in the first object's order, and other
+    ## sites are an error
+    args <- .alignTo(args, .rowKey, "sites", "combineCols()", paste0(
+        " Objects read from separate files usually hold different sites; ",
+        "read the files together, as readWithinHost(c(vcf1, vcf2)) does, ",
+        "to take the union of their sites."))
     all_logs <- .mergeQcLogs(args)
     all_filters <- unlist(lapply(args, qcFilters),
                           recursive = FALSE)
@@ -582,6 +596,16 @@ setMethod("combineCols", "WithinHostExperiment",
     new("WithinHostExperiment", se,
         qcLog = all_logs, qcFilters = all_filters)
 })
+
+## The seqname:start:ref:alt keys by which combineCols() matches rows
+.rowKey <- function(obj) {
+    rr <- rowRanges(obj)
+    mc <- S4Vectors::mcols(rr)
+    allele <- function(nm) if (nm %in% colnames(mc)) as.character(mc[[nm]])
+                           else rep(NA_character_, length(rr))
+    paste(as.character(GenomeInfoDb::seqnames(rr)), BiocGenerics::start(rr),
+          allele("ref"), allele("alt"), sep = ":")
+}
 
 ## The sample names by which combineRows() matches columns
 .colKey <- function(obj) {

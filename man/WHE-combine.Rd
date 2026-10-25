@@ -17,7 +17,8 @@
 combine.}
 
 \item{use.names}{Accepted for compatibility with the generic. Sites
-are combined in the order given, not matched by name.}
+are matched by sequence name, position and alleles, not by row
+name.}
 }
 \value{
 A \code{\link{WithinHostExperiment}}.
@@ -33,6 +34,12 @@ other samples is an error naming them. The \code{colData} and the
 \code{metadata} are the first object's.
 \code{combineCols} combines objects horizontally (adding
 samples); all objects must have the same variant sites (rows).
+Sites are matched by sequence name, position, \code{ref} and
+\code{alt}: an object that holds them in another order is put in the
+first object's order, and one that holds other sites is an error
+counting them. Objects read from separate files usually hold
+different sites; read the files together with
+\code{\link{readWithinHost}} instead, which takes the union.
 QC logs and filters from all objects are merged.
 }
 \examples{

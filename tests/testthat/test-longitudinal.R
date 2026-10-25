@@ -107,7 +107,7 @@ test_that("detectEmergingVariants returns empty for no crossings", {
             timepoint = c(2, 1, 1, 2, 2)))
 }
 
-test_that("detectEmergingVariants() orders by host, variant and time, keeping tied replicates in column order", {
+test_that("detectEmergingVariants() orders by host, variant and time, combining replicates", {
     em <- detectEmergingVariants(.make_two_host_whe())
     expect_s4_class(em, "DataFrame")
     expect_identical(colnames(em),
@@ -119,8 +119,10 @@ test_that("detectEmergingVariants() orders by host, variant and time, keeping ti
     expect_identical(em$time_from, c(1, 1, 1))
     expect_identical(em$time_to, c(2, 2, 2))
     expect_identical(em$freq_from, c(0.02, 0.01, 0.04))
-    expect_identical(em$freq_to, c(0.20, 0.10, 0.12))
-    expect_equal(em$delta_freq, c(0.18, 0.09, 0.08))
+    ## host A's replicates s4 and s5 at timepoint 2 are combined by their
+    ## mean, 0.10 and 0.03, then 0.12 and 0.20
+    expect_equal(em$freq_to, c(0.20, 0.065, 0.16))
+    expect_equal(em$delta_freq, c(0.18, 0.055, 0.12))
     expect_null(rownames(em))
 })
 
@@ -199,4 +201,16 @@ test_that("timepoints are put in time order and an NA timepoint is left out with
     p <- plotFrequencyTrajectory(
         .one_site_whe(c("1", "2", "10"), c(0.05, 0.30, 0.15)), "H1")
     expect_identical(levels(p$data$timepoint), c("1", "2", "10"))
+})
+
+test_that("replicates at one timepoint are combined before intervals are formed (was: a zero-length interval, and an answer that depended on column order)", {
+    ## 0 at t1, then two replicates at t2
+    em <- detectEmergingVariants(.one_site_whe(c(1, 2, 2), c(0, 0.01, 0.12)))
+    expect_identical(c(em$time_from, em$time_to), c(1, 2))
+    expect_equal(c(em$freq_from, em$freq_to), c(0, 0.065))
+    swapped <- .one_site_whe(c(1, 2, 2), c(0, 0.12, 0.01))
+    expect_equal(detectEmergingVariants(swapped), em)
+    ## replicates alone, at one timepoint, are not an interval
+    expect_equal(nrow(detectEmergingVariants(
+        .one_site_whe(c(5, 5), c(0.01, 0.12)))), 0L)
 })

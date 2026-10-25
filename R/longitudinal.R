@@ -147,7 +147,10 @@ trackFrequency <- function(whe,
 #' between consecutive time points within each host. A variant is
 #' considered emerging if it was below \code{freqThreshold} at one
 #' time point and increased by at least \code{minIncrease} at the
-#' next.
+#' next. Replicate samples taken at one time point are combined first:
+#' the variant's frequency there is the mean of the replicates' calls,
+#' so replicates never form an interval of their own and the result
+#' does not depend on the order of the columns.
 #'
 #' @param whe A \code{\link{WithinHostExperiment}} with longitudinal
 #'   samples.
@@ -175,10 +178,9 @@ trackFrequency <- function(whe,
 #'     \item{freq_to}{Frequency at the later time point.}
 #'     \item{delta_freq}{Change in frequency.}
 #'   }
-#'   One row is one interval. Rows are ordered by host, then by
-#'   variant, each in order of first appearance in the object, then
-#'   by time point; samples tied at one time point stay in column
-#'   order.
+#'   One row is one interval, between two distinct time points. Rows
+#'   are ordered by host, then by variant, each in order of first
+#'   appearance in the object, then by time point.
 #'
 #' @export
 #' @examples
@@ -233,20 +235,35 @@ detectEmergingVariants <- function(whe,
     freq <- traj$frequency[keep]
     time <- traj$timepoint[keep]
 
-    ## Order once: hosts and, within each host, variants in order of
-    ## first appearance, then by timepoint in time order, as
-    ## flagTemporalInconsistency() reads it. order() is stable, so
-    ## samples tied at one timepoint keep their column order.
+    ## One point per host, variant and timepoint: replicate samples taken
+    ## at one timepoint are combined by the mean of their calls, as
+    ## flagTemporalInconsistency() counts them as one timepoint, so that
+    ## replicates never form an interval and column order does not matter
     host_rank <- match(host, unique(host))
     pair <- paste(host_rank, key, sep = ":")
-    o <- order(host_rank, match(pair, unique(pair)),
-               .timeOrder(time, timeCol))
+    pair_rank <- match(pair, unique(pair))
+    time_num <- .timeOrder(time, timeCol)
+    point <- paste(pair_rank, time_num)
+    point <- factor(point, levels = unique(point))
+    first <- !duplicated(point)
+    freq <- unname(vapply(split(freq, point), mean, numeric(1)))
+    host_rank <- host_rank[first]
+    pair_rank <- pair_rank[first]
+    time_num <- time_num[first]
+    host <- host[first]
+    key <- key[first]
+    time <- time[first]
+
+    ## Order once: hosts and, within each host, variants in order of
+    ## first appearance, then by timepoint in time order, as
+    ## flagTemporalInconsistency() reads it
+    o <- order(host_rank, pair_rank, time_num)
     host <- host[o]
     key <- key[o]
     freq <- freq[o]
     time <- time[o]
 
-    ## Each row and the next form an interval when they share host and
+    ## Each point and the next form an interval when they share host and
     ## variant
     n <- length(o)
     i <- which(host[-n] == host[-1L] & key[-n] == key[-1L])

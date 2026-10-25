@@ -46,17 +46,19 @@ A \code{DataFrame} with columns:
     \item{freq_to}{Frequency at the later time point.}
     \item{delta_freq}{Change in frequency.}
   }
-  One row is one interval. Rows are ordered by host, then by
-  variant, each in order of first appearance in the object, then
-  by time point; samples tied at one time point stay in column
-  order.
+  One row is one interval, between two distinct time points. Rows
+  are ordered by host, then by variant, each in order of first
+  appearance in the object, then by time point.
 }
 \description{
 Identifies variants whose allele frequency crosses a threshold
 between consecutive time points within each host. A variant is
 considered emerging if it was below \code{freqThreshold} at one
 time point and increased by at least \code{minIncrease} at the
-next.
+next. Replicate samples taken at one time point are combined first:
+the variant's frequency there is the mean of the replicates' calls,
+so replicates never form an interval of their own and the result
+does not depend on the order of the columns.
 }
 \examples{
 gr <- GenomicRanges::GRanges("seg1",

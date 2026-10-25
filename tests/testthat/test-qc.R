@@ -276,3 +276,77 @@ test_that("flagReplicateDiscordance() checks requireBothDetected (was: any value
     expect_s4_class(flagReplicateDiscordance(whe, freqTolerance = Inf),
                     "WithinHostExperiment")
 })
+
+# ============================================================
+# An NA qcPass counts as not passed
+# ============================================================
+
+## A donor and its recipient, one host sampled at times 1 and 2, eight
+## sites; the donor's call of 0.30 at the first site has the given qcPass.
+## An analysis must give the same answer for NA as for FALSE there.
+.qc_cell_whe <- function(qc_value) {
+    gr <- GenomicRanges::GRanges("seg",
+        IRanges::IRanges(seq(100L, 800L, 100L), width = 1))
+    S4Vectors::mcols(gr)$ref <- rep("A", 8L)
+    S4Vectors::mcols(gr)$alt <- rep("G", 8L)
+    GenomeInfoDb::seqlengths(gr) <- c(seg = 1000L)
+    freq <- cbind(c(0.30, 0.10, 0.12, 0.15, 0.20, 0.22, 0.25, 0.28),
+                  c(0.01, 0.11, 0.13, 0.16, 0.21, 0.23, 0.26, 0.29))
+    qc <- matrix(TRUE, 8L, 2L)
+    qc[1L, 1L] <- qc_value
+    WithinHostExperiment(
+        assays = list(altFreq = freq, totalDepth = matrix(1000L, 8L, 2L),
+                      qcPass = qc),
+        rowRanges = gr,
+        colData = DataFrame(sample_id = c("A", "B"), host_id = "H1",
+                            timepoint = c(1, 2),
+                            role = c("donor", "recipient"),
+                            pair_id = "p1", run = "r1"))
+}
+
+test_that("calcDiversity() leaves out a call whose qcPass is NA (was: counted as passing)", {
+    idx <- c("richness", "shannon", "simpson", "pi", "watterson")
+    na <- calcDiversity(.qc_cell_whe(NA), indices = idx)
+    expect_equal(na, calcDiversity(.qc_cell_whe(FALSE), indices = idx))
+    expect_equal(na$richness, c(7L, 8L))
+})
+
+test_that("buildSFS() leaves out a call whose qcPass is NA (was: counted as passing)", {
+    na <- buildSFS(.qc_cell_whe(NA), genomeLength = 1000L)
+    expect_identical(na@counts,
+                     buildSFS(.qc_cell_whe(FALSE), genomeLength = 1000L)@counts)
+    expect_equal(na@nSites, 7)
+})
+
+test_that("calcNeutralityTests() leaves out a call whose qcPass is NA (was: counted as passing)", {
+    expect_equal(calcNeutralityTests(.qc_cell_whe(NA)),
+                 calcNeutralityTests(.qc_cell_whe(FALSE)))
+})
+
+test_that("the pair table leaves out a donor call whose qcPass is NA (was: counted as passing)", {
+    na <- exportPairFrequencies(.qc_cell_whe(NA))
+    expect_equal(na, exportPairFrequencies(.qc_cell_whe(FALSE)))
+    expect_true(is.na(na$donor_freq[na$position == 100L]))
+    expect_equal(calcSharedVariants(.qc_cell_whe(NA), pairId = "p1"),
+                 calcSharedVariants(.qc_cell_whe(FALSE), pairId = "p1"))
+})
+
+test_that("detectCrossContamination() does not use a source call whose qcPass is NA (was: counted as passing)", {
+    na <- detectCrossContamination(.qc_cell_whe(NA))
+    expect_equal(nrow(na), 0L)
+    expect_equal(na, detectCrossContamination(.qc_cell_whe(FALSE)))
+})
+
+test_that("trackFrequency() leaves out a call whose qcPass is NA (was: returned with qc_passed NA)", {
+    na <- trackFrequency(.qc_cell_whe(NA))
+    expect_equal(na, trackFrequency(.qc_cell_whe(FALSE)))
+    expect_false(anyNA(na$qc_passed))
+    expect_equal(nrow(na), 15L)
+})
+
+test_that("plotFrequencySpectrum() does not draw a call whose qcPass is NA (was: drawn as passing)", {
+    skip_if_not_installed("ggplot2")
+    na <- plotFrequencySpectrum(.qc_cell_whe(NA))
+    expect_equal(na$data, plotFrequencySpectrum(.qc_cell_whe(FALSE))$data)
+    expect_equal(nrow(na$data), 15L)
+})

@@ -98,7 +98,7 @@ trackFrequency <- function(whe,
     n_sites <- nrow(freq_mat)
     n_samples <- ncol(freq_mat)
 
-    if (!is.null(qc_mat)) freq_mat[!qc_mat] <- NA
+    if (!is.null(qc_mat)) freq_mat[!.passedQC(qc_mat)] <- NA
     entries <- which(!is.na(freq_mat), arr.ind = TRUE)
 
     if (nrow(entries) == 0L) {

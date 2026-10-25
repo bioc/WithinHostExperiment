@@ -426,7 +426,7 @@ setMethod("calcNeutralityTests", "WithinHostExperiment",
     results <- lapply(seq_len(n_samples), function(j) {
         freq_j <- freq_mat[, j]
         if (usePassedOnly && !is.null(qc_mat))
-            freq_j[!qc_mat[, j]] <- NA
+            freq_j[!.passedQC(qc_mat[, j])] <- NA
         ## a site segregates within the host only when both alleles are
         ## present: a frequency of 0 or 1 adds to S but nothing to pi
         valid <- freq_j[!is.na(freq_j) & freq_j > 0 & freq_j < 1]

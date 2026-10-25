@@ -364,6 +364,10 @@ setMethod("show", "WithinHostExperiment", function(object) {
     whe
 }
 
+## TRUE where a qcPass cell passed; an NA cell counts as not passed. Use
+## as freq[!.passedQC(qc)] <- NA: freq[!qc] <- NA skips the NA cells.
+.passedQC <- function(qc) !is.na(qc) & qc
+
 #' Internal constructor from pre-validated components
 #'
 #' @param rowRanges \code{GRanges}. Variant positions.

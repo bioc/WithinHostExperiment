@@ -336,7 +336,7 @@ NULL
 
     results <- lapply(seq_len(ncol(freq_mat)), function(j) {
         freq_j <- freq_mat[, j]
-        if (!is.null(qc_mat)) freq_j[!qc_mat[, j]] <- NA
+        if (!is.null(qc_mat)) freq_j[!.passedQC(qc_mat[, j])] <- NA
         present <- !is.na(freq_j) & freq_j > 0
         nS <- sum(present & is_syn)
         nN <- sum(present & is_non)

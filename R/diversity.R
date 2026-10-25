@@ -427,7 +427,7 @@ setMethod("calcDiversity", "WithinHostExperiment",
         n_assessed <- sum(!is.na(freq_j))
         ## Apply QC mask
         if (usePassedOnly && !is.null(qc_mat)) {
-            freq_j[!qc_mat[, j]] <- NA
+            freq_j[!.passedQC(qc_mat[, j])] <- NA
         }
         ## the segregating sites: both alleles present, 0 < f < 1, as in
         ## shannonISNV() and simpsonISNV()
@@ -464,7 +464,7 @@ setMethod("calcDiversity", "WithinHostExperiment",
             if (!is.null(alt_count_mat)) {
                 ac_j <- alt_count_mat[, j]
                 if (usePassedOnly && !is.null(qc_mat)) {
-                    ac_j[!qc_mat[, j]] <- NA
+                    ac_j[!.passedQC(qc_mat[, j])] <- NA
                 }
                 ac_valid <- ac_j[!is.na(ac_j) & seg]
                 vals$chao1 <- chao1ISNV(ac_valid, n_obs)

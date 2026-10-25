@@ -137,7 +137,7 @@ plotFrequencySpectrum <- function(whe,
 
     df_list <- lapply(seq_len(ncol(freq_mat)), function(j) {
         freq <- freq_mat[, j]
-        if (!is.null(qc_mat)) freq[!qc_mat[, j]] <- NA
+        if (!is.null(qc_mat)) freq[!.passedQC(qc_mat[, j])] <- NA
         valid <- !is.na(freq) & is.finite(freq)
         if (sum(valid) == 0L) return(NULL)
         data.frame(sample_id = sample_ids[j],

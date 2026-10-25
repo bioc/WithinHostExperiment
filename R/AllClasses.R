@@ -281,7 +281,9 @@ NULL
 #'   \item{\code{totalDepth}}{Integer matrix. Total read depth.}
 #'   \item{\code{altFreq}}{Numeric matrix. Alt allele frequencies (0-1).}
 #'   \item{\code{qcPass}}{Logical matrix. TRUE = passed QC, FALSE = flagged.
-#'     Initialized to all TRUE; updated by \code{\link{flagISNV}}.}
+#'     Initialized to all TRUE; updated by \code{\link{flagISNV}}. No
+#'     package function writes \code{NA}, but one set by hand counts as
+#'     not passed wherever an analysis uses only passing calls.}
 #' }
 #' Assays must be ordinary R matrices. Out-of-memory backends such as
 #' \code{DelayedArray} or \code{HDF5Array} are not supported: the validity

@@ -173,7 +173,7 @@ detectCrossContamination <- function(whe,
 
                 ## Apply QC to source
                 if (!is.null(qc_mat)) {
-                    src_freq[!qc_mat[, src]] <- NA
+                    src_freq[!.passedQC(qc_mat[, src])] <- NA
                 }
 
                 ## Find sites where source is high, sink is suspicious

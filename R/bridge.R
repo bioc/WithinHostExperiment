@@ -92,8 +92,8 @@ exportPairFrequencies <- function(whe, pairId = NULL,
 
         ## Apply QC mask
         if (!is.null(qc_mat)) {
-            d_freq[!qc_mat[, d_col]] <- NA
-            r_freq[!qc_mat[, r_col]] <- NA
+            d_freq[!.passedQC(qc_mat[, d_col])] <- NA
+            r_freq[!.passedQC(qc_mat[, r_col])] <- NA
         }
 
         ## A host carries the allele where its frequency is known and

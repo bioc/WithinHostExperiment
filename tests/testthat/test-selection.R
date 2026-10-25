@@ -172,6 +172,15 @@ test_that("pNpSWithinHost respects qcPass and usePassedOnly", {
                                 usePassedOnly = NA), "TRUE or FALSE")
 })
 
+test_that("an iSNV whose qcPass is NA is not counted (was: counted as passing)", {
+    skip_if_not_installed("txdbmaker")
+    whe <- pnps_whe(c(1, 6), c("A", "G"), c("G", "A"))
+    SummarizedExperiment::assay(whe, "qcPass", withDimnames = FALSE) <-
+        matrix(c(NA, TRUE), nrow = 2, ncol = 1)
+    res <- pNpSWithinHost(whe, pnps_cds(1, 15), ref15)
+    expect_equal(c(res$nS[1], res$nN[1]), c(1L, 0L))
+})
+
 test_that("an iSNV at zero frequency is not present", {
     skip_if_not_installed("txdbmaker")
     whe <- pnps_whe(c(1, 6), c("A", "G"), c("G", "A"), freqs = c(0, 0.2))

@@ -269,7 +269,7 @@ buildSFS <- function(whe, sampleIdx = 1L, nBins = 20L,
     cap <- 1
     if (usePassedOnly && "qcPass" %in% assayNames(whe)) {
         qc <- assay(whe, "qcPass")[, sampleIdx]
-        freq[!qc] <- NA
+        freq[!.passedQC(qc)] <- NA
         filters <- qcFilters(whe)
         if (length(filters))
             cap <- min(1, vapply(filters, function(f)

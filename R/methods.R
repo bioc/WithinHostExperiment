@@ -467,7 +467,11 @@ setMethod("[", "WithinHostExperiment",
 #' Methods for the \code{\link[S4Vectors]{combineRows}} and
 #' \code{\link[S4Vectors]{combineCols}} generics.
 #' \code{combineRows} combines objects vertically (adding variant
-#' sites); all objects must have the same samples (columns).
+#' sites); all objects must have the same samples (columns). Samples
+#' are matched by their column names: an object that holds them in
+#' another order is put in the first object's order, and one that holds
+#' other samples is an error naming them. The \code{colData} and the
+#' \code{metadata} are the first object's.
 #' \code{combineCols} combines objects horizontally (adding
 #' samples); all objects must have the same variant sites (rows).
 #' QC logs and filters from all objects are merged.
@@ -503,6 +507,9 @@ setMethod("combineRows", "WithinHostExperiment", function(x, ...) {
     args <- c(list(x), list(...))
     if (!all(vapply(args, is, logical(1), "WithinHostExperiment")))
         stop("All arguments must be WithinHostExperiment objects.")
+    ## Samples are matched by name: the same samples in another order are
+    ## put in the first object's order, and other samples are an error
+    args <- .alignTo(args, .colKey, "samples", "combineRows()")
     ## Merge qcLogs and qcFilters
     all_logs <- .mergeQcLogs(args)
     all_filters <- unlist(lapply(args, qcFilters),
@@ -575,6 +582,46 @@ setMethod("combineCols", "WithinHostExperiment",
     new("WithinHostExperiment", se,
         qcLog = all_logs, qcFilters = all_filters)
 })
+
+## The sample names by which combineRows() matches columns
+.colKey <- function(obj) {
+    key <- colnames(obj)
+    if (is.null(key)) key <- as.character(colData(obj)$sample_id)
+    key
+}
+
+## Put every object's rows or columns in the first object's order, by the
+## keys that key_of() gives; an object whose keys are not the first
+## object's is an error that names the argument and the keys that differ
+.alignTo <- function(args, key_of, what, fun, hint = "") {
+    ref <- key_of(args[[1L]])
+    for (k in seq_along(args)[-1L]) {
+        key <- key_of(args[[k]])
+        if (identical(key, ref)) next
+        if (anyDuplicated(ref) || anyDuplicated(key) ||
+            !setequal(key, ref)) {
+            lacks <- setdiff(ref, key)
+            has <- setdiff(key, ref)
+            show <- function(v) paste(utils::head(v, 5L), collapse = ", ")
+            parts <- c(
+                if (length(lacks))
+                    sprintf("lacks %d of the first object's %s (%s)",
+                            length(lacks), what, show(lacks)),
+                if (length(has))
+                    sprintf("has %d %s the first object lacks (%s)",
+                            length(has), what, show(has)))
+            if (!length(parts))
+                parts <- paste("repeats some of its", what)
+            stop(fun, " needs the same ", what, " in every object, but ",
+                 "argument ", k, " ", paste(parts, collapse = " and "),
+                 ".", hint, call. = FALSE)
+        }
+        idx <- match(ref, key)
+        args[[k]] <- if (what == "samples") args[[k]][, idx]
+                     else args[[k]][idx, ]
+    }
+    args
+}
 
 #' @keywords internal
 #' @noRd

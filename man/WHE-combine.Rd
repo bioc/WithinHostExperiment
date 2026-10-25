@@ -26,7 +26,11 @@ A \code{\link{WithinHostExperiment}}.
 Methods for the \code{\link[S4Vectors]{combineRows}} and
 \code{\link[S4Vectors]{combineCols}} generics.
 \code{combineRows} combines objects vertically (adding variant
-sites); all objects must have the same samples (columns).
+sites); all objects must have the same samples (columns). Samples
+are matched by their column names: an object that holds them in
+another order is put in the first object's order, and one that holds
+other samples is an error naming them. The \code{colData} and the
+\code{metadata} are the first object's.
 \code{combineCols} combines objects horizontally (adding
 samples); all objects must have the same variant sites (rows).
 QC logs and filters from all objects are merged.

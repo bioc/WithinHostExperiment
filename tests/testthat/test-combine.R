@@ -36,6 +36,26 @@ test_that("combineRows merges qcFilters", {
                  length(qcFilters(whe1)) + length(qcFilters(whe2)))
 })
 
+test_that("combineRows() matches samples by name (was: bound by position under the first object's names)", {
+    data(example_whe, package = "WithinHostExperiment")
+    a <- example_whe[1:5, c(1, 2)]
+    b <- example_whe[6:10, c(2, 1)]
+    merged <- combineRows(a, b)
+    expect_identical(colnames(merged), colnames(a))
+    expect_identical(unname(assay(merged, "altFreq")),
+                     unname(assay(example_whe[1:10, 1:2], "altFreq")))
+    expect_identical(unname(assay(merged, "qcPass")),
+                     unname(assay(example_whe[1:10, 1:2], "qcPass")))
+    ## other samples are an error that names them
+    other <- example_whe[6:10, 1:2]
+    colnames(other) <- c("X1", "X2")
+    expect_error(combineRows(a, other), paste0(
+        "argument 2 lacks 2 of the first object's samples \\(donor, ",
+        "recipient\\) and has 2 samples the first object lacks \\(X1, X2\\)"))
+    expect_error(combineRows(a, example_whe[6:10, 1]),
+                 "argument 2 lacks 1 of the first object's samples \\(recipient\\)")
+})
+
 # ---- combineCols ----
 
 test_that("combineCols combines WHE objects by columns", {

@@ -1,6 +1,6 @@
 Package: WithinHostExperiment
 Title: Within-Host Pathogen Variant QC, Diversity, and Bottleneck
-Version: 0.99.1
+Version: 0.99.2
 Authors@R:
     person(given = "Cuiwei", family = "Gao",
     email = "48gaocuiwei@gmail.com",

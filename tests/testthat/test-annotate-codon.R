@@ -486,6 +486,70 @@ test_that("a site past the end of its sequence gets one clear warning", {
     expect_identical(codon_mc(out)$REFAA, c("M", NA))
 })
 
+test_that("a site past the end gets one warning in a narrow console too", {
+    skip_if_not_installed("txdbmaker")
+    ## GenomicRanges wraps its own out-of-bound warning with wmsg(); at
+    ## this width the line break falls inside "out-of-bound range"
+    local_reproducible_output(width = 46)
+    ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+    whe <- codon_whe(c(1, 200), c("A", "A"), c("G", "G"))
+    msgs <- character()
+    withCallingHandlers(annotateCodonChange(whe, cds_gr(1, 15), ref),
+        warning = function(w) {
+            msgs <<- c(msgs, conditionMessage(w))
+            invokeRestart("muffleWarning")
+        })
+    expect_length(msgs, 1L)
+    expect_match(msgs, "1 site\\(s\\) lie beyond the end")
+})
+
+test_that("recording lengths muffles the out-of-bound warning at any width", {
+    ## where wmsg() breaks GenomicRanges' warning depends on the width and
+    ## on its exact wording, so check a wide range of widths directly
+    rr <- GenomicRanges::GRanges("seg1",
+        IRanges::IRanges(c(1, 200), width = 1))
+    ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+    leaks_at <- function(width) {
+        local_reproducible_output(width = width)
+        leaked <- FALSE
+        withCallingHandlers(WithinHostExperiment:::.fillSeqlengths(rr, ref),
+            warning = function(w) {
+                leaked <<- TRUE
+                invokeRestart("muffleWarning")
+            })
+        leaked
+    }
+    widths <- 20:150
+    expect_identical(widths[vapply(widths, leaks_at, logical(1))], integer())
+})
+
+test_that("the TxDb built from CDS ranges does not warn about its genome", {
+    is_no_genome <- WithinHostExperiment:::.isNoGenomeWarning
+    ## the wording before and from txdbmaker 1.9.2, each also as wmsg()
+    ## wraps it in a console 30 characters wide
+    expect_true(is_no_genome(simpleWarning(
+        "genome version information is not available for this TxDb object")))
+    expect_true(is_no_genome(simpleWarning(paste0(
+        "genome version information\n  is not available for this\n",
+        "  TxDb object"))))
+    expect_true(is_no_genome(simpleWarning(
+        "genome assembly is not available for this TxDb object")))
+    expect_true(is_no_genome(simpleWarning(
+        "genome assembly is not\n  available for this TxDb\n  object")))
+    expect_false(is_no_genome(simpleWarning(paste(
+        "chromosome lengths and circularity flags are not available",
+        "for this TxDb object"))))
+    expect_false(is_no_genome(simpleWarning(character(0))))
+    skip_if_not_installed("txdbmaker")
+    ## a narrow console makes wmsg() break the message over lines
+    local_reproducible_output(width = 30)
+    whe <- codon_whe(1, "A", "G")
+    cds <- cds_gr(1, 15)
+    ref <- Biostrings::DNAStringSet(c(seg1 = "ATGCTGAAAGGGTAA"))
+    expect_no_warning(out <- annotateCodonChange(whe, cds, ref))
+    expect_identical(codon_mc(out)$VARAA, "V")
+})
+
 test_that("annotateCodonChange explains a single DNAString or empty path", {
     ref <- Biostrings::DNAString("ATGCTGAAAGGGTAA")
     whe <- codon_whe(1, "A", "G")

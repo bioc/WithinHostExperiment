@@ -64,8 +64,8 @@ NULL
         withCallingHandlers({
             seqlengths(rr) <- known
         }, warning = function(w) {
-            if (grepl("out-of-bound range", conditionMessage(w),
-                      fixed = TRUE))
+            if (isTRUE(grepl("out-of-bound range", .flatMessage(w),
+                             fixed = TRUE, useBytes = TRUE)))
                 invokeRestart("muffleWarning")
         })
     }
@@ -439,11 +439,24 @@ NULL
         txdbmaker::makeTxDb(transcripts_df, splicings, genes,
                             chrominfo = chrominfo),
         warning = function(w) {
-            if (grepl("genome version information is not available",
-                      conditionMessage(w), fixed = TRUE))
+            if (.isNoGenomeWarning(w))
                 invokeRestart("muffleWarning")
         })
 }
+
+## The text of a condition on one line. wmsg() breaks long messages at
+## the console width, which would defeat matching them by their words.
+.flatMessage <- function(w)
+    gsub("[[:space:]]+", " ", conditionMessage(w), useBytes = TRUE)
+
+## makeTxDb() warns when no genome assembly is given. The TxDb is built
+## from bare CDS ranges and only used inside this package, so that
+## warning is muffled and any other is passed on. txdbmaker 1.9.2
+## reworded it ("genome version information is not available" became
+## "genome assembly is not available"), so the message is matched
+## loosely.
+.isNoGenomeWarning <- function(w)
+    isTRUE(grepl("^genome .*not available", .flatMessage(w), useBytes = TRUE))
 
 #' @rdname annotateCodonChange
 #' @export

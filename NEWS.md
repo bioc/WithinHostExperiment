@@ -1,3 +1,14 @@
+# WithinHostExperiment 0.99.3
+
+## Corrections
+
+* `annotateCodonChange()` and `pNpSWithinHost()` given CDS ranges no
+  longer pass on txdbmaker's warning that the TxDb they build has no
+  genome assembly. txdbmaker 1.9.2 reworded that warning, which the
+  package matched by its exact text, so two tests failed on the
+  Bioconductor build machine. Both that warning and GenomicRanges'
+  out-of-bound warning are now recognised at any console width.
+
 # WithinHostExperiment 0.99.2
 
 Corrections to functions that the earlier reviews had not examined. Each

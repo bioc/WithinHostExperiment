@@ -15,8 +15,8 @@ branch, which is the easiest place to make a mistake.
 | New features, changed defaults, refactoring, documentation for the next release | `main` | `devel` | 1.1.z (odd y) |
 | Bug fixes and documentation corrections for users of Bioconductor 3.24 | `RELEASE_3_24`, after `main` | `RELEASE_3_24`, after `devel` | 1.0.z (even y) |
 
-- GitHub `main` has the same code as Bioconductor `devel` but only our
-  own commits; see Pushing.
+- GitHub `main` and `RELEASE_3_24` have the same code as the
+  Bioconductor branches but only our own commits; see Pushing.
 - `RELEASE_3_24` takes bug fixes and documentation corrections only.
   New features and changed defaults wait on `main` for Bioconductor
   3.25 (spring 2027).
@@ -32,8 +32,8 @@ Bioconductor uses x.y.z version numbers
 (<https://contributions.bioconductor.org/versionnum.html>):
 
 - y is odd on `devel` (1.1.z) and even on the release branch (1.0.z).
-  The Bioconductor team changes y on `devel` at each release; make the
-  same change on `main` in a commit of our own. Do not change x or y
+  The Bioconductor team changes y at each release; make the same
+  change on GitHub in a commit of our own. Do not change x or y
   otherwise.
 - Bump z in every commit that should reach users: 1.1.0 to 1.1.1 on
   `devel`, 1.0.0 to 1.0.1 on `RELEASE_3_24`. A pushed commit without a
@@ -78,14 +78,16 @@ git push upstream bioc-devel:devel
 git push origin main
 ```
 
-Release (the same branch on both sides):
+Release works the same way:
 
 ```sh
-git fetch upstream
-git checkout -b RELEASE_3_24 upstream/RELEASE_3_24   # first time only
+git checkout RELEASE_3_24
 git cherry-pick <commit on main>
 # bump z in DESCRIPTION (1.0.0 to 1.0.1) and commit
-git push upstream RELEASE_3_24
+git fetch upstream
+git checkout -B bioc-release upstream/RELEASE_3_24
+git cherry-pick <commits from RELEASE_3_24>
+git push upstream bioc-release:RELEASE_3_24
 git push origin RELEASE_3_24
 ```
 

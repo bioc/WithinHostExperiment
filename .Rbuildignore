@@ -20,3 +20,4 @@
 ^inst/scripts/readme_values$
 ^inst/(?!(extdata|doc|scripts|CITATION)$)[^/]+$
 ^inst/scripts/reproduce_all\.R$
+^\.mailmap$

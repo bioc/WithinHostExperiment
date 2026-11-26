@@ -2,9 +2,9 @@ Package: WithinHostExperiment
 Title: Within-Host Pathogen Variant QC, Diversity, and Bottleneck
 Version: 1.1.0
 Authors@R:
-    person(given = "Cuiwei", family = "Gao",
-    email = "48gaocuiwei@gmail.com",
-    role = c("aut", "cre"))
+    person("Cuiwei", "Gao", email = "48gaocuiwei@gmail.com",
+           role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0009-0002-4896-0601"))
 Description: Provides a SummarizedExperiment-based container and
     workflow functions for analysing intra-host single nucleotide
     variants (iSNV) from pathogen deep sequencing data. Supports

@@ -2,18 +2,12 @@
 # with a BiocCheck job added for Bioconductor.
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
 #
-# main is Bioconductor devel and RELEASE_* branches are Bioconductor
-# releases, so the versions follow the branch: R-devel for devel
-# (Bioconductor 3.25), and R 4.6 with Bioconductor 3.24 for RELEASE_3_24.
-#
-# R_BIOC_VERSION sets the Bioconductor version that pak installs from.
-# Without it pak uses the default built into R, which lags behind: on
-# 2026-11-26 that was 3.23 for R 4.6, and for R-devel 3.24 on Linux and
-# macOS but 3.23 on Windows. main goes without it for now, because the
-# day after the release the 3.25 repository still lacked
-# VariantAnnotation, rtracklayer and four other dependencies; set it to
-# '3.25' once they are there. Update all of these values when
-# Bioconductor 3.25 is released.
+# main is Bioconductor devel (R-devel) and RELEASE_3_24 is the 3.24
+# release (R 4.6). Release branches also set R_BIOC_VERSION, because the
+# Bioconductor version R picks by default lags behind. main will set it
+# to 3.25 once that repository has all our dependencies; until then leave
+# it out rather than empty, since R CMD build fails on an empty value.
+# Update these values when Bioconductor 3.25 is released.
 on:
   push:
     branches: [main, 'RELEASE_*']
@@ -25,7 +19,6 @@ permissions: read-all
 
 env:
   R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.6' || 'devel' }}
-  R_BIOC_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '3.24' || '' }}
 
 jobs:
   R-CMD-check:
@@ -52,11 +45,9 @@ jobs:
           r-version: ${{ env.R_VERSION }}
           http-user-agent: ${{ runner.os == 'Linux' && env.R_VERSION == 'devel' && 'release' || '' }}
 
-      # R-devel has no macOS binaries, so every dependency is compiled here
-      # (pak 0.11.2 also recompiles the packages that come with R,
-      # r-lib/pak#926). nlme and Matrix include <libintl.h>, which CRAN's
-      # macOS build of R expects under /opt/R/arm64; install.libs() puts
-      # CRAN's own gettext build there (r-lib/actions#1017).
+      # There are no macOS binaries for R-devel, so dependencies are built
+      # from source, and nlme and Matrix need gettext's libintl.h where
+      # CRAN's R looks for it (r-lib/actions#1017).
       - name: Install gettext for source builds (macOS, R-devel)
         if: runner.os == 'macOS' && env.R_VERSION == 'devel'
         run: |

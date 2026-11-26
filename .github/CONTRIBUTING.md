@@ -107,10 +107,11 @@ GitHub ruleset blocks force-pushes and deletion on `main` and on
 
 ## Continuous integration
 
-The workflows in `.github/workflows/` run on `main` with R-devel
-(Bioconductor devel) and on `RELEASE_*` branches with R 4.6
-(Bioconductor 3.24): `R CMD check` on Linux, macOS and Windows,
-`BiocCheckGitClone()` and `BiocCheck()`, test coverage, and a check of
-`citation()`, links and spelling. The pkgdown site is built from `main`
-only. When Bioconductor 3.25 is released, update the R versions in the
-workflow files.
+The workflows in `.github/workflows/` run on `main` with R-devel and on
+`RELEASE_*` branches with R 4.6 and Bioconductor 3.24: `R CMD check` on
+Linux, macOS and Windows, `BiocCheckGitClone()` and `BiocCheck()`, test
+coverage, and a check of `citation()`, links and spelling. The pkgdown
+site is built from `main` only. `R_VERSION` and `R_BIOC_VERSION` at the
+top of each workflow set the versions; `R-CMD-check.yaml` explains why
+`main` does not pin a Bioconductor version yet. When Bioconductor 3.25
+is released, update both.

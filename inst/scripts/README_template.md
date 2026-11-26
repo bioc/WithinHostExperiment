@@ -5,8 +5,10 @@
 *Bioconductor Infrastructure for Within-Host Pathogen Variant QC,
 Diversity, and Transmission Bottleneck Workflows*
 
+[![Platforms](https://bioconductor.org/shields/availability/release/WithinHostExperiment.svg)](https://bioconductor.org/packages/WithinHostExperiment/)
+[![Bioconductor devel build](https://bioconductor.org/shields/build/devel/bioc/WithinHostExperiment.svg)](https://bioconductor.org/checkResults/devel/bioc-LATEST/WithinHostExperiment/)
+[![DOI](https://img.shields.io/badge/DOI-10.18129%2FB9.bioc.WithinHostExperiment-blue.svg)](https://doi.org/10.18129/B9.bioc.WithinHostExperiment)
 [![License: Artistic-2.0](https://img.shields.io/badge/License-Artistic--2.0-blue.svg)](https://opensource.org/licenses/Artistic-2.0)
-[![BioC status](https://img.shields.io/badge/Bioconductor-in%20review-orange.svg)](https://github.com/Bioconductor/BiocContributions/issues/199)
 
 </div>
 

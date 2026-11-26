@@ -3,8 +3,8 @@
 # declared in DESCRIPTION). Links can break without any change here, so
 # this also runs once a week.
 #
-# R-devel for Bioconductor devel (main), R 4.6 for RELEASE_3_24; see
-# R-CMD-check.yaml.
+# R-devel for Bioconductor devel (main), R 4.6 and Bioconductor 3.24 for
+# RELEASE_3_24; see R-CMD-check.yaml.
 on:
   push:
     branches: [main, 'RELEASE_*']
@@ -19,6 +19,7 @@ permissions: read-all
 
 env:
   R_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '4.6' || 'devel' }}
+  R_BIOC_VERSION: ${{ startsWith(github.base_ref || github.ref_name, 'RELEASE_') && '3.24' || '' }}
 
 jobs:
   docs-check:

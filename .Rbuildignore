@@ -18,5 +18,5 @@
 ^inst/scripts/real_data/farjo_longitudinal$
 ^inst/scripts/real_data/sars2_NC045512\.gff3$
 ^inst/scripts/readme_values$
-^inst/(?!(extdata|doc|scripts)$)[^/]+$
+^inst/(?!(extdata|doc|scripts|CITATION)$)[^/]+$
 ^inst/scripts/reproduce_all\.R$

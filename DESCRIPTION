@@ -47,6 +47,7 @@ biocViews: Genetics, VariantAnnotation, Sequencing, GenomicVariation,
 URL: https://github.com/CuiweiG/WithinHostExperiment
 BugReports: https://github.com/CuiweiG/WithinHostExperiment/issues
 Encoding: UTF-8
+Language: en-GB
 LazyData: false
 VignetteBuilder: knitr
 Config/testthat/edition: 3

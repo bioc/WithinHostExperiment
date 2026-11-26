@@ -21,3 +21,4 @@
 ^inst/(?!(extdata|doc|scripts|CITATION)$)[^/]+$
 ^inst/scripts/reproduce_all\.R$
 ^\.mailmap$
+^LICENSE\.md$
